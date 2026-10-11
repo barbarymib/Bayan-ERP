@@ -36,3 +36,6 @@ backups/
 *.sql
 *.dump
 *.bak
+# Prisma migrations MUST be tracked (un-ignore the *.sql rule above)
+!apps/api/prisma/migrations/
+!apps/api/prisma/migrations/**/*.sql
