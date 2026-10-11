@@ -18,7 +18,8 @@ build/
 .flutter-plugins*
 *.iml
 
-archives/
+# runtime archive output (anchored: must NOT match apps/api/src/archives)
+/archives/
 *.log
 .DS_Store
 
@@ -31,8 +32,13 @@ firebase-service-account*.json
 key.properties
 
 # تخزين محلي للكائنات + تفريغات قواعد البيانات
-storage/
-backups/
+/storage/
+/backups/
+apps/api/storage/
+apps/api/backups/
+apps/api/archives/
+!apps/api/src/archives/
+!apps/api/src/backups/
 *.sql
 *.dump
 *.bak
