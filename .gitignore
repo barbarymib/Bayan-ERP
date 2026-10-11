@@ -1,0 +1,38 @@
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Prisma client (يُولَّد بـ prisma generate)
+apps/api/src/generated/
+
+.env
+.env.local
+.env.*.local
+
+flutter/
+.dart_tool/
+build/
+.flutter-plugins*
+*.iml
+
+archives/
+*.log
+.DS_Store
+
+# أسرار/مفاتيح (Firebase، توقيع Android، حسابات خدمة)
+**/google-services.json
+**/GoogleService-Info.plist
+firebase-service-account*.json
+*.jks
+*.keystore
+key.properties
+
+# تخزين محلي للكائنات + تفريغات قواعد البيانات
+storage/
+backups/
+*.sql
+*.dump
+*.bak

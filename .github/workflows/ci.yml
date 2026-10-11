@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependency audit (high+)
+        continue-on-error: true
+        run: pnpm audit --prod --audit-level high
+
+      - name: Secret scan
+        shell: pwsh
+        run: |
+          $patterns = @(
+            'BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY',
+            'AKIA[0-9A-Z]{16}',
+            'ghp_[A-Za-z0-9]{36}',
+            'xox[baprs]-[A-Za-z0-9-]+'
+          )
+          $hits = Get-ChildItem -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\(node_modules|\.git|dist|\.next|build|\.dart_tool|coverage)\\' } |
+            Select-String -Pattern $patterns -ErrorAction SilentlyContinue
+          if ($hits) {
+            $hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+            throw 'Potential secrets detected'
+          }
+          Write-Host 'No secrets detected.'
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Prisma schema validate
+        run: pnpm --filter @bayan/api exec prisma validate
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  mobile:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test

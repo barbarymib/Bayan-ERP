@@ -1,0 +1,59 @@
+name: bayan
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.4
+    container_name: bayan-postgres
+    environment:
+      POSTGRES_USER: bayan
+      POSTGRES_PASSWORD: bayan
+      POSTGRES_DB: bayan
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bayan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: bayan-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # F3: تخزين الكائنات (أرشيفات + نسخ احتياطية) — خادم S3 محلي متوافق مع MinIO.
+  # يُفعَّل في التطبيق عبر STORAGE_DRIVER=s3 مع MINIO_ENDPOINT=localhost.
+  # ملاحظة: MinIO الأصلي أُرشِف وأزيلت صوره من Docker Hub ثم quay.io (2026)
+  # — نعتمد شوكة pgsty/silo النشطة (نفس المتغيرات والأمر وسجل البيانات).
+  minio:
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: bayan-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

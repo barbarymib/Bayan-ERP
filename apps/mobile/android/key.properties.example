@@ -1,0 +1,7 @@
+# قالب إعداد توقيع إصدار أندرويد — انسخه إلى key.properties (غير مُتتبَّع بالـ git).
+# أنشئ المفتاح:  keytool -genkey -v -keystore release.keystore -alias bayan -keyalg RSA -keysize 2048 -validity 10000
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=bayan
+# مسار نسبي إلى مجلد android/app/
+storeFile=release.keystore

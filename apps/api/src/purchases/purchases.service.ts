@@ -1,0 +1,255 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  calcStatementTotals,
+  roundMoney,
+  roundQty,
+  type Discount,
+} from '@bayan/shared';
+import type { AuthUser } from '../auth/auth.decorators.js';
+import { PrismaService } from '../prisma/prisma.module.js';
+import { tenantWhere } from '../common/tenant.js';
+import { NumberingService } from '../numbering.service.js';
+import { PeriodsService } from '../common/periods.service.js';
+import { StockService } from '../common/stock.service.js';
+import { LedgerService } from '../common/ledger.service.js';
+import type { CreatePurchaseDto, QueryPurchasesDto } from './purchases.dto.js';
+
+const toDbDiscountType = (t?: 'percent' | 'amount'): 'PERCENT' | 'AMOUNT' | null =>
+  t === 'percent' ? 'PERCENT' : t === 'amount' ? 'AMOUNT' : null;
+
+@Injectable()
+export class PurchasesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+    private readonly periods: PeriodsService,
+    private readonly stock: StockService,
+    private readonly ledger: LedgerService,
+  ) {}
+
+  async create(dto: CreatePurchaseDto, user: AuthUser) {
+    const tenant = user.companyId ?? null;
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: dto.supplierId } });
+    if (!supplier || (supplier.companyId != null && supplier.companyId !== tenant)) {
+      throw new NotFoundException(`Supplier ${dto.supplierId} not found`);
+    }
+
+    const warehouse =
+      dto.warehouseId != null
+        ? await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } })
+        : await this.prisma.warehouse.findFirst({ where: { code: 'MAIN', ...tenantWhere(tenant) } });
+    if (!warehouse || (warehouse.companyId != null && warehouse.companyId !== tenant)) {
+      throw new NotFoundException('Warehouse not found');
+    }
+    await this.stock.assertMovable(warehouse.id, tenant);
+
+    const number = await this.numbering.issue('PR', user.repCode ?? '', tenant);
+
+    const resolved: {
+      itemId: number;
+      unitId: number;
+      factor: number;
+      qty: number;
+      unitPrice: number;
+      discount?: Discount;
+    }[] = [];
+
+    for (const line of dto.lines) {
+      const item = await this.prisma.item.findFirst({ where: { code: line.itemCode, ...tenantWhere(tenant) } });
+      if (!item) throw new NotFoundException(`Item ${line.itemCode} not found`);
+
+      let unitId = item.baseUnitId;
+      let factor = 1;
+      if (line.unitCode) {
+        const unit = await this.prisma.unit.findUnique({ where: { code: line.unitCode } });
+        if (!unit) throw new NotFoundException(`Unit ${line.unitCode} not found`);
+        if (unit.id !== item.baseUnitId) {
+          const iu = await this.prisma.itemUnit.findUnique({
+            where: { itemId_unitId: { itemId: item.id, unitId: unit.id } },
+          });
+          if (!iu) throw new BadRequestException(`Unit ${line.unitCode} is not linked to item ${item.code}`);
+          if (!iu.isPurchase) throw new BadRequestException(`Unit ${line.unitCode} is not a purchase unit`);
+          unitId = unit.id;
+          factor = Number(iu.factorToBase);
+        }
+      }
+
+      resolved.push({ itemId: item.id, unitId, factor, qty: line.qty, unitPrice: line.unitPrice, discount: line.discount });
+    }
+
+    const totals = calcStatementTotals({
+      lines: resolved.map((r) => ({ qty: r.qty, unitPrice: r.unitPrice, discount: r.discount })),
+      headerDiscount: dto.discount,
+      shipping: dto.shipping,
+      taxPercent: dto.taxPercent,
+    });
+
+    if (dto.paid && dto.paid > totals.net) {
+      throw new BadRequestException(`paid (${dto.paid}) cannot exceed net (${totals.net})`);
+    }
+
+    const period = await this.periods.open(tenant);
+    const pvNumber = dto.paid ? await this.numbering.issue('PV', user.repCode ?? '', tenant) : null;
+
+    const purchase = await this.prisma.$transaction(async (tx) => {
+      const p = await tx.purchaseStatement.create({
+        data: {
+          number,
+          supplierId: supplier.id,
+          warehouseId: warehouse.id,
+          companyId: tenant,
+          date: dto.date ? new Date(dto.date) : new Date(),
+          status: 'APPROVED',
+          subtotal: totals.subtotal,
+          discountType: toDbDiscountType(dto.discount?.type),
+          discountValue: dto.discount?.value ?? null,
+          discountAmount: totals.headerDiscountAmount,
+          shipping: totals.shipping,
+          net: totals.net,
+          paid: dto.paid ?? 0,
+          notes: dto.notes,
+          periodId: period?.id ?? null,
+          lines: {
+            create: resolved.map((r, i) => {
+              const qtyBase = roundQty(r.qty * r.factor);
+              const t = totals.lines[i]!;
+              return {
+                itemId: r.itemId,
+                unitId: r.unitId,
+                factor: r.factor,
+                qty: r.qty,
+                qtyBase,
+                unitPrice: r.unitPrice,
+                lineDiscountType: toDbDiscountType(r.discount?.type),
+                lineDiscountValue: r.discount?.value ?? null,
+                lineDiscountAmount: t.lineDiscountAmount,
+                netLine: t.netFinal,
+                landedCost: qtyBase > 0 ? roundMoney(t.netFinal / qtyBase) : 0,
+                periodId: period?.id ?? null,
+              };
+            }),
+          },
+        },
+      });
+
+      for (const line of resolved) {
+        const qtyBase = roundQty(line.qty * line.factor);
+        const i = resolved.indexOf(line);
+        const t = totals.lines[i]!;
+        const baseCost = qtyBase > 0 ? t.netFinal / qtyBase : 0;
+        await this.stock.purchaseIn(tx, {
+          warehouseId: warehouse.id,
+          refType: 'purchase_statement',
+          refId: p.id,
+          userId: user.id,
+          periodId: period?.id ?? null,
+          companyId: tenant,
+          lines: [{ itemId: line.itemId, qtyBase, cost: baseCost }],
+        });
+        await tx.item.update({
+          where: { id: line.itemId },
+          data: { lastPurchaseCost: roundMoney(baseCost) },
+        });
+      }
+
+      await this.ledger.entry(tx, {
+        periodId: period?.id ?? null,
+        companyId: tenant,
+        accountType: 'SUPPLIER',
+        accountId: supplier.id,
+        credit: totals.net,
+        refType: 'purchase_statement',
+        refId: p.id,
+        description: `بيان توريد ${number}`,
+      });
+
+      if (dto.paid) {
+        const cashAccountId = await this.ledger.resolveCashAccountId(tx, tenant);
+        const payment = await tx.payment.create({
+          data: {
+            number: pvNumber!,
+            supplierId: supplier.id,
+            amount: dto.paid,
+            method: dto.paymentMethod ?? 'CASH',
+            paidAt: new Date(),
+            cashAccountId,
+            periodId: period?.id ?? null,
+            companyId: tenant,
+          },
+        });
+        await this.ledger.entry(tx, {
+          periodId: period?.id ?? null,
+          companyId: tenant,
+          accountType: 'SUPPLIER',
+          accountId: supplier.id,
+          debit: dto.paid,
+          refType: 'payment',
+          refId: payment.id,
+          description: `سند صرف ${payment.number}`,
+        });
+        await this.ledger.cashEntry(tx, {
+          periodId: period?.id ?? null,
+          companyId: tenant,
+          cashAccountId,
+          credit: dto.paid,
+          refType: 'payment',
+          refId: payment.id,
+          description: `سند صرف ${payment.number}`,
+        });
+      }
+      return p;
+    });
+
+    const fresh = await this.prisma.purchaseStatement.findUnique({
+      where: { id: purchase.id },
+      include: { lines: { include: { item: true, unit: true } }, supplier: true, warehouse: true },
+    });
+    return fresh;
+  }
+
+  async list(query: QueryPurchasesDto, companyId: number | null = null) {
+    const limit = query.limit ?? 20;
+    const rows = await this.prisma.purchaseStatement.findMany({
+      where: {
+        ...tenantWhere(companyId),
+        ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+        ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+        ...(query.from || query.to
+          ? {
+              date: {
+                ...(query.from ? { gte: new Date(query.from) } : {}),
+                ...(query.to ? { lte: new Date(query.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: {
+        supplier: { select: { id: true, code: true, nameAr: true } },
+        warehouse: { select: { id: true, code: true, nameAr: true } },
+        _count: { select: { lines: true } },
+      },
+      orderBy: { date: 'desc' },
+      take: limit,
+    });
+    return { items: rows };
+  }
+
+  async get(id: number, companyId: number | null = null) {
+    const p = await this.prisma.purchaseStatement.findUnique({
+      where: { id },
+      include: {
+        lines: { include: { item: true, unit: true } },
+        supplier: true,
+        warehouse: true,
+      },
+    });
+    if (!p || (p.companyId != null && p.companyId !== companyId)) {
+      throw new NotFoundException(`Purchase ${id} not found`);
+    }
+    return p;
+  }
+}

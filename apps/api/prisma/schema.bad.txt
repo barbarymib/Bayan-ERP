@@ -1,0 +1,1264 @@
+// ============================================================
+// Bayan ERP — نموذج البيانات الكامل
+// مرجع: docs/bayan-design.md §7.3 + قرارات docs/PLAN.md
+// ADR-1: period_id على كل جداول الحركات منذ البداية
+// ADR-5: دفتر حسابات (Ledger) مدين/دائن
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================ الأنواع (Enums) ============================
+
+enum UnitMeasurement {
+  COUNT // عددي: أعداد صحيحة فقط
+  WEIGHT // وزني: كسور حتى 3 خانات
+}
+
+enum CustomerClassification {
+  A
+  B
+  C
+}
+
+enum WarehouseType {
+  MAIN // رئيسي
+  REP // عهدة مندوب
+  DAMAGED // تالف
+  SHOWROOM // معرض
+}
+
+enum StockMovementType {
+  PURCHASE_IN
+  SALE_OUT
+  RETURN_IN
+  RETURN_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  OPENING
+}
+
+enum DiscountType {
+  PERCENT
+  AMOUNT
+}
+
+enum StatementStatus {
+  DRAFT // مسودة
+  PENDING_REVIEW // بانتظار المراجعة (أوفلاين/تجاوز صلاحية)
+  APPROVED // معتمد
+  ARCHIVED // مرحّل للأرشيف
+  CANCELLED // ملغي
+}
+
+enum PaymentTerm {
+  CASH // نقدي
+  CREDIT // آجل
+  MIXED // مختلط
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CHEQUE
+  WALLET // فودافون كاش / إنستاباي
+}
+
+enum ReturnMode {
+  BY_CUSTOMER
+  BY_REP
+}
+
+enum GoodsCondition {
+  GOOD // صالح
+  DAMAGED // تالف
+}
+
+enum ReturnReasonCode {
+  DEFECT // عيب
+  WRONG_ORDER // خطأ طلب
+  DAMAGED // تلف
+  OTHER // أخرى
+}
+
+enum ApprovalType {
+  ITEM_DISCOUNT
+  HEADER_DISCOUNT
+  BELOW_COST
+  RETURN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum StocktakeStatus {
+  OPEN
+  COUNTING
+  REVIEW
+  APPROVED
+  CLOSED
+}
+
+enum ChequeStatus {
+  UNDER_COLLECTION
+  COLLECTED
+  RETURNED
+}
+
+enum LedgerAccountType {
+  CUSTOMER
+  SUPPLIER
+  CASH
+}
+
+enum VisitStatus {
+  DONE
+  MISSED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  DISABLED
+}
+
+// حالة عرض السعر (§5.16)
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  CONVERTED
+  EXPIRED
+}
+
+// أساس حساب العمولة (تارجت المناديب §5.16)
+enum CommissionBase {
+  COLLECTED // من المبالغ المحصّلة
+  SALES // من إجمالي المبيعات
+}
+
+enum RepTargetPeriod {
+  MONTHLY
+  QUARTERLY
+  CUSTOM
+}
+
+enum BackupStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+// ============================ المستخدمون والصلاحيات ============================
+
+model Role {
+  id          Int                @id @default(autoincrement())
+  code        String             @unique
+  nameAr      String
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          Int                @id @default(autoincrement())
+  code        String             @unique // مثال: statement.create, discount.approve
+  nameAr      String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model User {
+  id                    Int      @id @default(autoincrement())
+  name                  String
+  phone                 String?  @unique
+  email                 String?  @unique
+  passwordHash          String
+  roleId                Int
+  role                  Role     @relation(fields: [roleId], references: [id])
+  companyId             Int?
+  company               Company? @relation(fields: [companyId], references: [id])
+  repCode               String?  @unique
+  maxItemDiscountPct    Decimal  @default(0) @db.Decimal(5, 2)
+  maxInvoiceDiscountPct Decimal  @default(0) @db.Decimal(5, 2)
+  branchId              Int?
+  branch                Branch?  @relation(fields: [branchId], references: [id])
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  createdStatements  PriceStatement[]   @relation("StatementCreatedBy")
+  approvedStatements PriceStatement[]   @relation("StatementApprovedBy")
+  repStatements      PriceStatement[]   @relation("StatementRep")
+  returnStatements   ReturnStatement[]  @relation("ReturnRep")
+  approvedReturns    ReturnStatement[]  @relation("ReturnApprovedBy")
+  keptWarehouses     Warehouse[]
+  customers          Customer[]         @relation("CustomerRep")
+  priceChanges       PriceHistory[]
+  auditLogs          AuditLog[]
+  devices            DeviceRegistration[]
+  openedStocktakes   StocktakeSession[] @relation("StocktakeOpenedBy")
+  approvedStocktakes StocktakeSession[] @relation("StocktakeApprovedBy")
+  decidedApprovals   Approval[]         @relation("ApprovalDecidedBy")
+  requestedApprovals Approval[]         @relation("ApprovalRequestedBy")
+  closedPeriods      Period[]
+  shifts             RepShift[]
+  featureOverrides   UserFeature[]
+  createdArchives    ArchiveRun[]       @relation("ArchiveCreatedBy")
+  confirmedArchives  ArchiveRun[]       @relation("ArchiveConfirmedBy")
+  createdQuotations  Quotation[]        @relation("QuotationCreatedBy")
+  approvedQuotations Quotation[]        @relation("QuotationApprovedBy")
+  repQuotations      Quotation[]        @relation("QuotationRep")
+  repTargets         RepTarget[]
+
+  @@index([companyId])
+  @@index([branchId])
+}
+
+// سجل الشركات (SaaS) — كل شركة مستأجر منفصل
+model Company {
+  id          Int           @id @default(autoincrement())
+  code        String        @unique
+  nameAr      String
+  phone       String?
+  email       String?
+  contactName String?
+  status      CompanyStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  users       User[]
+  features    CompanyFeature[]
+}
+
+// مشرف عام للبيئة (خارج الشركات)
+model GlobalAdmin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  nameAr       String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+// ميزات النظام (Feature Flags) — حالات الاستثناء للشركة/المستخدم
+model SystemFeature {
+  id        Int               @id @default(autoincrement())
+  code      String            @unique
+  nameAr    String
+  enabled   Boolean           @default(true) // الحالة العامة (Global)
+  userOverrides   UserFeature[]
+  companyOverrides CompanyFeature[]
+}
+
+model CompanyFeature {
+  companyId Int
+  featureId Int
+  enabled   Boolean
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  feature   SystemFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, featureId])
+  @@index([featureId])
+}
+
+model UserFeature {
+  userId    Int
+  featureId Int
+  enabled   Boolean
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature   SystemFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@id([userId, featureId])
+  @@index([featureId])
+}
+
+// ============================ الفروع (§5.16 تعدّد الفروع) ============================
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  nameAr    String
+  address   String?
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users      User[]
+  warehouses Warehouse[]
+
+  @@index([active])
+}
+
+// ============================ الأصناف والوحدات والأسعار ============================
+
+model Category {
+  id       Int        @id @default(autoincrement())
+  code     String     @unique
+  nameAr   String
+  nameEn   String?
+  parentId Int?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  items    Item[]
+}
+
+model Brand {
+  id     Int    @id @default(autoincrement())
+  code   String @unique
+  nameAr String
+  items  Item[]
+}
+
+model Unit {
+  id            Int                     @id @default(autoincrement())
+  code          String                  @unique // kg, ton, bar, bag, carton...
+  nameAr        String
+  nameEn        String?
+  measurement   UnitMeasurement
+  itemUnits     ItemUnit[]
+  baseItems     Item[]                  @relation("ItemBaseUnit")
+  saleLines     PriceStatementLine[]
+  returnLines   ReturnLine[]
+  purchaseLines PurchaseStatementLine[]
+  quotationLines QuotationLine[]
+  priceChanges  PriceHistory[]
+}
+
+model Item {
+  id               Int      @id @default(autoincrement())
+  code             String   @unique
+  barcode          String?  @unique
+  qrCode           String?  // QR للصنف (§5.16)
+  nameAr           String
+  nameEn           String?
+  categoryId       Int
+  category         Category @relation(fields: [categoryId], references: [id])
+  brandId          Int?
+  brand            Brand?   @relation(fields: [brandId], references: [id])
+  origin           String?
+  baseUnitId       Int
+  baseUnit         Unit     @relation("ItemBaseUnit", fields: [baseUnitId], references: [id])
+  trackBatch       Boolean  @default(false)
+  minStock         Decimal  @default(0) @db.Decimal(18, 3)
+  lastPurchaseCost Decimal? @db.Decimal(18, 4)
+  active           Boolean  @default(true)
+  // الأصناف المتغيرة: صنف أساسي مع تنويعات (لون/عبوة...)
+  parentItemId     Int?
+  parent           Item?    @relation("ItemVariants", fields: [parentItemId], references: [id])
+  variants         Item[]   @relation("ItemVariants")
+  imageUrl         String?
+
+  attributes     ItemAttribute[]
+  itemUnits      ItemUnit[]
+  prices         ItemPrice[]
+  priceHistory   PriceHistory[]
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
+  stocktakeLines StocktakeLine[]
+  statementLines PriceStatementLine[]
+  returnLines    ReturnLine[]
+  purchaseLines  PurchaseStatementLine[]
+  quotationLines QuotationLine[]
+  specialPrices  SpecialPrice[]
+
+  @@index([categoryId])
+  @@index([nameAr])
+  @@index([barcode])
+}
+
+model ItemAttribute {
+  id     Int    @id @default(autoincrement())
+  itemId Int
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  key    String // قطر، طول، درجة، لون، سعة...
+  value  String
+
+  @@unique([itemId, key])
+}
+
+model ItemUnit {
+  id           Int     @id @default(autoincrement())
+  itemId       Int
+  item         Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  unitId       Int
+  unit         Unit    @relation(fields: [unitId], references: [id])
+  factorToBase Decimal @db.Decimal(18, 6) // معامل التحويل للوحدة الأساسية
+  barcode      String? @unique
+  isSale       Boolean @default(true)
+  isPurchase   Boolean @default(true)
+  allowDecimal Boolean @default(true)
+
+  @@unique([itemId, unitId])
+}
+
+model PriceList {
+  id        Int         @id @default(autoincrement())
+  code      String      @unique
+  nameAr    String
+  active    Boolean     @default(true)
+  customers Customer[]
+  prices    ItemPrice[]
+  priceChanges PriceHistory[]
+  specialPrices SpecialPrice[]
+}
+
+model ItemPrice {
+  id          Int       @id @default(autoincrement())
+  itemId      Int
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  unitId      Int
+  priceListId Int
+  priceList   PriceList @relation(fields: [priceListId], references: [id])
+  price       Decimal   @db.Decimal(18, 4)
+  validFrom   DateTime  @default(now())
+  validTo     DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([itemId, unitId, priceListId])
+  @@index([priceListId])
+}
+
+model PriceHistory {
+  id          Int      @id @default(autoincrement())
+  itemId      Int
+  item        Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  unitId      Int
+  unit        Unit     @relation(fields: [unitId], references: [id])
+  priceListId Int?
+  priceList   PriceList? @relation(fields: [priceListId], references: [id])
+  oldPrice    Decimal? @db.Decimal(18, 4)
+  newPrice    Decimal  @db.Decimal(18, 4)
+  changedById Int
+  changedBy   User     @relation(fields: [changedById], references: [id])
+  changedAt   DateTime @default(now())
+
+  @@index([itemId, changedAt])
+}
+
+// ============================ العملاء والموردون ============================
+
+model Customer {
+  id             Int                    @id @default(autoincrement())
+  code           String                 @unique
+  nameAr         String
+  nameEn         String?
+  activity       String?
+  address        String?
+  lat            Decimal?               @db.Decimal(10, 7)
+  lng            Decimal?               @db.Decimal(10, 7)
+  phone          String?
+  phone2         String?
+  taxNumber      String?
+  priceListId    Int
+  priceList      PriceList              @relation(fields: [priceListId], references: [id])
+  creditLimit    Decimal                @default(0) @db.Decimal(18, 2)
+  creditDays     Int                    @default(0)
+  repId          Int?
+  rep            User?                  @relation("CustomerRep", fields: [repId], references: [id])
+  openingBalance Decimal                @default(0) @db.Decimal(18, 2)
+  classification CustomerClassification @default(C)
+  qrCode         String?
+  active         Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+
+
+  @@index([repId])
+  @@index([nameAr])
+}
+
+model CustomerRepAssignment {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  repId      Int
+  fromDate   DateTime @default(now())
+  toDate     DateTime?
+
+  @@index([repId, fromDate])
+}
+
+model Supplier {
+  id             Int       @id @default(autoincrement())
+  code           String    @unique
+  nameAr         String
+  phone          String?
+  address        String?
+  openingBalance Decimal   @default(0) @db.Decimal(18, 2)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  purchases PurchaseStatement[]
+  payments  Payment[]
+}
+
+// ============================ المخازن والمخزون ============================
+
+model Warehouse {
+  id       Int           @id @default(autoincrement())
+  code     String        @unique
+  nameAr   String
+  type     WarehouseType @default(MAIN)
+  keeperId Int?
+  keeper   User?         @relation(fields: [keeperId], references: [id])
+  branchId Int?
+  branch   Branch?       @relation(fields: [branchId], references: [id])
+  active   Boolean       @default(true)
+
+  balances   StockBalance[]
+  movements  StockMovement[]
+  purchases  PurchaseStatement[]
+  stocktakes StocktakeSession[]
+
+  @@index([branchId])
+}
+
+model StockBalance {
+  warehouseId Int
+  itemId      Int
+  // فارغ ("") = بدون تشغيلة
+  batchId  String   @default("")
+  qtyBase  Decimal  @db.Decimal(18, 3)
+  updatedAt DateTime @updatedAt
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  item      Item      @relation(fields: [itemId], references: [id])
+
+  @@id([warehouseId, itemId, batchId])
+  @@index([itemId])
+}
+
+model StockMovement {
+  id          Int                @id @default(autoincrement())
+  type        StockMovementType
+  warehouseId Int
+  warehouse   Warehouse          @relation(fields: [warehouseId], references: [id])
+  itemId      Int
+  item        Item               @relation(fields: [itemId], references: [id])
+  batchId     String             @default("")
+  // موجب = وارد، سالب = منصرف
+  qtyBase     Decimal            @db.Decimal(18, 3)
+  cost        Decimal?           @db.Decimal(18, 4)
+  refType     String? // price_statement, purchase, return, stocktake...
+  refId       Int?
+  userId      Int?
+  // ADR-1: كل حركة تنتمي لفترة (null = الفترة الحالية المفتوحة)
+  periodId    Int?
+  period      Period?            @relation(fields: [periodId], references: [id])
+  createdAt   DateTime           @default(now())
+
+  @@index([warehouseId, itemId, createdAt])
+  @@index([refType, refId])
+  @@index([periodId])
+}
+
+// ============================ الأرشفة والترحيل (ADR-1) ============================
+
+// حجز مؤقت للكميات (اختياري §5.7): مسودة بيان تحجز الكمية حتى الاعتماد أو الإلغاء
+model StockReservation {
+  id          Int      @id @default(autoincrement())
+  refType     String   @default("price_statement")
+  refId       Int
+  itemId      Int
+  warehouseId Int
+  batchId     String   @default("")
+  qtyBase     Decimal  @db.Decimal(18, 3)
+  status      String   @default("ACTIVE") // ACTIVE | RELEASED
+  createdAt   DateTime @default(now())
+  releasedAt  DateTime?
+
+  @@index([warehouseId, itemId, status])
+  @@index([refType, refId, status])
+}
+
+model Period {
+  id          Int          @id @default(autoincrement())
+  fromDate    DateTime     @db.Date
+  toDate      DateTime     @db.Date
+  status      PeriodStatus @default(OPEN)
+  archiveFile String?
+  checksum    String? // SHA-256 لحزمة الأرشيف
+  closedById  Int?
+  closedBy    User?        @relation(fields: [closedById], references: [id])
+  closedAt    DateTime?
+  createdAt   DateTime     @default(now())
+
+  movements  StockMovement[]
+  purchases  PurchaseStatement[]
+  ledger     LedgerEntry[]
+  stocktakes StocktakeSession[]
+  archives   ArchiveRun[]
+
+}
+
+// ============================ الترحيل والأرشفة (§5.11) ============================
+
+enum ArchiveRunStatus {
+  PRECHECKS
+  READY
+  CONFIRMED
+  RESTORED
+  FAILED
+}
+
+model ArchiveRun {
+  id            Int              @id @default(autoincrement())
+  code          String           @unique // AR-000001
+  fromDate      DateTime         @db.Date
+  toDate        DateTime         @db.Date
+  status        ArchiveRunStatus @default(PRECHECKS)
+  checks        Json? // نتيجة فحوصات ما قبل الترحيل
+  manifest      Json? // manifest الحزمة (الإجماليات + checksums)
+  counts        Json? // أعداد المحذوف/المصرّف
+  bundlePath    String? // مسار ملف .zip على القرص
+  bundleSha256  String? // SHA-256 للحزمة كاملة
+  backupPath    String? // نسخة احتياطية كاملة قبل الحذف
+  note          String?
+  periodId      Int?
+  period        Period?          @relation(fields: [periodId], references: [id])
+  createdById   Int?
+  createdBy     User?            @relation("ArchiveCreatedBy", fields: [createdById], references: [id])
+  confirmedById Int?
+  confirmedBy   User?            @relation("ArchiveConfirmedBy", fields: [confirmedById], references: [id])
+  createdAt     DateTime         @default(now())
+  confirmedAt   DateTime?
+  restoredAt    DateTime?
+
+  openingBalances OpeningBalance[]
+
+}
+
+enum OpeningBalanceKind {
+  CUSTOMER
+  SUPPLIER
+  ITEM
+  CASH
+}
+
+// أرصدة افتتاحية للفترة الجديدة بعد التدوير (§5.11 الخطوة 7)
+model OpeningBalance {
+  id          Int                @id @default(autoincrement())
+  runId       Int
+  run         ArchiveRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  kind        OpeningBalanceKind
+  accountId   Int                @default(0) // customer/supplier id (0 للنقدية)
+  itemId      Int?
+  warehouseId Int?
+  amount      Decimal            @default(0) @db.Decimal(18, 2)
+  qtyBase     Decimal?           @db.Decimal(18, 3)
+  createdAt   DateTime           @default(now())
+
+  @@index([kind])
+  @@index([runId])
+}
+
+// ============================ ترقيم آمن أوفلاين ============================
+
+model NumberBlock {
+  id        Int      @id @default(autoincrement())
+  prefix    String // BP, PR, RT, RC, PV, ST
+  ownerCode String // كود المندوب أو "" للمكتب
+  fromNo    Int
+  toNo      Int
+  lastUsed  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([prefix, ownerCode, fromNo])
+  @@index([prefix, ownerCode])
+}
+
+// ============================ بيان الأسعار ============================
+
+model PriceStatement {
+  id             Int             @id @default(autoincrement())
+  number         String          @unique // BP-M03-000127
+  clientUuid     String          @unique // معرّف الجهاز — يمنع التكرار أوفلاين
+  customerId     Int
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  repId          Int?
+  rep            User?           @relation("StatementRep", fields: [repId], references: [id])
+  warehouseId    Int
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  date           DateTime        @default(now())
+  status         StatementStatus @default(DRAFT)
+  paymentTerm    PaymentTerm     @default(CREDIT)
+  subtotal       Decimal         @db.Decimal(18, 2)
+  discountType   DiscountType?
+  discountValue  Decimal?        @db.Decimal(18, 2)
+  discountAmount Decimal         @default(0) @db.Decimal(18, 2)
+  shipping       Decimal         @default(0) @db.Decimal(18, 2)
+  taxPercent     Decimal         @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal         @default(0) @db.Decimal(18, 2)
+  net            Decimal         @db.Decimal(18, 2)
+  paid           Decimal         @default(0) @db.Decimal(18, 2)
+  lat            Decimal?        @db.Decimal(10, 7)
+  lng            Decimal?        @db.Decimal(10, 7)
+  notes          String?
+  createdById    Int
+  createdBy      User            @relation("StatementCreatedBy", fields: [createdById], references: [id])
+  approvedById   Int?
+  approvedBy     User?           @relation("StatementApprovedBy", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  // ADR-1 + ADR-6
+  periodId       Int?
+  period         Period?         @relation(fields: [periodId], references: [id])
+  archivedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  lines         PriceStatementLine[]
+  revisions     StatementRevision[]
+  receiptAllocs ReceiptAllocation[]
+
+  @@index([customerId, date])
+  @@index([repId, date])
+  @@index([periodId])
+}
+
+model PriceStatementLine {
+  id                      Int            @id @default(autoincrement())
+  statementId             Int
+  statement               PriceStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  itemId                  Int
+  item                    Item           @relation(fields: [itemId], references: [id])
+  unitId                  Int
+  unit                    Unit           @relation(fields: [unitId], references: [id])
+  // لقطة معامل التحويل وقت البيع
+  factor                  Decimal        @db.Decimal(18, 6)
+  qty                     Decimal        @db.Decimal(18, 3)
+  qtyBase                 Decimal        @db.Decimal(18, 3)
+  unitPrice               Decimal        @db.Decimal(18, 4)
+  lineDiscountType        DiscountType?
+  lineDiscountValue       Decimal?       @db.Decimal(18, 2)
+  lineDiscountAmount      Decimal        @default(0) @db.Decimal(18, 2)
+  allocatedHeaderDiscount Decimal        @default(0) @db.Decimal(18, 2)
+  netLine                 Decimal        @db.Decimal(18, 2)
+  // لقطة التكلفة وقت البيع (للأرباح)
+  costSnapshot            Decimal?       @db.Decimal(18, 4)
+  weightNote              String? // الوزن الفعلي مقابل النظري (الحديد)
+  returnLines             ReturnLine[]
+  periodId                Int?
+  createdAt               DateTime       @default(now())
+
+  @@index([statementId])
+  @@index([itemId])
+}
+
+model StatementRevision {
+  id          Int            @id @default(autoincrement())
+  statementId Int
+  statement   PriceStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  revisionNo  Int
+  snapshotJson Json
+  changedById Int
+  reason      String?
+  createdAt   DateTime       @default(now())
+
+  @@unique([statementId, revisionNo])
+}
+
+// ============================ المرتجعات ============================
+
+model ReturnReason {
+  id      Int              @id @default(autoincrement())
+  code    ReturnReasonCode @unique
+  nameAr  String
+}
+
+model ReturnStatement {
+  id           Int             @id @default(autoincrement())
+  number       String          @unique // RT-...
+  clientUuid   String?         @unique
+  mode         ReturnMode
+  customerId   Int?
+  customer     Customer?       @relation(fields: [customerId], references: [id])
+  repId        Int?
+  rep          User?           @relation("ReturnRep", fields: [repId], references: [id])
+  date         DateTime        @default(now())
+  status       StatementStatus @default(DRAFT)
+  total        Decimal         @db.Decimal(18, 2)
+  reasonId     Int?
+  reason       ReturnReason?   @relation(fields: [reasonId], references: [id])
+  notes        String?
+  approvedById Int?
+  approvedBy   User?           @relation("ReturnApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  periodId     Int?
+  period       Period?         @relation(fields: [periodId], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  lines ReturnLine[]
+  @@index([customerId, date])
+  @@index([repId, date])
+  @@index([periodId])
+}
+
+model ReturnLine {
+  id           Int               @id @default(autoincrement())
+  returnId     Int
+  return       ReturnStatement   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  // المرجع لبند البيع الأصلي — أساس التسعير
+  sourceLineId Int
+  sourceLine   PriceStatementLine @relation(fields: [sourceLineId], references: [id])
+  itemId       Int
+  item         Item              @relation(fields: [itemId], references: [id])
+  unitId       Int
+  unit         Unit              @relation(fields: [unitId], references: [id])
+  qty          Decimal           @db.Decimal(18, 3)
+  qtyBase      Decimal           @db.Decimal(18, 3)
+  unitNetPrice Decimal           @db.Decimal(18, 4) // صافي البند الأصلي ÷ كميته
+  lineTotal    Decimal           @db.Decimal(18, 2)
+  condition    GoodsCondition    @default(GOOD)
+  periodId     Int?
+
+  @@index([returnId])
+  @@index([sourceLineId])
+}
+
+// ============================ عرض السعر (Quotation) (§5.16) ============================
+
+model Quotation {
+  id             Int             @id @default(autoincrement())
+  number         String          @unique // QT-...
+  clientUuid     String?         @unique
+  customerId     Int
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  repId          Int?
+  rep            User?           @relation("QuotationRep", fields: [repId], references: [id])
+  warehouseId    Int?
+  warehouse      Warehouse?      @relation(fields: [warehouseId], references: [id])
+  date           DateTime        @default(now())
+  subtotal       Decimal         @db.Decimal(18, 2)
+  discountType   DiscountType?
+  discountValue  Decimal?        @db.Decimal(18, 2)
+  discountAmount Decimal         @default(0) @db.Decimal(18, 2)
+  shipping       Decimal         @default(0) @db.Decimal(18, 2)
+  taxPercent     Decimal         @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal         @default(0) @db.Decimal(18, 2)
+  net            Decimal         @db.Decimal(18, 2)
+  validUntil     DateTime?
+  notes          String?
+  createdById    Int
+  createdBy      User            @relation("QuotationCreatedBy", fields: [createdById], references: [id])
+  approvedById   Int?
+  approvedBy     User?           @relation("QuotationApprovedBy", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  periodId       Int?
+  period         Period?         @relation(fields: [periodId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  lines QuotationLine[]
+
+  @@index([customerId, date])
+  @@index([repId, date])
+  @@index([periodId])
+}
+
+model QuotationLine {
+  id                      Int       @id @default(autoincrement())
+  quotationId             Int
+  quotation               Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  itemId                  Int
+  item                    Item      @relation(fields: [itemId], references: [id])
+  unitId                  Int
+  unit                    Unit      @relation(fields: [unitId], references: [id])
+  factor                  Decimal   @db.Decimal(18, 6)
+  qty                     Decimal   @db.Decimal(18, 3)
+  qtyBase                 Decimal   @db.Decimal(18, 3)
+  unitPrice               Decimal   @db.Decimal(18, 4)
+  lineDiscountType        DiscountType?
+  lineDiscountValue       Decimal?  @db.Decimal(18, 2)
+  lineDiscountAmount      Decimal   @default(0) @db.Decimal(18, 2)
+  allocatedHeaderDiscount Decimal   @default(0) @db.Decimal(18, 2)
+  netLine                 Decimal   @db.Decimal(18, 2)
+  costSnapshot            Decimal?  @db.Decimal(18, 4)
+  periodId                Int?
+  createdAt               DateTime  @default(now())
+
+  @@index([quotationId])
+  @@index([itemId])
+}
+
+model PurchaseStatement {
+  id             Int             @id @default(autoincrement())
+  number         String          @unique // PR-...
+  clientUuid     String?         @unique
+  supplierId     Int
+  supplier       Supplier        @relation(fields: [supplierId], references: [id])
+  warehouseId    Int
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  date           DateTime        @default(now())
+  status         StatementStatus @default(DRAFT)
+  subtotal       Decimal         @db.Decimal(18, 2)
+  discountType   DiscountType?
+  discountValue  Decimal?        @db.Decimal(18, 2)
+  discountAmount Decimal         @default(0) @db.Decimal(18, 2)
+  shipping       Decimal         @default(0) @db.Decimal(18, 2)
+  net            Decimal         @db.Decimal(18, 2)
+  paid           Decimal         @default(0) @db.Decimal(18, 2)
+  notes          String?
+  periodId       Int?
+  period         Period?         @relation(fields: [periodId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  lines PurchaseStatementLine[]
+
+  @@index([supplierId, date])
+  @@index([periodId])
+}
+
+model PurchaseStatementLine {
+  id                 Int               @id @default(autoincrement())
+  statementId        Int
+  statement          PurchaseStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  itemId             Int
+  item               Item              @relation(fields: [itemId], references: [id])
+  unitId             Int
+  unit               Unit              @relation(fields: [unitId], references: [id])
+  factor             Decimal           @db.Decimal(18, 6)
+  qty                Decimal           @db.Decimal(18, 3)
+  qtyBase            Decimal           @db.Decimal(18, 3)
+  unitPrice          Decimal           @db.Decimal(18, 4)
+  lineDiscountType   DiscountType?
+  lineDiscountValue  Decimal?          @db.Decimal(18, 2)
+  lineDiscountAmount Decimal           @default(0) @db.Decimal(18, 2)
+  netLine            Decimal           @db.Decimal(18, 2)
+  // التكلفة النهائية بعد توزيع مصاريف النقل (Landed Cost) — اختياري
+  landedCost         Decimal?          @db.Decimal(18, 4)
+  periodId           Int?
+
+  @@index([statementId])
+}
+
+// ============================ التحصيل والخزينة ============================
+
+model Receipt {
+  id         Int           @id @default(autoincrement())
+  number     String        @unique // RC-...
+  clientUuid String?       @unique // معرّف الجهاز — يمنع التكرار أوفلاين
+  customerId Int
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  amount     Decimal       @db.Decimal(18, 2)
+  method     PaymentMethod @default(CASH)
+  receivedAt DateTime      @default(now())
+  notes      String?
+  chequeId   Int?
+  cheque     Cheque?       @relation(fields: [chequeId], references: [id])
+  periodId   Int?
+  createdAt  DateTime      @default(now())
+
+  allocations ReceiptAllocation[]
+
+  @@index([customerId, receivedAt])
+}
+
+model ReceiptAllocation {
+  id          Int            @id @default(autoincrement())
+  receiptId   Int
+  receipt     Receipt        @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  statementId Int
+  statement   PriceStatement @relation(fields: [statementId], references: [id])
+  amount      Decimal        @db.Decimal(18, 2)
+
+  @@unique([receiptId, statementId])
+}
+
+model Payment {
+  id         Int           @id @default(autoincrement())
+  number     String        @unique // PV-...
+  supplierId Int
+  supplier   Supplier      @relation(fields: [supplierId], references: [id])
+  amount     Decimal       @db.Decimal(18, 2)
+  method     PaymentMethod @default(CASH)
+  paidAt     DateTime      @default(now())
+  notes      String?
+  chequeId   Int?
+  cheque     Cheque?       @relation(fields: [chequeId], references: [id])
+  periodId   Int?
+  createdAt  DateTime      @default(now())
+
+  @@index([supplierId, paidAt])
+}
+
+model Cheque {
+  id          Int          @id @default(autoincrement())
+  number      String
+  bankName    String
+  dueDate     DateTime     @db.Date
+  amount      Decimal      @db.Decimal(18, 2)
+  status      ChequeStatus @default(UNDER_COLLECTION)
+customerId  Int?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  supplierId  Int?
+  supplier    Supplier?  @relation(fields: [supplierId], references: [id])
+  receivedAt  DateTime   @default(now())
+  collectedAt DateTime?
+  createdAt   DateTime     @default(now())
+
+  payments Payment[]
+
+  @@index([status, dueDate])
+}
+
+// ============================ الموافقات ============================
+
+model Approval {
+  id            Int            @id @default(autoincrement())
+  type          ApprovalType
+  refType       String // price_statement, return_statement
+  refId         Int
+  refJson       Json? // نسخة من الطلب للمراجعة
+  requestedById Int
+  requestedBy   User           @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  status        ApprovalStatus @default(PENDING)
+  decidedById   Int?
+  decidedBy     User?          @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+  decidedAt     DateTime?
+  note          String?
+  createdAt     DateTime       @default(now())
+
+  @@index([status, type])
+}
+
+// ============================ الأسعار الخاصة للعملاء/المجموعات (§5.16) ============================
+
+model CustomerGroup {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique
+  nameAr        String
+  active        Boolean        @default(true)
+}
+
+model SpecialPrice {
+  id              Int           @id @default(autoincrement())
+  itemId          Int
+  item            Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  unitId          Int
+  priceListId     Int?
+  priceList       PriceList?    @relation(fields: [priceListId], references: [id])
+  customerId      Int?
+  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerGroupId Int?
+  customerGroup   CustomerGroup? @relation(fields: [customerGroupId], references: [id], onDelete: Cascade)
+  price           Decimal       @db.Decimal(18, 4)
+  validFrom       DateTime      @default(now())
+  validTo         DateTime?
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  @@index([itemId, validFrom])
+  @@index([customerId])
+  @@index([customerGroupId])
+}
+
+// ============================ دفتر الحسابات (ADR-5) ============================
+
+model LedgerEntry {
+  id          Int               @id @default(autoincrement())
+  periodId    Int?
+  period      Period?           @relation(fields: [periodId], references: [id])
+  entryDate   DateTime          @db.Date
+  accountType LedgerAccountType
+  // معرّف الحساب (customer.id أو supplier.id)
+  accountId   Int
+  debit       Decimal           @default(0) @db.Decimal(18, 2)
+  credit      Decimal           @default(0) @db.Decimal(18, 2)
+  refType     String? // price_statement, receipt, payment, return...
+  refId       Int?
+  description String?
+  createdAt   DateTime          @default(now())
+
+  @@index([accountType, accountId, entryDate])
+  @@index([periodId])
+}
+
+// ============================ الجرد ============================
+
+model StocktakeSession {
+  id           Int             @id @default(autoincrement())
+  number       String          @unique // ST-...
+  warehouseId  Int
+  warehouse    Warehouse       @relation(fields: [warehouseId], references: [id])
+  status       StocktakeStatus @default(OPEN)
+  // كلي أو جزئي (فلتر تصنيف/ماركة/مجموعة أصناف)
+  scopeJson    Json?
+  openedById   Int
+  openedBy     User            @relation("StocktakeOpenedBy", fields: [openedById], references: [id])
+  approvedById Int?
+  approvedBy   User?           @relation("StocktakeApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  openedAt     DateTime        @default(now())
+  closedAt     DateTime?
+  notes        String?
+  periodId     Int?
+  period       Period?         @relation(fields: [periodId], references: [id])
+
+  lines StocktakeLine[]
+
+  @@index([warehouseId, status])
+}
+
+model StocktakeLine {
+  id            Int              @id @default(autoincrement())
+  sessionId     Int
+  session       StocktakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  itemId        Int
+  item          Item             @relation(fields: [itemId], references: [id])
+  batchId       String           @default("")
+  // لقطة رصيد النظام وقت فتح الجلسة (Snapshot)
+  systemQtyBase Decimal          @db.Decimal(18, 3)
+  countedQtyBase Decimal?         @db.Decimal(18, 3)
+  diffQty       Decimal?         @db.Decimal(18, 3)
+  lastCost      Decimal?         @db.Decimal(18, 4)
+  diffValue     Decimal?         @db.Decimal(18, 2)
+  recountCount  Int              @default(0)
+
+  @@unique([sessionId, itemId, batchId])
+}
+
+// ============================ الإعدادات ============================
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ============================ تطبيق المناديب (المرحلة 4-5) ============================
+
+model DeviceRegistration {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String    @unique
+  deviceName String?
+  active     Boolean   @default(true)
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model RepShift {
+  id        Int       @id @default(autoincrement())
+  repId     Int
+  rep       User      @relation(fields: [repId], references: [id])
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  startLat  Decimal?  @db.Decimal(10, 7)
+  startLng  Decimal?  @db.Decimal(10, 7)
+  endLat    Decimal?  @db.Decimal(10, 7)
+  endLng    Decimal?  @db.Decimal(10, 7)
+
+  locations RepLocation[]
+
+  @@index([repId, startedAt])
+}
+
+model RepLocation {
+  id         Int       @id @default(autoincrement())
+  repId      Int
+  shiftId    Int
+  shift      RepShift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  lat        Decimal   @db.Decimal(10, 7)
+  lng        Decimal   @db.Decimal(10, 7)
+  accuracy   Decimal?  @db.Decimal(8, 2)
+  battery    Int?
+  capturedAt DateTime  @default(now())
+
+  @@index([repId, capturedAt])
+}
+
+model RepVisit {
+  id         Int        @id @default(autoincrement())
+  repId      Int
+  shiftId    Int?
+  shift      RepShift?  @relation(fields: [shiftId], references: [id])
+  customerId Int
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  status     VisitStatus
+  reason     String?
+  lat        Decimal?   @db.Decimal(10, 7)
+  lng        Decimal?   @db.Decimal(10, 7)
+  at         DateTime   @default(now())
+
+  @@index([repId, at])
+}
+
+// ============================ تارگت المناديب وعمولات (§5.16) ============================
+
+model RepTarget {
+  id         Int            @id @default(autoincrement())
+  repId      Int
+  rep        User           @relation(fields: [repId], references: [id], onDelete: Cascade)
+  periodType RepTargetPeriod @default(MONTHLY)
+  periodFrom DateTime       @db.Date
+  periodTo   DateTime       @db.Date
+  targetAmount Decimal       @db.Decimal(18, 2)
+  commissionBase CommissionBase @default(COLLECTED)
+  commissionRate Decimal      @db.Decimal(5, 2)
+  achievedAmount Decimal      @default(0) @db.Decimal(18, 2)
+  commissionDue  Decimal      @default(0) @db.Decimal(18, 2)
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  @@index([repId, periodFrom])
+}
+
+// ============================ النسخ الاحتياطي التلقائي (§5.16) ============================
+
+model AutomatedBackup {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  filename    String?
+  path        String?
+  size        BigInt?
+  checksum    String?
+  status      BackupStatus @default(RUNNING)
+  startedAt   DateTime     @default(now())
+  completedAt DateTime?
+  notes       String?
+  error       String?
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String // create, update, delete, approve, cancel...
+  entity     String
+  entityId   Int
+  beforeJson Json?
+  afterJson  Json?
+  at         DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId, at])
+}

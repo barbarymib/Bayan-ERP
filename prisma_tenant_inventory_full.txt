@@ -1,0 +1,550 @@
+A) INVENTORY BY FILE AND METHOD (touching scoped models)
+
+FILE: apps/api/src/admin\admin.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/approvals\approvals.service.ts
+  DISTINCT SCOPED MODELS: ['Approval', 'PriceStatement', 'ReturnStatement']
+  - list(query: QueryApprovalsDto) -> models:['Approval', 'PriceStatement', 'ReturnStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - decide(id: number, dto: DecideApprovalDto, user: AuthUser) -> models:['Approval'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/archives\archives.service.ts
+  DISTINCT SCOPED MODELS: ['Approval', 'Brand', 'Category', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'RepShift', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse']
+  - prechecks(fromDate: string, toDate: string) -> models:['Approval'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('roles', this.prisma.role.findMany() -> models:['Approval', 'Brand', 'Category', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('categories', this.prisma.category.findMany() -> models:['Approval', 'Brand', 'Category', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('brands', this.prisma.brand.findMany() -> models:['Approval', 'Brand', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('units', this.prisma.unit.findMany() -> models:['Approval', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('items', this.prisma.item.findMany() -> models:['Approval', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('item_units', this.prisma.itemUnit.findMany() -> models:['Approval', 'Customer', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('item_prices', this.prisma.itemPrice.findMany() -> models:['Approval', 'Customer', 'ItemPrice', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('price_lists', this.prisma.priceList.findMany() -> models:['Approval', 'Customer', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceList', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('customers', this.prisma.customer.findMany() -> models:['Approval', 'Customer', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('suppliers', this.prisma.supplier.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Supplier', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('warehouses', this.prisma.warehouse.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('stock_balances', this.prisma.stockBalance.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('price_statements', this.prisma.priceStatement.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PriceStatement', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('price_statement_lines', this.prisma.priceStatementLine.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('statement_revisions', this.prisma.statementRevision.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('return_statements', this.prisma.returnStatement.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PurchaseStatement', 'Receipt', 'ReturnStatement', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('return_lines', this.prisma.returnLine.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PurchaseStatement', 'Receipt', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('purchase_statements', this.prisma.purchaseStatement.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'PurchaseStatement', 'Receipt', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('purchase_statement_lines', this.prisma.purchaseStatementLine.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'Receipt', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('receipts', this.prisma.receipt.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'Receipt', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('receipt_allocations', this.prisma.receiptAllocation.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('payments', this.prisma.payment.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Payment', 'Period', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('cheques', this.prisma.cheque.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Period', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('stock_movements', this.prisma.stockMovement.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Period', 'StockMovement', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('stocktake_sessions', this.prisma.stocktakeSession.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Period', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('stocktake_lines', this.prisma.stocktakeLine.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Period'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('ledger_entries', this.prisma.ledgerEntry.findMany() -> models:['Approval', 'LedgerEntry', 'NumberBlock', 'Period'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('periods', this.prisma.period.findMany() -> models:['Approval', 'NumberBlock', 'Period'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('number_blocks', this.prisma.numberBlock.findMany() -> models:['Approval', 'NumberBlock'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - read('approvals', this.prisma.approval.findMany() -> models:['Approval'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - confirm(id: number, confirmText: string, userId: number) -> models:['PriceStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - restore(id: number, confirmText: string) -> models:['PriceStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/audit-logs\audit-logs.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/auth\auth.guard.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/auth\auth.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/backups\backups.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/branches\branches.service.ts
+  DISTINCT SCOPED MODELS: ['Branch', 'Warehouse']
+  - create(dto: CreateBranchDto) -> models:['Branch'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryBranchesDto) -> models:['Branch'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['Branch'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateBranchDto) -> models:['Branch'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['Branch', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/categories\categories.service.ts
+  DISTINCT SCOPED MODELS: ['Category', 'Item']
+  - create(dto: CreateCategoryDto) -> models:['Category'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryCategoriesDto) -> models:['Category'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['Category'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateCategoryDto) -> models:['Category'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['Category', 'Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/collections\collections.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'LedgerEntry', 'Payment', 'PriceStatement', 'Receipt', 'Supplier']
+  - createReceipt(dto: CreateReceiptDto, user: AuthUser) -> models:['Customer', 'PriceStatement', 'Receipt'] | user:has AuthUser/@CurrentUser
+  - listReceipts(query: QueryReceiptsDto) -> models:['Receipt'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - getReceipt(id: number) -> models:['Receipt'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - createPayment(dto: CreatePaymentDto, user: AuthUser) -> models:['Payment', 'Supplier'] | user:has AuthUser/@CurrentUser
+  - customerStatement(customerId: number, query: QueryStatementOfAccountDto) -> models:['Customer', 'LedgerEntry', 'PriceStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/common\ledger.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/common\periods.service.ts
+  DISTINCT SCOPED MODELS: ['Period']
+  - open() -> models:['Period'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/common\price-resolver.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'ItemPrice', 'SpecialPrice']
+  - resolve(args: ResolvePriceArgs) -> models:['Customer', 'ItemPrice'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/common\sales-ops.service.ts
+  DISTINCT SCOPED MODELS: ['PriceStatement', 'ReturnStatement', 'Warehouse']
+  - finalizeStatement(statementId: number, by: AuthUser) -> models:['PriceStatement'] | user:has AuthUser/@CurrentUser
+  - finalizeReturn(returnId: number, by: AuthUser) -> models:['ReturnStatement', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - cancelStatement(statementId: number, by: AuthUser) -> models:['PriceStatement'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/common\stock.service.ts
+  DISTINCT SCOPED MODELS: ['StockBalance', 'StockReservation', 'StocktakeSession']
+  - assertMovable(warehouseId: number) -> models:['StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - availableQty(warehouseId: number, itemId: number, batchId = '') -> models:['StockBalance', 'StockReservation'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/customers\customers.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'PriceList']
+  - create(dto: CreateCustomerDto) -> models:['Customer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryCustomersDto) -> models:['Customer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['Customer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateCustomerDto) -> models:['Customer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['Customer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/geo\geo.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'CustomerRepAssignment', 'DeviceRegistration', 'RepLocation', 'RepShift', 'RepVisit']
+  - currentShift(repId: number) -> models:['RepShift'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - startShift(repId: number, dto: StartShiftDto) -> models:['RepShift'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - endShift(repId: number, dto: EndShiftDto) -> models:['RepShift'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - pushLocation(repId: number, dto: LocationDto) -> models:['RepLocation'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - recordVisit(repId: number, dto: VisitDto) -> models:['Customer', 'RepLocation', 'RepVisit'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - liveMap() -> models:['RepLocation', 'RepShift', 'RepVisit'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - route(shiftId: number, viewerRepId?: number) -> models:['RepLocation', 'RepShift', 'RepVisit'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/items\items.service.ts
+  DISTINCT SCOPED MODELS: ['Brand', 'Category', 'Item']
+  - create(dto: CreateItemDto) -> models:['Brand', 'Category', 'Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryItemsDto) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateItemDto) -> models:['Brand', 'Category', 'Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - variants(id: number) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - convert(id: number, fromCode: string, toCode: string, qty: number) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/migration\migration.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/notifications\notifications.service.ts
+  DISTINCT SCOPED MODELS: ['Approval', 'Customer', 'Item', 'LedgerEntry', 'StockBalance']
+  - refreshAlerts() -> models:['Approval', 'Customer', 'Item', 'LedgerEntry', 'StockBalance'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/numbering.service.ts
+  DISTINCT SCOPED MODELS: ['NumberBlock']
+
+FILE: apps/api/src/price-lists\price-lists.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'ItemPrice', 'PriceList']
+  - create(dto: CreatePriceListDto) -> models:['PriceList'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryPriceListsDto) -> models:['PriceList'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['PriceList'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdatePriceListDto) -> models:['PriceList'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['Customer', 'ItemPrice', 'PriceList'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/price-statements\price-statements.service.ts
+  DISTINCT SCOPED MODELS: ['Approval', 'Customer', 'Item', 'PriceStatement', 'Warehouse']
+  - create(dto: CreateStatementDto, user: AuthUser) -> models:['Approval', 'Customer', 'Item', 'PriceStatement', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryStatementsDto) -> models:['PriceStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number, user: AuthUser) -> models:['Approval'] | user:has AuthUser/@CurrentUser
+  - cancel(id: number, dto: CancelStatementDto, user: AuthUser) -> models:['PriceStatement'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/prices\prices.service.ts
+  DISTINCT SCOPED MODELS: ['Item', 'ItemPrice', 'PriceHistory', 'PriceList', 'Supplier']
+  - resolve(query: QueryPriceDto) -> models:['Item', 'ItemPrice', 'PriceList'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - bulk(dto: BulkPriceDto, userId: number) -> models:['Item', 'ItemPrice', 'PriceList', 'Supplier'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - history(itemCode: string, priceListCode: string | undefined, limit: number) -> models:['Item', 'PriceHistory'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/purchase-orders\purchase-orders.service.ts
+  DISTINCT SCOPED MODELS: ['Item', 'PurchaseOrder', 'Supplier', 'Warehouse']
+  - create(dto: CreatePurchaseOrderDto, user: AuthUser) -> models:['Item', 'PurchaseOrder', 'Supplier', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryPurchaseOrdersDto) -> models:['PurchaseOrder'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['PurchaseOrder'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - approve(id: number, user: AuthUser) -> models:['PurchaseOrder'] | user:has AuthUser/@CurrentUser
+  - cancel(id: number, dto: CancelPurchaseOrderDto, user: AuthUser) -> models:['PurchaseOrder'] | user:has AuthUser/@CurrentUser
+  - receive(id: number, dto: ReceivePurchaseOrderDto, user: AuthUser) -> models:['PurchaseOrder'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/purchases\purchases.service.ts
+  DISTINCT SCOPED MODELS: ['Item', 'PurchaseStatement', 'Supplier', 'Warehouse']
+  - create(dto: CreatePurchaseDto, user: AuthUser) -> models:['Item', 'PurchaseStatement', 'Supplier', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryPurchasesDto) -> models:['PurchaseStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['PurchaseStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/quotations\quotations.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'Item', 'Quotation', 'Warehouse']
+  - create(dto: CreateQuotationDto, user: AuthUser) -> models:['Customer', 'Item', 'Quotation', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryQuotationsDto) -> models:['Quotation'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['Quotation'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - convert(id: number, user: AuthUser) -> models:['Quotation'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/rep-targets\rep-targets.service.ts
+  DISTINCT SCOPED MODELS: ['PriceStatement', 'RepTarget']
+  - create(dto: CreateRepTargetDto) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryRepTargetsDto) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateRepTargetDto) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - recalculate(id: number) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - report(dto: CommissionReportDto) -> models:['RepTarget'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/reports\reports.service.ts
+  DISTINCT SCOPED MODELS: ['Approval', 'Customer', 'Item', 'ItemPrice', 'LedgerEntry', 'Payment', 'PriceStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StockMovement', 'StocktakeSession', 'Warehouse']
+  - stockValues(query: QueryStockValuesDto) -> models:['ItemPrice', 'StockBalance', 'StockMovement', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - movements(query: QueryMovementsDto) -> models:['StockMovement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - lowStock() -> models:['StockBalance'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - stockSummary(query: QueryStockSummaryDto) -> models:['StockBalance', 'StockMovement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - summary(query: QueryReportSummaryDto) -> models:['Approval', 'Customer', 'Item', 'Payment', 'PriceStatement', 'Receipt', 'ReturnStatement', 'StockBalance', 'StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - aging(query: QueryAgingDto) -> models:['Customer', 'LedgerEntry'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/returns\returns.service.ts
+  DISTINCT SCOPED MODELS: ['Approval', 'Customer', 'Item', 'ReturnStatement']
+  - create(dto: CreateReturnDto, user: AuthUser) -> models:['Approval', 'Customer', 'Item', 'ReturnStatement'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryReturnsDto) -> models:['ReturnStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['ReturnStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - cancel(id: number, user: AuthUser) -> models:['ReturnStatement'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/sharing\labeling.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'Item']
+  - itemQr(code: string) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - customerQr(code: string) -> models:['Customer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - itemBarcode(code: string) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/sharing\whatsapp.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'PriceStatement']
+  - statementLink(customerId: number, from?: string, to?: string) -> models:['Customer', 'PriceStatement'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/special-prices\special-prices.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'CustomerGroup', 'Item', 'PriceList', 'SpecialPrice']
+  - createGroup(dto: CreateCustomerGroupDto) -> models:['CustomerGroup'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - listGroups(query: QueryCustomerGroupsDto) -> models:['CustomerGroup'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - updateGroup(id: number, dto: UpdateCustomerGroupDto) -> models:['CustomerGroup'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - removeGroup(id: number) -> models:['Customer', 'CustomerGroup', 'SpecialPrice'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - createSpecial(dto: CreateSpecialPriceDto) -> models:['Item', 'SpecialPrice'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - listSpecial(query: QuerySpecialPricesDto) -> models:['SpecialPrice'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - updateSpecial(id: number, dto: UpdateSpecialPriceDto) -> models:['SpecialPrice'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - removeSpecial(id: number) -> models:['SpecialPrice'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/stocktakes\stocktakes.service.ts
+  DISTINCT SCOPED MODELS: ['Item', 'StockBalance', 'StocktakeSession', 'Warehouse']
+  - open(dto: OpenStocktakeDto, user: AuthUser) -> models:['Item', 'StockBalance', 'StocktakeSession', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryStocktakesDto) -> models:['StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - counts(id: number, dto: StocktakeCountsDto, user: AuthUser) -> models:['StocktakeSession'] | user:has AuthUser/@CurrentUser
+  - approve(id: number, user: AuthUser) -> models:['StocktakeSession'] | user:has AuthUser/@CurrentUser
+  - abort(id: number, dto: AbortStocktakeDto, user: AuthUser) -> models:['StocktakeSession'] | user:has AuthUser/@CurrentUser
+  - assertMovable(warehouseId: number) -> models:['StocktakeSession'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/supplier-returns\supplier-returns.service.ts
+  DISTINCT SCOPED MODELS: ['Item', 'Supplier', 'SupplierReturn', 'Warehouse']
+  - create(dto: CreateSupplierReturnDto, user: AuthUser) -> models:['Item', 'Supplier', 'Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QuerySupplierReturnsDto) -> models:['SupplierReturn'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['SupplierReturn'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/suppliers\suppliers.service.ts
+  DISTINCT SCOPED MODELS: ['Supplier']
+  - create(dto: CreateSupplierDto) -> models:['Supplier'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QuerySuppliersDto) -> models:['Supplier'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['Supplier'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateSupplierDto) -> models:['Supplier'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['Supplier'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/sync\sync.service.ts
+  DISTINCT SCOPED MODELS: ['Customer', 'CustomerRepAssignment', 'DeviceRegistration', 'Item', 'LedgerEntry', 'NumberBlock', 'PriceList', 'PriceStatement', 'Receipt', 'ReturnStatement']
+  - registerDevice(user: AuthUser, dto: DeviceRegisterDto) -> models:['DeviceRegistration'] | user:has AuthUser/@CurrentUser
+  - reserveBlocks(user: AuthUser, dto: ReserveBlockDto) -> models:['NumberBlock'] | user:has AuthUser/@CurrentUser
+  - delta(user: AuthUser, since?: string) -> models:['Customer', 'CustomerRepAssignment', 'Item', 'LedgerEntry', 'NumberBlock', 'PriceList', 'PriceStatement'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/transfers\transfers.service.ts
+  DISTINCT SCOPED MODELS: ['StockTransfer', 'Warehouse']
+  - create(dto: CreateTransferDto, user: AuthUser) -> models:['Warehouse'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryTransfersDto) -> models:['StockTransfer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['StockTransfer'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/treasury\treasury.service.ts
+  DISTINCT SCOPED MODELS: ['CashAccount', 'CustodyHandover', 'DailyClose', 'Payment', 'Receipt']
+  - createAccount(dto: CreateCashAccountDto) -> models:['CashAccount'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - listAccounts() -> models:['CashAccount'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - updateAccount(id: number, dto: UpdateCashAccountDto) -> models:['CashAccount'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - createHandover(dto: CreateHandoverDto, user: AuthUser) -> models:['CashAccount', 'CustodyHandover'] | user:has AuthUser/@CurrentUser
+  - listHandovers(query: QueryHandoversDto) -> models:['CustodyHandover'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - dailyClose(dto: DailyCloseDto, user: AuthUser) -> models:['CustodyHandover', 'DailyClose', 'Payment', 'Receipt'] | user:has AuthUser/@CurrentUser
+  - listDailyCloses(limit = 30) -> models:['DailyClose'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - cashSummary() -> models:['CashAccount', 'CustodyHandover', 'Payment', 'Receipt'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/units\units.service.ts
+  DISTINCT SCOPED MODELS: ['Item']
+  - remove(id: number) -> models:['Item'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+FILE: apps/api/src/users\users.service.ts
+  DISTINCT SCOPED MODELS: []
+
+FILE: apps/api/src/visits\visits.service.ts
+  DISTINCT SCOPED MODELS: ['VisitPlan']
+  - create(dto: CreateVisitPlanDto, user: AuthUser) -> models:['VisitPlan'] | user:has AuthUser/@CurrentUser
+  - list(query: QueryVisitPlansDto) -> models:['VisitPlan'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - get(id: number) -> models:['VisitPlan'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - today(user: AuthUser) -> models:['VisitPlan'] | user:has AuthUser/@CurrentUser
+
+FILE: apps/api/src/warehouses\warehouses.service.ts
+  DISTINCT SCOPED MODELS: ['StockBalance', 'StockMovement', 'Warehouse']
+  - create(dto: CreateWarehouseDto) -> models:['Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - list(query: QueryWarehousesDto) -> models:['Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - findOne(id: number) -> models:['Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - update(id: number, dto: UpdateWarehouseDto) -> models:['Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+  - remove(id: number) -> models:['StockBalance', 'StockMovement', 'Warehouse'] | user:none
+      *** FLAG: needs tenant param (no user in method)
+
+B) CROSS-CUTTING COMMON SERVICES
+
+- common\stock.service.ts
+  scoped models touched: ['StockBalance', 'StockReservation', 'StocktakeSession']
+  has companyId/tenant in code: no
+
+- common\ledger.service.ts
+  scoped models touched: []
+  has companyId/tenant in code: no
+
+- common\sales-ops.service.ts
+  scoped models touched: ['PriceStatement', 'ReturnStatement', 'Warehouse']
+  has companyId/tenant in code: no
+
+- common\periods.service.ts
+  scoped models touched: ['Period']
+  has companyId/tenant in code: no
+
+- common\price-resolver.service.ts
+  scoped models touched: ['Customer', 'ItemPrice', 'SpecialPrice']
+  has companyId/tenant in code: no
+
+- numbering.service.ts
+  scoped models touched: ['NumberBlock']
+  has companyId/tenant in code: no
+
+- notifications\notifications.service.ts
+  scoped models touched: ['Approval', 'Customer', 'Item', 'LedgerEntry', 'StockBalance']
+  has companyId/tenant in code: no
+
+- audit-logs\audit-logs.service.ts
+  scoped models touched: []
+  has companyId/tenant in code: no
+
+
+C) CONTROLLERS - @CurrentUser usage
+
+- health.controller.ts does NOT pass @CurrentUser
+
+- admin\admin.controller.ts does NOT pass @CurrentUser
+
+- approvals\approvals.controller.ts passes @CurrentUser
+
+- archives\archives.controller.ts passes @CurrentUser
+
+- audit-logs\audit-logs.controller.ts does NOT pass @CurrentUser
+
+- auth\auth.controller.ts passes @CurrentUser
+
+- backups\backups.controller.ts passes @CurrentUser
+
+- branches\branches.controller.ts does NOT pass @CurrentUser
+
+- categories\categories.controller.ts does NOT pass @CurrentUser
+
+- collections\collections.controller.ts passes @CurrentUser
+
+- customers\customers.controller.ts does NOT pass @CurrentUser
+
+- geo\geo.controller.ts passes @CurrentUser
+
+- items\items.controller.ts does NOT pass @CurrentUser
+
+- migration\migration.controller.ts passes @CurrentUser
+
+- notifications\notifications.controller.ts passes @CurrentUser
+
+- price-lists\price-lists.controller.ts does NOT pass @CurrentUser
+
+- price-statements\price-statements.controller.ts passes @CurrentUser
+
+- prices\prices.controller.ts passes @CurrentUser
+
+- purchase-orders\purchase-orders.controller.ts passes @CurrentUser
+
+- purchases\purchases.controller.ts passes @CurrentUser
+
+- quotations\quotations.controller.ts passes @CurrentUser
+
+- rep-targets\rep-targets.controller.ts does NOT pass @CurrentUser
+
+- reports\reports.controller.ts does NOT pass @CurrentUser
+
+- returns\returns.controller.ts passes @CurrentUser
+
+- sharing\labeling.controller.ts does NOT pass @CurrentUser
+
+- sharing\whatsapp.controller.ts does NOT pass @CurrentUser
+
+- special-prices\customer-groups.controller.ts does NOT pass @CurrentUser
+
+- special-prices\special-prices.controller.ts does NOT pass @CurrentUser
+
+- stocktakes\stocktakes.controller.ts passes @CurrentUser
+
+- supplier-returns\supplier-returns.controller.ts passes @CurrentUser
+
+- suppliers\suppliers.controller.ts does NOT pass @CurrentUser
+
+- sync\sync.controller.ts passes @CurrentUser
+
+- transfers\transfers.controller.ts passes @CurrentUser
+
+- treasury\treasury.controller.ts passes @CurrentUser
+
+- units\units.controller.ts does NOT pass @CurrentUser
+
+- users\users.controller.ts passes @CurrentUser
+
+- visits\visits.controller.ts passes @CurrentUser
+
+- warehouses\warehouses.controller.ts does NOT pass @CurrentUser
