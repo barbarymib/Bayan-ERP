@@ -331,7 +331,9 @@ async function main(): Promise<void> {
 
   const retail = await prisma.priceList.findUniqueOrThrow({ where: { companyId_code: { companyId: company.id, code: 'RETAIL' } } });
   const steel = await prisma.category.findUniqueOrThrow({ where: { companyId_code: { companyId: company.id, code: 'STEEL' } } });
+  const kg = await prisma.unit.findUniqueOrThrow({ where: { code: 'kg' } });
   const ton = await prisma.unit.findUniqueOrThrow({ where: { code: 'ton' } });
+  const bar = await prisma.unit.findUniqueOrThrow({ where: { code: 'bar' } });
   const pc = await prisma.unit.findUniqueOrThrow({ where: { code: 'pc' } });
 
   for (const c of [
@@ -357,13 +359,27 @@ async function main(): Promise<void> {
   }
 
   for (const i of [
-    { code: 'IR-16-10', nameAr: 'حديد تسليح 16مم - 10م', baseUnitId: ton.id },
+    { code: 'IR-16-10', nameAr: 'حديد تسليح 16مم - 10م', baseUnitId: kg.id },
     { code: 'PT-20-02', nameAr: 'مواسير صرف 20مم - 2م', baseUnitId: pc.id },
   ]) {
     await prisma.item.upsert({
       where: { companyId_code: { companyId: company.id, code: i.code } },
       update: {},
       create: { code: i.code, nameAr: i.nameAr, categoryId: steel.id, baseUnitId: i.baseUnitId, companyId: company.id },
+    });
+  }
+
+  const irItem = await prisma.item.findUniqueOrThrow({
+    where: { companyId_code: { companyId: company.id, code: 'IR-16-10' } },
+  });
+  for (const iu of [
+    { unitId: ton.id, factorToBase: 1000 },
+    { unitId: bar.id, factorToBase: 15.79 },
+  ]) {
+    await prisma.itemUnit.upsert({
+      where: { itemId_unitId: { itemId: irItem.id, unitId: iu.unitId } },
+      update: {},
+      create: { itemId: irItem.id, unitId: iu.unitId, factorToBase: iu.factorToBase },
     });
   }
 
@@ -445,11 +461,27 @@ async function main(): Promise<void> {
       data: {
         name: 'مندوب المبيعات',
         phone: repPhone,
+        repCode: 'M03',
         passwordHash: hashSync('rep12345', 10),
         roleId: repRole.id,
         companyId: company.id,
       },
     });
+  }
+
+  const repUser = await prisma.user.findFirst({ where: { phone: repPhone } });
+  const cust01 = await prisma.customer.findUnique({
+    where: { companyId_code: { companyId: company.id, code: 'CUST-01' } },
+  });
+  if (repUser && cust01) {
+    const existingAssignment = await prisma.customerRepAssignment.findFirst({
+      where: { companyId: company.id, customerId: cust01.id, repId: repUser.id },
+    });
+    if (!existingAssignment) {
+      await prisma.customerRepAssignment.create({
+        data: { companyId: company.id, customerId: cust01.id, repId: repUser.id },
+      });
+    }
   }
 
   // ربط بيانات الشركة الافتراضية بجميع سجلات الأعمال (§12.2) — يمهد لعزل الاستعلامات

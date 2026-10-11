@@ -190,4 +190,19 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
     expect(res.errors).toBe(0);
     expect(res.results.customers?.[0]?.action).toBe('CREATED');
   });
+
+  it('يربط كل السجلات المستوردة بمُعرّف الشركة (عزل المستأجرين)', async () => {
+    const { prisma, created } = makePrisma();
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const res = await svc.importPayload(payloadFixture, 1, 7);
+    expect(res.errors).toBe(0);
+    expect(created.category?.[0]).toMatchObject({ companyId: 7 });
+    expect(created.priceList?.[0]).toMatchObject({ companyId: 7 });
+    expect(created.warehouse?.[0]).toMatchObject({ companyId: 7 });
+    expect(created.item?.[0]).toMatchObject({ companyId: 7 });
+    expect(created.supplier?.[0]).toMatchObject({ companyId: 7 });
+    expect(created.customer?.[0]).toMatchObject({ companyId: 7 });
+    const stockArgs = stockMock.purchaseIn.mock.calls[0]?.[1] as { companyId: number };
+    expect(stockArgs.companyId).toBe(7);
+  });
 });

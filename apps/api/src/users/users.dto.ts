@@ -44,6 +44,12 @@ export class CreateUserDto {
   @MaxLength(10)
   repCode?: string;
 
+  @ApiPropertyOptional({ example: 1, description: 'معرف الفرع المسؤول' })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  branchId?: number;
+
   @ApiProperty({ minLength: 6 })
   @IsString()
   @MinLength(6)
@@ -92,6 +98,11 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(10)
   repCode?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  branchId?: number | null;
 
   @IsOptional()
   @IsString()

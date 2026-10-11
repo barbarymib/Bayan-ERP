@@ -14,7 +14,7 @@ export class MigrationController {
   @Permissions('opening_stock.execute')
   @ApiOkResponse({ description: 'استيراد بيانات النظام القديم (تجربة موازية — مرحلة الإطلاق)' })
   import(@Body() dto: LegacyImportDto, @CurrentUser() user: AuthUser) {
-    return this.migration.importPayload(dto, user.id);
+    return this.migration.importPayload(dto, user.id, user.companyId ?? null);
   }
 
   @Get('template')

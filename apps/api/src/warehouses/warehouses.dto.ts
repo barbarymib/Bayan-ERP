@@ -24,6 +24,11 @@ export class CreateWarehouseDto {
   @IsOptional()
   @IsInt()
   keeperId?: number;
+
+  @ApiPropertyOptional({ example: 1, description: 'معرّف الفرع' })
+  @IsOptional()
+  @IsInt()
+  branchId?: number;
 }
 
 export class UpdateWarehouseDto {
@@ -39,6 +44,10 @@ export class UpdateWarehouseDto {
   @IsOptional()
   @IsInt()
   keeperId?: number;
+
+  @IsOptional()
+  @IsInt()
+  branchId?: number | null;
 
   @IsOptional()
   @IsBoolean()

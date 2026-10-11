@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { hash } from 'bcryptjs';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
+import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreateUserDto, QueryUsersDto, UpdateUserDto } from './users.dto.js';
 
@@ -12,6 +13,7 @@ const SAFE_SELECT = {
   email: true,
   repCode: true,
   roleId: true,
+  branchId: true,
   maxItemDiscountPct: true,
   maxInvoiceDiscountPct: true,
   active: true,
@@ -158,11 +160,21 @@ export class UsersService {
     return user;
   }
 
-  async create(dto: CreateUserDto, actorId?: number) {
+  private async resolveBranch(branchId: number | null | undefined, companyId: number | null) {
+    if (branchId == null) return null;
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, ...tenantWhere(companyId) },
+    });
+    if (!branch) throw new BadRequestException(`Branch #${branchId} not found`);
+    return branch.id;
+  }
+
+  async create(dto: CreateUserDto, actorId?: number, companyId: number | null = null) {
     if (!dto.email && !dto.phone) {
       throw new BadRequestException('Provide email or phone');
     }
     const role = await this.resolveRole(dto.roleCode);
+    const branchId = await this.resolveBranch(dto.branchId, companyId);
 
     const created = await this.prisma.user.create({
       data: {
@@ -170,6 +182,7 @@ export class UsersService {
         email: dto.email,
         phone: dto.phone,
         repCode: dto.repCode,
+        branchId,
         roleId: role.id,
         passwordHash: await hash(dto.password, 10),
         maxItemDiscountPct: dto.maxItemDiscountPct ?? 0,
@@ -183,12 +196,12 @@ export class UsersService {
       action: 'user.create',
       entity: 'User',
       entityId: created.id,
-      afterJson: { name: created.name, roleCode: created.role.code, active: created.active },
+      afterJson: { name: created.name, roleCode: created.role.code, branchId: created.branchId, active: created.active },
     });
     return created;
   }
 
-  async update(id: number, dto: UpdateUserDto, actorId?: number) {
+  async update(id: number, dto: UpdateUserDto, actorId?: number, companyId: number | null = null) {
     const before = await this.findOne(id);
 
     const data: Record<string, unknown> = {
@@ -200,6 +213,7 @@ export class UsersService {
       maxInvoiceDiscountPct: dto.maxInvoiceDiscountPct,
       active: dto.active,
     };
+    if (dto.branchId !== undefined) data.branchId = await this.resolveBranch(dto.branchId, companyId);
     if (dto.roleCode) data.roleId = (await this.resolveRole(dto.roleCode)).id;
     if (dto.password) data.passwordHash = await hash(dto.password, 10);
 
@@ -214,8 +228,8 @@ export class UsersService {
         action: 'user.update',
         entity: 'User',
         entityId: id,
-        beforeJson: { name: before.name, roleCode: before.role.code, active: before.active, maxItemDiscountPct: before.maxItemDiscountPct, maxInvoiceDiscountPct: before.maxInvoiceDiscountPct },
-        afterJson: { name: updated.name, roleCode: updated.role.code, active: updated.active, maxItemDiscountPct: updated.maxItemDiscountPct, maxInvoiceDiscountPct: updated.maxInvoiceDiscountPct, passwordChanged: Boolean(dto.password) },
+        beforeJson: { name: before.name, roleCode: before.role.code, branchId: before.branchId, active: before.active, maxItemDiscountPct: before.maxItemDiscountPct, maxInvoiceDiscountPct: before.maxInvoiceDiscountPct },
+        afterJson: { name: updated.name, roleCode: updated.role.code, branchId: updated.branchId, active: updated.active, maxItemDiscountPct: updated.maxItemDiscountPct, maxInvoiceDiscountPct: updated.maxInvoiceDiscountPct, passwordChanged: Boolean(dto.password) },
       });
       return updated;
     } catch (e) {

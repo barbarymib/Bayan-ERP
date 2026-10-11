@@ -39,14 +39,14 @@ export class UsersController {
   @Permissions('user.manage')
   @ApiOkResponse({ description: 'إنشاء مستخدم (مع حدود الخصم)' })
   create(@Body() dto: CreateUserDto, @CurrentUser() user: AuthUser) {
-    return this.users.create(dto, user.id);
+    return this.users.create(dto, user.id, user.companyId ?? null);
   }
 
   @Patch(':id')
   @Permissions('user.manage')
   @ApiOkResponse({ description: 'تعديل مستخدم / حدود الخصم' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto, @CurrentUser() user: AuthUser) {
-    return this.users.update(id, dto, user.id);
+    return this.users.update(id, dto, user.id, user.companyId ?? null);
   }
 
   @Delete(':id')

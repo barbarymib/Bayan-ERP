@@ -15,6 +15,7 @@ export class WarehousesService {
       ? await this.prisma.user.findUnique({ where: { id: dto.keeperId } })
       : null;
     if (dto.keeperId && !keeper) throw new NotFoundException(`User #${dto.keeperId} not found`);
+    const branchId = await this.resolveBranch(dto.branchId, companyId);
 
     return this.prisma.warehouse.create({
       data: {
@@ -22,6 +23,7 @@ export class WarehousesService {
         nameAr: dto.nameAr,
         type: dto.type ?? 'MAIN',
         keeperId: keeper?.id,
+        branchId,
         ...tenantWhere(companyId),
       },
       include: { keeper: { select: { id: true, name: true, repCode: true } } },
@@ -69,14 +71,17 @@ export class WarehousesService {
       : null;
     if (dto.keeperId && !keeper) throw new NotFoundException(`User #${dto.keeperId} not found`);
 
+    const data: Record<string, unknown> = {
+      nameAr: dto.nameAr,
+      type: dto.type,
+      keeperId: keeper?.id,
+      active: dto.active,
+    };
+    if (dto.branchId !== undefined) data.branchId = await this.resolveBranch(dto.branchId, companyId);
+
     return this.prisma.warehouse.update({
       where: { id },
-      data: {
-        nameAr: dto.nameAr,
-        type: dto.type,
-        keeperId: keeper?.id,
-        active: dto.active,
-      },
+      data,
       include: { keeper: { select: { id: true, name: true, repCode: true } } },
     });
   }
@@ -93,5 +98,14 @@ export class WarehousesService {
     await this.findOne(id, companyId);
     await this.prisma.warehouse.update({ where: { id }, data: { active: false } });
     return { ok: true };
+  }
+
+  private async resolveBranch(branchId: number | null | undefined, companyId: number | null) {
+    if (branchId == null) return null;
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, ...tenantWhere(companyId) },
+    });
+    if (!branch) throw new NotFoundException(`Branch #${branchId} not found`);
+    return branch.id;
   }
 }

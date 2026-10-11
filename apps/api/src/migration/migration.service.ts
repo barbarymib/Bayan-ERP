@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { StockService } from '../common/stock.service.js';
+import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { LegacyImportDto } from './migration.dto.js';
 
@@ -40,7 +41,11 @@ export class MigrationService {
     private readonly audits: AuditLogsService,
   ) {}
 
-  async importPayload(dto: LegacyImportDto, userId: number): Promise<MigrationImportResult> {
+  async importPayload(
+    dto: LegacyImportDto,
+    userId: number,
+    companyId: number | null = null,
+  ): Promise<MigrationImportResult> {
     const mode = dto.mode ?? 'MERGE';
     const strict = mode === 'STRICT';
     const results: Partial<Record<MigrationSections, MigrationRowResult[]>> = {
@@ -57,14 +62,14 @@ export class MigrationService {
 
     await this.prisma.$transaction(async (tx) => {
       const [cats, units, pls, whs, items, sups, custs, users] = await Promise.all([
-        tx.category.findMany(),
+        tx.category.findMany({ where: { ...tenantWhere(companyId) } }),
         tx.unit.findMany(),
-        tx.priceList.findMany(),
-        tx.warehouse.findMany(),
-        tx.item.findMany(),
-        tx.supplier.findMany(),
-        tx.customer.findMany(),
-        tx.user.findMany({ select: { id: true, repCode: true } }),
+        tx.priceList.findMany({ where: { ...tenantWhere(companyId) } }),
+        tx.warehouse.findMany({ where: { ...tenantWhere(companyId) } }),
+        tx.item.findMany({ where: { ...tenantWhere(companyId) } }),
+        tx.supplier.findMany({ where: { ...tenantWhere(companyId) } }),
+        tx.customer.findMany({ where: { ...tenantWhere(companyId) } }),
+        tx.user.findMany({ where: { ...tenantWhere(companyId) }, select: { id: true, repCode: true } }),
       ]);
 
       const catMap = new Map(cats.map((c) => [c.code, c] as const));
@@ -99,6 +104,7 @@ export class MigrationService {
         if (!c) {
           c = await tx.category.create({
             data: {
+              companyId,
               code,
               nameAr: nameAr ?? code,
               parentId: parentCode ? (catMap.get(parentCode)?.id ?? null) : null,
@@ -127,7 +133,7 @@ export class MigrationService {
       const ensurePriceList = async (code: string, nameAr?: string) => {
         let p = plMap.get(code);
         if (!p) {
-          p = await tx.priceList.create({ data: { code, nameAr: nameAr ?? code } });
+          p = await tx.priceList.create({ data: { companyId, code, nameAr: nameAr ?? code } });
           plMap.set(code, p);
         }
         return p;
@@ -187,9 +193,11 @@ export class MigrationService {
             await tx.warehouse.update({ where: { id: existing.id }, data });
             return { ref: w.code, action: 'UPDATED' as const };
           }
-          await tx.warehouse.create({ data: { code: w.code, ...data } });
+          await tx.warehouse.create({ data: { companyId, code: w.code, ...data } });
           whMap.set(w.code, { id: -1, ...data } as never);
-          const fresh = await tx.warehouse.findFirst({ where: { code: w.code } });
+          const fresh = await tx.warehouse.findFirst({
+            where: { code: w.code, ...tenantWhere(companyId) },
+          });
           if (fresh) whMap.set(w.code, fresh as never);
           return { ref: w.code, action: 'CREATED' as const };
         });
@@ -220,6 +228,7 @@ export class MigrationService {
           } else {
             const created = await tx.item.create({
               data: {
+                companyId,
                 code: it.code,
                 nameAr: it.nameAr,
                 nameEn: it.nameEn,
@@ -251,6 +260,7 @@ export class MigrationService {
                 },
               },
               create: {
+                companyId,
                 itemId,
                 unitId: priceUnit.id,
                 priceListId: pl.id,
@@ -284,7 +294,7 @@ export class MigrationService {
             await tx.supplier.update({ where: { id: existing.id }, data });
             return { ref: s.code, action: 'UPDATED' as const };
           }
-          await tx.supplier.create({ data: { code: s.code, ...data } });
+          await tx.supplier.create({ data: { companyId, code: s.code, ...data } });
           supMap.set(s.code, { id: -1, ...data } as never);
           return { ref: s.code, action: 'CREATED' as const };
         });
@@ -318,7 +328,7 @@ export class MigrationService {
             await tx.customer.update({ where: { id: existing.id }, data });
             return { ref: c.code, action: 'UPDATED' as const };
           }
-          await tx.customer.create({ data: { code: c.code, ...data } });
+          await tx.customer.create({ data: { companyId, code: c.code, ...data } });
           custMap.set(c.code, { id: -1, ...data } as never);
           return { ref: c.code, action: 'CREATED' as const };
         });
@@ -343,6 +353,7 @@ export class MigrationService {
             refType: 'inventory_open',
             refId: 0,
             userId,
+            companyId,
             lines: [{ itemId: item.id, qtyBase: st.qtyBase, cost: st.cost ?? null }],
           });
           return { ref: `${st.itemCode}@${st.warehouseCode}`, action: 'CREATED' as const };
