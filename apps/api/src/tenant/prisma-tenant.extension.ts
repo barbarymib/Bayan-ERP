@@ -87,10 +87,15 @@ interface QueryArgs {
   query: (args: unknown) => Promise<unknown> | Prisma.PrismaPromise<unknown>;
 }
 
-/** يلفّ عمليات النماذج المحمية بمعاملة تحمل GUC الشركة الحالية. */
+/**
+ * يلفّ كل عمليات النماذج بمعاملة تحمل GUC الشركة الحالية. اللف ضروري حتى للجداول
+ * الابنة بلا companyId لأن عملياتها قد تجلب علاقات إلى جداول RLS (مثل
+ * priceStatementLine → statement)، وتلك العلاقات تُنفَّذ على نفس الاتصال وبالـ GUC
+ * عند الاقتصاد بالمعاملة. النماذج غير المحمية تتحمل معاملة إضافية بلا ضرر.
+ */
 export function makeTenantQueryHandler(deps: TenantRlsDeps) {
   return function $allOperations({ model, operation, args, query }: QueryArgs) {
-    if (!model || !RLS_MODELS.has(model)) {
+    if (!model) {
       return query(args);
     }
 

@@ -17,6 +17,12 @@ function makeTx() {
   };
   const tx = {
     $executeRaw: executeRaw,
+    role: {
+      findMany: () => {
+        calls.push('role.findMany');
+        return Promise.resolve([{ id: 1 }]);
+      },
+    },
     item: {
       findMany: (args: unknown) => {
         calls.push(`item.findMany:${JSON.stringify(args)}`);
@@ -54,12 +60,13 @@ describe('tenant context', () => {
 });
 
 describe('tenant RLS query handler', () => {
-  it('passes through non-RLS models without opening a transaction', async () => {
-    const query = vi.fn(() => Promise.resolve('direct'));
+  it('wraps non-RLS models too (their includes may reach RLS relations)', async () => {
     const { handler, runTransaction } = makeHandler();
-    const result = await handler({ model: 'Role', operation: 'findMany', args: {}, query });
-    expect(result).toBe('direct');
-    expect(runTransaction).not.toHaveBeenCalled();
+    const result = await runWithTenant({ companyId: 3 }, () =>
+      handler({ model: 'Role', operation: 'findMany', args: {}, query: vi.fn() }),
+    );
+    expect(runTransaction).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([{ id: 1 }]);
   });
 
   it('wraps RLS models in a transaction that sets the company GUC first', async () => {
