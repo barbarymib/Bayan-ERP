@@ -19,6 +19,7 @@ COMMENT ON FUNCTION bayan.current_company_id() IS
 DO $$
 DECLARE
   t text;
+  default_company bigint;
   tables text[] := ARRAY[
     'Category', 'Brand', 'Item', 'PriceList', 'ItemPrice', 'PriceHistory',
     'Customer', 'CustomerRepAssignment', 'Supplier', 'Warehouse',
@@ -31,6 +32,15 @@ DECLARE
     'SupplierReturn', 'CashAccount', 'CustodyHandover', 'DailyClose', 'VisitPlan'
   ];
 BEGIN
+  -- ربط السجلات القديمة بلا شركة بالشركة الافتراضية قبل تفعيل RLS (وإلا أصبحت غير مرئية).
+  SELECT id INTO default_company FROM "Company" WHERE code = 'bayan';
+  IF default_company IS NOT NULL THEN
+    FOREACH t IN ARRAY tables LOOP
+      EXECUTE format('UPDATE %I SET "companyId" = $1 WHERE "companyId" IS NULL', t)
+        USING default_company;
+    END LOOP;
+  END IF;
+
   FOREACH t IN ARRAY tables LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
