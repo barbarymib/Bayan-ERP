@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
   CancelStatementDto,
   CreateStatementDto,
   QueryStatementsDto,
+  UpdateStatementDto,
 } from './price-statements.dto.js';
 import { PriceStatementsService } from './price-statements.service.js';
 
@@ -42,6 +44,20 @@ export class PriceStatementsController {
   @ApiOkResponse({ description: 'تفاصيل كشف حساب مع الموافقات' })
   get(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
     return this.statements.get(id, user);
+  }
+
+  @Patch(':id')
+  @Permissions('statement.edit')
+  @ApiOkResponse({
+    description:
+      'تعديل بيان: مسودة بصلاحية statement.edit، أو بيان معتمد بصلاحية statement.edit_approved (يحفظ نسخة في statement_revisions ويعكس ثم يعيد ترحيل الأثر)',
+  })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateStatementDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.statements.update(id, dto, user);
   }
 
   @Delete(':id/cancel')

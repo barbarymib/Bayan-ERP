@@ -135,6 +135,14 @@ export class CreateStatementDto {
   lng?: number;
 }
 
+export class UpdateStatementDto extends CreateStatementDto {
+  @ApiPropertyOptional({ description: 'سبب التعديل (يُسجَّل في نسخة البيان عند تعديل بيان معتمد)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  reason?: string;
+}
+
 export class QueryStatementsDto {
   @ApiPropertyOptional()
   @IsOptional()
