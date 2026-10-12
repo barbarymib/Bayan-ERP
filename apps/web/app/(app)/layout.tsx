@@ -40,6 +40,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: '/brands', label: 'الماركات', phase: 1 },
     { href: '/branches', label: 'الفروع', phase: 1 },
     { href: '/users', label: 'المستخدمون والأدوار', phase: 1 },
+    { href: '/devices', label: 'الأجهزة والأمان', phase: 1 },
   ];
 
   const groups = [

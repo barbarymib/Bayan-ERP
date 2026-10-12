@@ -1318,3 +1318,25 @@ export interface VisitPlansPage {
   total: number;
   items: VisitPlan[];
 }
+
+export interface DeviceRegistration {
+  id: number;
+  companyId: number | null;
+  userId: number;
+  deviceId: string;
+  deviceName: string | null;
+  active: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+  user?: {
+    id: number;
+    name: string;
+    repCode: string | null;
+    role: { code: string } | null;
+  } | null;
+}
+
+export interface DevicesPage {
+  devices: DeviceRegistration[];
+  total: number;
+}
