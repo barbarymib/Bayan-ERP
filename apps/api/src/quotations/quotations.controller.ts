@@ -31,7 +31,7 @@ export class QuotationsController {
   @Get(':id')
   @ApiOkResponse({ description: 'تفاصيل عرض سعر' })
   get(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.quotations.get(id, user.companyId ?? null);
+    return this.quotations.get(id, user);
   }
 
   @Post()
@@ -45,7 +45,7 @@ export class QuotationsController {
   @Permissions('statement.create')
   @ApiOkResponse({ description: 'إرسال عرض السعر للعميل' })
   send(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.quotations.send(id, user.id, user.companyId ?? null);
+    return this.quotations.send(id, user);
   }
 
   @Post(':id/accept')
@@ -63,7 +63,7 @@ export class QuotationsController {
   @Permissions('statement.approve')
   @ApiOkResponse({ description: 'رفض عرض السعر' })
   reject(@Param('id', ParseIntPipe) id: number, @Body() dto: QuotationActionDto, @CurrentUser() user: AuthUser) {
-    return this.quotations.reject(id, dto, user.id, user.companyId ?? null);
+    return this.quotations.reject(id, dto, user);
   }
 
   @Post(':id/convert')

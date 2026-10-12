@@ -14,6 +14,12 @@ const noopAudits = { write: async () => {} } as unknown as AuditLogsService;
 
 const user: AuthUser = { id: 1, name: 'مدير', roles: ['ADMIN'], permissions: [] } as unknown as AuthUser;
 
+type DetailRow = {
+  effectiveStatus: string;
+  status: string;
+  lines: Array<{ costSnapshot: number | null; item: { lastPurchaseCost: number | null } }>;
+};
+
 function baseQuotation() {
   return {
     id: 9,
@@ -29,12 +35,13 @@ function baseQuotation() {
     notes: 'عرض',
     lines: [
       {
-        item: { code: 'IR-16-10' },
+        item: { code: 'IR-16-10', lastPurchaseCost: 40 },
         unit: { code: 'PCS' },
         qty: 5,
         unitPrice: 100,
         lineDiscountType: null,
         lineDiscountValue: null,
+        costSnapshot: 55,
       },
     ],
   };
@@ -110,19 +117,19 @@ describe('QuotationsService', () => {
       { create: async () => ({}) } as unknown as PriceStatementsService,
       noopAudits,
     );
-    const row = await svc.get(9);
+    const row = await svc.get(9, user);
     expect(row.effectiveStatus).toBe('EXPIRED');
     expect(row.status).toBe('SENT');
   });
 
   it('يرفض نقل عرض بين حالتين غير مسموحتين', async () => {
     const { service } = harness({ status: 'ACCEPTED' });
-    await expect(service.send(9)).rejects.toThrow(BadRequestException);
+    await expect(service.send(9, user)).rejects.toThrow(BadRequestException);
   });
 
   it('يرفض إرسال عرض غير موجود', async () => {
     const { service } = harness();
-    await expect(service.send(404)).rejects.toThrow(NotFoundException);
+    await expect(service.send(404, user)).rejects.toThrow(NotFoundException);
   });
 
   it('يحوّل عرض السعر إلى بيان أسعار ويربطه به', async () => {
@@ -158,7 +165,7 @@ describe('QuotationsService', () => {
 
   it('يسجّل تدقيقاً عند رفض العرض', async () => {
     const { service, audits } = harness({ status: 'SENT' });
-    await service.reject(9, { note: 'غير مناسب' });
+    await service.reject(9, { note: 'غير مناسب' }, user);
 
     expect(audits).toContainEqual({ action: 'quotation.reject', entity: 'Quotation', entityId: 9 });
   });
@@ -176,5 +183,20 @@ describe('QuotationsService', () => {
   it('يرفض تحويل عرض غير موجود', async () => {
     const { service } = harness();
     await expect(service.convert(404, user)).rejects.toThrow(NotFoundException);
+  });
+
+  it('يخفي سعر التكلفة (costSnapshot / lastPurchaseCost) عمن لا يملك cost.view', async () => {
+    const { service } = harness({ status: 'SENT' });
+    const row = (await service.get(9, user)) as unknown as DetailRow;
+    expect(row.lines[0]!.costSnapshot).toBeNull();
+    expect(row.lines[0]!.item.lastPurchaseCost).toBeNull();
+  });
+
+  it('يبقي سعر التكلفة لمن يملك cost.view', async () => {
+    const privileged = { ...user, permissions: ['cost.view'] } as AuthUser;
+    const { service } = harness({ status: 'SENT' });
+    const row = (await service.get(9, privileged)) as unknown as DetailRow;
+    expect(row.lines[0]!.costSnapshot).toBe(55);
+    expect(row.lines[0]!.item.lastPurchaseCost).toBe(40);
   });
 });

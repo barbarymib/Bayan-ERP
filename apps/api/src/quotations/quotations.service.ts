@@ -171,7 +171,7 @@ export class QuotationsService {
       },
     });
 
-    return this.withEffectiveStatus(quotation);
+    return this.stripCost(this.withEffectiveStatus(quotation), user);
   }
 
   async list(query: QueryQuotationsDto, companyId: number | null = null) {
@@ -206,7 +206,8 @@ export class QuotationsService {
     return { total, items: rows.map((q) => this.withEffectiveStatus(q)) };
   }
 
-  async get(id: number, companyId: number | null = null) {
+  async get(id: number, user: AuthUser) {
+    const companyId = user.companyId ?? null;
     const quotation = await this.prisma.quotation.findUnique({
       where: { id },
       include: {
@@ -220,16 +221,15 @@ export class QuotationsService {
     if (!quotation || (quotation.companyId != null && quotation.companyId !== companyId)) {
       throw new NotFoundException(`Quotation ${id} not found`);
     }
-    return this.withEffectiveStatus(quotation);
+    return this.stripCost(this.withEffectiveStatus(quotation), user);
   }
 
-  async send(id: number, userId?: number, companyId: number | null = null) {
-    await this.transition(id, ['DRAFT'], 'SENT', {}, companyId, 'quotation.send', userId);
-    return this.get(id, companyId);
+  async send(id: number, user: AuthUser) {
+    return this.transition(id, ['DRAFT'], 'SENT', {}, user, 'quotation.send');
   }
 
   async accept(id: number, dto: QuotationActionDto, user: AuthUser) {
-    const updated = await this.transition(
+    return this.transition(
       id,
       ['DRAFT', 'SENT'],
       'ACCEPTED',
@@ -238,15 +238,13 @@ export class QuotationsService {
         approvedAt: new Date(),
         notes: dto.note,
       },
-      user.companyId ?? null,
+      user,
       'quotation.accept',
-      user.id,
     );
-    return updated;
   }
 
-  async reject(id: number, dto: QuotationActionDto, userId?: number, companyId: number | null = null) {
-    return this.transition(id, ['DRAFT', 'SENT'], 'REJECTED', { notes: dto.note }, companyId, 'quotation.reject', userId);
+  async reject(id: number, dto: QuotationActionDto, user: AuthUser) {
+    return this.transition(id, ['DRAFT', 'SENT'], 'REJECTED', { notes: dto.note }, user, 'quotation.reject');
   }
 
   /** تحويل عرض السعر إلى بيان أسعار بضغطة واحدة (§5.16). */
@@ -312,7 +310,7 @@ export class QuotationsService {
       afterJson: { status: 'CONVERTED', statementId },
     });
 
-    const fresh = await this.get(id, user.companyId ?? null);
+    const fresh = await this.get(id, user);
     return { quotation: fresh, statement };
   }
 
@@ -321,10 +319,10 @@ export class QuotationsService {
     allowed: QuotationStatus[],
     target: QuotationStatus,
     extra: Record<string, unknown> = {},
-    companyId: number | null = null,
+    user: AuthUser,
     action?: string,
-    userId?: number,
   ) {
+    const companyId = user.companyId ?? null;
     const quotation = await this.prisma.quotation.findUnique({
       where: { id },
       select: { status: true, companyId: true },
@@ -340,7 +338,7 @@ export class QuotationsService {
     await this.prisma.quotation.update({ where: { id }, data: { status: target, ...extra } });
     if (action) {
       await this.audits.write({
-        userId,
+        userId: user.id,
         action,
         entity: 'Quotation',
         entityId: id,
@@ -348,7 +346,22 @@ export class QuotationsService {
         afterJson: { status: target },
       });
     }
-    return this.get(id, companyId);
+    return this.get(id, user);
+  }
+
+  /**
+   * إخفاء سعر التكلفة (costSnapshot / lastPurchaseCost) عمن لا يملك cost.view (§4.2).
+   */
+  private stripCost<T>(detail: T, user: AuthUser): T {
+    if (user.permissions?.includes('cost.view') || detail == null) return detail;
+    const d = detail as { lines?: Array<Record<string, unknown>> };
+    if (!Array.isArray(d.lines)) return detail;
+    for (const line of d.lines) {
+      line.costSnapshot = null;
+      const item = line.item as Record<string, unknown> | undefined;
+      if (item && 'lastPurchaseCost' in item) item.lastPurchaseCost = null;
+    }
+    return detail;
   }
 
   /** الحالة المعروضة: عرض منتهي الصلاحية يُعرض EXPIRED دون تغيير التخزين. */

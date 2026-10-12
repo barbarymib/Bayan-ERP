@@ -28,7 +28,7 @@
 
 | ID  | Gap | Spec | Status | Evidence |
 | --- | --- | ---- | ------ | -------- |
-| G1 | **Cost leak via quotations** — `GET /quotations`, `GET /quotations/:id` and the create response return `costSnapshot` + `item.lastPurchaseCost` with **no `cost.view` gate/masking**. Any authenticated user (incl. storekeeper/rep) sees cost. | §4.2 "رؤية سعر التكلفة" | MISSING | `apps/api/src/quotations/quotations.controller.ts:25-35` (no `@Permissions`/masking); `quotations.service.ts:161` (costSnapshot in response); reference impl `price-statements.service.ts:372` (`stripCost`). |
+| G1 | **Cost leak via quotations** — `GET /quotations`, `GET /quotations/:id` and the create response return `costSnapshot` + `item.lastPurchaseCost` with **no `cost.view` gate/masking**. Any authenticated user (incl. storekeeper/rep) sees cost. | §4.2 "رؤية سعر التكلفة" | FIXED | Was: `apps/api/src/quotations/quotations.controller.ts:25-35`; now masked via `stripCost` (`quotations.service.ts`), mirroring `price-statements.service.ts:372`. |
 | G2 | **§5.14 reporting is skeletal.** Only 6 endpoints (stock values, movements, low-stock, stock summary, dashboard, aging). Missing sales / discounts / returns / stopped-customers / stocktake-diff / rep-performance / supplier-debt reports. Export is **CSV-only**; spec asks XLSX (+ PDF). | §5.14 | PARTIAL | `apps/api/src/reports/reports.controller.ts`; no `xlsx`/exceljs dependency in `apps/api/package.json`.
 - **G3** `MISSING` — **Statement revisions not recorded** on edit-after-approval. `StatementRevision` is written **only** by archive *restore* (`apps/api/src/archives/archives.service.ts:918`); the edit-after-approval flow never creates a revision. Spec §5.1 text + §4.2 row "تعديل بيان بعد الاعتماد".
 - **G4** `PARTIAL` — **Mobile device trust.** Device registration failure is swallowed (`apps/mobile/lib/services/api_client.dart:123`); **no remote device revoke**, **no device-lock (biometric/PIN)**. (§9)
@@ -80,7 +80,7 @@
 Ordered so isolation/security land first, then correctness, then reporting, then UX parity, then infra. Each item is independently shippable with its own tests and a live `smoke`/`golden` re-run.
 
 ### Batch A — Security & isolation (do first)
-1. **G1** Gate/mask quotation cost behind `cost.view`. ← *in progress*
+1. **G1** Gate/mask quotation cost behind `cost.view`. ✅ **done**
 2. **G21** Reconcile §4.2 permission cells + add a permission-matrix test.
 3. **G22** Add `helmet`.
 4. **G6** Tenant isolation: enforce non-null `companyId` on write paths + add RLS migration (+ regression tests).
@@ -126,4 +126,5 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | Date | Item | Result |
 | ---- | ---- | ------ |
 | 2026-10-12 | Gap analysis authored from 6 subagent reports | this document |
-| 2026-10-12 | **G1** quotation cost masking | _in progress_ |
+| 2026-10-12 | **G1** quotation cost masking | ✅ FIXED |
+| 2026-10-12 | **G21 (next)** §4.2 permission-cell reconciliation | not started |
