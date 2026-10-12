@@ -16,6 +16,13 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
+    // Some AndroidX deps (e.g. androidx.window) require compileSdk >= 34,
+    // while plugin modules like bluetooth_print_plus pin compileSdk 31.
+    if (project.name != "app") {
+        afterEvaluate {
+            extensions.findByType<com.android.build.gradle.BaseExtension>()?.compileSdkVersion(36)
+        }
+    }
     project.evaluationDependsOn(":app")
 }
 
