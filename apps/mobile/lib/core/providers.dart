@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_client.dart';
 import 'connectivity.dart';
 import 'data_store.dart';
+import 'device_lock.dart';
 import 'geo/location.dart';
 import 'numbering_store.dart';
 import 'outbox.dart';
@@ -30,6 +31,9 @@ final locationProvider = Provider<LocationProvider>((ref) => throw Unimplemented
 /// الاختبارات.
 final bluetoothPrinterProvider =
     Provider<BluetoothPrinter>((ref) => throw UnimplementedError());
+
+/// قفل الجهاز (§9/G4) — يُستبدل بتنفيذ حقيقي في `main()` وبنسخة زائفة في الاختبارات.
+final deviceLockProvider = Provider<DeviceLock>((ref) => throw UnimplementedError());
 
 /// الفاصل الزمني لإرسال نقاط الموقع أثناء الوردية (§5.13: 30–120 ثانية).
 final trackingIntervalProvider = Provider<Duration>((ref) => const Duration(seconds: 60));

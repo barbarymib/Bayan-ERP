@@ -24,6 +24,7 @@ class SessionStore {
   static const _kOutbox = 'outbox';
   static const _kLastSync = 'last_sync_at';
   static const _kPrinter = 'last_printer_address';
+  static const _kDeviceLock = 'device_lock_enabled';
 
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
@@ -47,6 +48,11 @@ class SessionStore {
   String? get deviceId => _prefs.getString(_kDeviceId);
   String? get outboxJson => _prefs.getString(_kOutbox);
   String? get printerAddress => _prefs.getString(_kPrinter);
+
+  /// هل قفل الجهاز (مصادقة بيومترية/بيانات الجهاز) مُفعّل؟ (§9/G4)
+  bool get deviceLockEnabled => _prefs.getBool(_kDeviceLock) ?? false;
+  Future<void> saveDeviceLockEnabled(bool enabled) => _prefs.setBool(_kDeviceLock, enabled);
+
   DateTime? get lastSyncAt {
     final raw = _prefs.getString(_kLastSync);
     return raw == null ? null : DateTime.tryParse(raw);

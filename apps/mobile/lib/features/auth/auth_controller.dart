@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/api_client.dart';
 import '../../core/models.dart';
 import '../../core/providers.dart';
 
@@ -51,20 +52,31 @@ class AuthController extends Notifier<AuthState> {
     final session = ref.read(sessionProvider);
     try {
       final user = await api.login(phone: phone, password: password);
-      await session.saveAuth(api.token!, user, refreshToken: api.refreshToken);
 
-      // تسجيل الجهاز (ربط جهاز واحد) — فشله لا يمنع العمل لاحقاً.
+      // تسجيل الجهاز إلزامي (§9/G4): ربط الجهاز بمستخدم واحد + فحص الجهاز النشط
+      // على الخادم. فشله يمنع العمل (لا نُخفي الخطأ).
       var deviceId = session.deviceId;
       if (deviceId == null || deviceId.isEmpty) {
         deviceId = const Uuid().v4();
         await session.saveDeviceId(deviceId);
       }
-      try {
-        await api.registerDevice(deviceId: deviceId, deviceName: deviceId);
-      } catch (_) {}
+      api.deviceId = deviceId;
+      await api.registerDevice(deviceId: deviceId, deviceName: deviceId);
 
+      await session.saveAuth(api.token!, user, refreshToken: api.refreshToken);
       state = AuthState(status: AuthStatus.authenticated, user: user);
+    } on ApiException catch (e) {
+      api.token = null;
+      api.refreshToken = null;
+      await session.clear();
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        error: 'فشل تسجيل الجهاز: ${e.message}',
+      );
     } catch (e) {
+      api.token = null;
+      api.refreshToken = null;
+      await session.clear();
       state = AuthState(status: AuthStatus.unauthenticated, error: e.toString());
     }
   }

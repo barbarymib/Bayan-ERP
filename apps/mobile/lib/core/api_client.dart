@@ -49,6 +49,10 @@ class ApiClient {
   /// رمز التحديث المستخدم لتجديد رمز الوصول عند انتهائه (401).
   String? refreshToken;
 
+  /// معرّف الجهاز الذي يُرسَل في ترويسة `X-Device-Id` — يفعّل فحص الجهاز
+  /// النشط على الخادم (§9/G4). يُضبط من الجلسة عند الإقلاع وبعد تسجيل الجهاز.
+  String? deviceId;
+
   /// يُستدعى بعد التجديد الصامت لحفظ الزوج الجديد في جلسة الجهاز.
   Future<void> Function(String accessToken, String refreshToken)? onRefreshed;
 
@@ -59,6 +63,7 @@ class ApiClient {
   Map<String, String> get _headers => {
         'Content-Type': 'application/json; charset=utf-8',
         if ((token ?? '').isNotEmpty) 'Authorization': 'Bearer $token',
+        if ((deviceId ?? '').isNotEmpty) 'X-Device-Id': deviceId!,
       };
 
   Uri _uri(String path, [Map<String, String>? query]) =>

@@ -33,6 +33,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.read(shiftControllerProvider.notifier).syncFromServer();
   }
 
+  Future<void> _toggleDeviceLock() async {
+    final session = ref.read(sessionProvider);
+    final next = !session.deviceLockEnabled;
+    await session.saveDeviceLockEnabled(next);
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(next ? 'تم تفعيل قفل الجهاز' : 'تم إلغاء قفل الجهاز')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
@@ -42,6 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final tracking = ref.watch(shiftControllerProvider).isTracking;
     final user = auth.user;
     final customers = store.customers;
+    final lockEnabled = ref.watch(sessionProvider).deviceLockEnabled;
 
     return Scaffold(
       appBar: AppBar(
@@ -96,10 +108,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     context,
                     MaterialPageRoute<void>(builder: (_) => const MyStatementsScreen()),
                   );
+                case 'lock':
+                  _toggleDeviceLock();
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
+            itemBuilder: (context) => [
+              const PopupMenuItem(
                 value: 'catalog',
                 child: ListTile(
                   dense: true,
@@ -107,12 +121,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   title: Text('الأصناف والأسعار'),
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'statements',
                 child: ListTile(
                   dense: true,
                   leading: Icon(Icons.receipt_long_outlined),
                   title: Text('بياناتي'),
+                ),
+              ),
+              CheckedPopupMenuItem(
+                value: 'lock',
+                checked: lockEnabled,
+                child: const ListTile(
+                  dense: true,
+                  leading: Icon(Icons.lock_outline),
+                  title: Text('قفل الجهاز (بصمة)'),
                 ),
               ),
             ],

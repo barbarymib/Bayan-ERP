@@ -11,6 +11,8 @@
     <!-- أندرويد 14+: خدمات المقدمة لا تعمل دون هذين الإذنين. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- §9/G4: قفل الجهاز بالمصادقة البيومترية. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
         android:label="bayan_rep"
         android:name="${applicationName}"

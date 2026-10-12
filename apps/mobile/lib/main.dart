@@ -7,6 +7,7 @@ import 'core/api_client.dart';
 import 'core/connectivity.dart';
 import 'core/data_store.dart';
 import 'core/db/database.dart';
+import 'core/device_lock.dart';
 import 'core/geo/location.dart';
 import 'core/geo/location_gate.dart';
 import 'core/numbering_store.dart';
@@ -16,6 +17,7 @@ import 'core/providers.dart';
 import 'core/session_store.dart';
 import 'core/theme.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/auth/device_lock_gate.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 
@@ -32,6 +34,7 @@ Future<void> main() async {
   final api = ApiClient(baseUrl: apiBase);
   api.token = session.token;
   api.refreshToken = session.refreshToken;
+  api.deviceId = session.deviceId;
   api.onRefreshed = (access, refresh) => session.saveTokens(access, refresh);
   final outbox = Outbox.fromJson(session.outboxJson);
 
@@ -46,6 +49,7 @@ Future<void> main() async {
         locationProvider.overrideWithValue(GeolocatorLocationProvider()),
         connectivityProvider.overrideWithValue(ConnectivityPlusStatus()),
         bluetoothPrinterProvider.overrideWithValue(const BluetoothPrintPlusPrinter()),
+        deviceLockProvider.overrideWithValue(LocalAuthDeviceLock()),
       ],
       child: const BayanApp(),
     ),
@@ -73,7 +77,8 @@ class BayanApp extends ConsumerWidget {
         child: child ?? const SizedBox.shrink(),
       ),
       // إذن الموقع إلزامي لتشغيل التطبيق — البوابة تغطي شاشة الدخول أيضاً.
-      home: const LocationGate(child: _AuthRoot()),
+      // قفل الجهاز (§9/G4) يسبق كل شيء عندما يكون مُفعّلاً.
+      home: const DeviceLockGate(child: LocationGate(child: _AuthRoot())),
     );
   }
 }

@@ -91,5 +91,28 @@ void main() {
 
       await expectLater(api.delta(), throwsA(isA<ApiException>()));
     });
+
+    test('sends X-Device-Id on sync calls only when a device id is set', () async {
+      String? seen;
+      final client = MockClient((req) async {
+        seen = req.headers['X-Device-Id'] ?? req.headers['x-device-id'];
+        return _json({
+          'serverTime': '2026-01-01T00:00:00.000Z',
+          'items': [],
+          'customers': [],
+          'blocks': [],
+          'priceLists': [],
+          'statements': [],
+        });
+      });
+      final api = ApiClient(baseUrl: 'http://test', client: client)..token = 'A1';
+
+      await api.delta();
+      expect(seen, isNull);
+
+      api.deviceId = 'dev-9';
+      await api.delta();
+      expect(seen, 'dev-9');
+    });
   });
 }
