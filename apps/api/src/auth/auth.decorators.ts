@@ -38,3 +38,13 @@ export const CurrentUser = createParamDecorator(
     return request.user as AuthUser;
   },
 );
+
+export const SKIP_DEVICE_KEY = 'skipDeviceCheck';
+/** استثناء مسار التمهيد (تسجيل الجهاز) من فحص الجهاز النشط (§9). */
+export const SkipDeviceCheck = () => SetMetadata(SKIP_DEVICE_KEY, true);
+
+/** كائن الجهاز المرفق بالطلب بعد نجاح [DeviceGuard]. */
+export interface DeviceContext {
+  id: number;
+  deviceId: string;
+}

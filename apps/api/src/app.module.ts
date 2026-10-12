@@ -44,6 +44,7 @@ import { TreasuryModule } from './treasury/treasury.module.js';
 import { TransfersModule } from './transfers/transfers.module.js';
 import { VisitsModule } from './visits/visits.module.js';
 import { SettingsModule } from './settings/settings.module.js';
+import { DevicesModule } from './devices/devices.module.js';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { SettingsModule } from './settings/settings.module.js';
     TreasuryModule,
     VisitsModule,
     SettingsModule,
+    DevicesModule,
   ],
   controllers: [HealthController],
   providers: [

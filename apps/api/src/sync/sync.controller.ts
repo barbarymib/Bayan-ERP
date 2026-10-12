@@ -5,25 +5,30 @@ import {
   Get,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, Permissions } from '../auth/auth.decorators.js';
+import { CurrentUser, Permissions, SkipDeviceCheck } from '../auth/auth.decorators.js';
 import type { AuthUser } from '../auth/auth.decorators.js';
+import { DeviceGuard } from '../auth/device.guard.js';
 import { SyncService } from './sync.service.js';
 import { DeviceRegisterDto, PushDto, ReserveBlockDto } from './sync.dto.js';
 
 /**
  * قناة مزامنة تطبيق المناديب (§5.12).
  * كل المسارات تتطلب تسجيل دخول + صلاحية sync.use؛ الجهاز يُربط بمستخدم واحد.
+ * كل المسارات (عدا تسجيل الجهاز) تتطلب جهازاً نشطاً عبر [DeviceGuard].
  */
 @ApiTags('sync')
 @ApiBearerAuth()
 @Permissions('sync.use')
+@UseGuards(DeviceGuard)
 @Controller('sync')
 export class SyncController {
   constructor(private readonly sync: SyncService) {}
 
   @Post('device/register')
+  @SkipDeviceCheck()
   register(@CurrentUser() user: AuthUser, @Body() dto: DeviceRegisterDto) {
     return this.sync.registerDevice(user, dto);
   }

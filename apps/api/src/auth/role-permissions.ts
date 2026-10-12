@@ -53,6 +53,7 @@ export const EXTRA_PERMISSIONS: { code: string; nameAr: string }[] = [
   { code: 'sync.use', nameAr: 'استخدام قناة مزامنة المناديب' },
   { code: 'label.view', nameAr: 'باركود/QR ومشاركة كشوف الحساب' },
   { code: 'geo.fleet', nameAr: 'متابعة أسطول المناديب' },
+  { code: 'device.manage', nameAr: 'إدارة أجهزة المناديب (إبطال/تفعيل)' },
 ];
 
 export const ALL_PERMISSIONS: { code: string; nameAr: string }[] = [
@@ -164,6 +165,7 @@ export const EXTRA_ROLE_PERMISSIONS: Record<string, string[]> = {
     'user.view',
     'label.view',
     'geo.fleet',
+    'device.manage',
   ],
   ACCOUNTANT: [
     'transfer.view',
@@ -200,6 +202,7 @@ export const EXTRA_ROLE_PERMISSIONS: Record<string, string[]> = {
     'label.view',
     'geo.fleet',
     'sync.use',
+    'device.manage',
   ],
   SALES_OFFICE: ['transfer.view', 'purchase_order.view', 'visit.plan.view', 'return.without_statement', 'label.view', 'sync.use'],
   SALES_REP: ['visit.plan.view', 'cash.handover', 'return.without_statement', 'label.view', 'sync.use'],
