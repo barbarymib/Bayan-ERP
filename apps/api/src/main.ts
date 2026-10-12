@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import 'dotenv/config';
+import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -10,6 +11,12 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
+  // أمان HTTP (§9): ترويسات الحماية؛ CSP كامل في الإنتاج فقط حتى لا يتعطل Swagger في التطوير.
+  app.use(
+    helmet({
+      contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    }),
+  );
   app.useGlobalPipes(
     new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
   );

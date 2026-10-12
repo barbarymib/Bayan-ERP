@@ -56,7 +56,7 @@
 
 - `G12b`/`G19` — Items lack **images / variants / QR-barcode labels** in web UI (§5.1); model fields exist.
 - `G20` — Stocktakes lack category/brand scoping.
-- `G22` — `helmet` not installed; other HTTP hardening present (`apps/api/src/main.ts`).
+- `G22` `FIXED` — `helmet` added (`apps/api/src/main.ts`): full policies in production; CSP disabled in dev so Swagger UI keeps working.
 - `G23` — Redis/BullMQ configured but unused (no background queues).
 - `G24` — No `prisma migrate` check/guard on boot.
 - `G25` — No 50k-row performance benchmark (§9).
@@ -82,7 +82,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 ### Batch A — Security & isolation (do first)
 1. **G1** Gate/mask quotation cost behind `cost.view`. ✅ **done**
 2. **G21** Reconcile §4.2 permission cells + add a permission-matrix test. ✅ **done**
-3. **G22** Add `helmet`.
+3. **G22** Add `helmet`. ✅ **done**
 4. **G6** Tenant isolation: enforce non-null `companyId` on write paths + add RLS migration (+ regression tests).
 5. **G5** Mobile: encrypt Drift DB + move tokens to secure storage.
 6. **G4** Mobile: fail-loud device registration + remote device revoke + optional device lock.
@@ -127,5 +127,6 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | ---- | ---- | ------ |
 | 2026-10-12 | Gap analysis authored from 6 subagent reports | this document |
 | 2026-10-12 | **G1** quotation cost masking | ✅ FIXED |
-| 2026-10-12 | **G21** §4.2 permission-cell reconciliation (rep.track / stocktake.view) | ✅ FIXED |
-| 2026-10-12 | **G22 (next)** add `helmet` | not started |
+| 2026-10-12 | **G21** §4.2 permission-cell reconciliation (rep.track / stocktake.view + geo.report split) | ✅ FIXED |
+| 2026-10-12 | **G22** `helmet` security headers | ✅ FIXED |
+| 2026-10-12 | **G6 (next)** tenant isolation + RLS | not started |
