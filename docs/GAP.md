@@ -49,7 +49,7 @@
 - `G16` `MISSING` — §8.1 web **Settings screen**.
 - `G17` `MISSING` — §12.3/§12.4 tenant-side **per-user / per-company feature-flag management** (web).
 - `G18` `PARTIAL` — §5.16 **WhatsApp sharing** (API deep-link `wa.me` exists; web/mobile PDF-attach sharing absent).
-- `G21` `PARTIAL` — §4.2 **permission-cell mismatches** (4 reported). Verified example: `SALES_REP` is granted `rep.track` although the grid marks reps `✘` (`apps/api/prisma/seed.ts:123`).
+- `G21` `FIXED` — §4.2 **permission-cell mismatches**: removed `rep.track` from `SALES_REP` and `stocktake.view` from `REP_SUPERVISOR`; matrix extracted to `apps/api/src/auth/role-permissions.ts` (single source) + §4.2 regression test. Seed now revokes known perms absent from the matrix. Was: `apps/api/prisma/seed.ts:123`.
 - `G26` `MISSING` — §9 **Hijri dates + Arabic-Indic numerals** not implemented in web/mobile.
 
 ### Low
@@ -81,7 +81,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 
 ### Batch A — Security & isolation (do first)
 1. **G1** Gate/mask quotation cost behind `cost.view`. ✅ **done**
-2. **G21** Reconcile §4.2 permission cells + add a permission-matrix test.
+2. **G21** Reconcile §4.2 permission cells + add a permission-matrix test. ✅ **done**
 3. **G22** Add `helmet`.
 4. **G6** Tenant isolation: enforce non-null `companyId` on write paths + add RLS migration (+ regression tests).
 5. **G5** Mobile: encrypt Drift DB + move tokens to secure storage.
@@ -127,4 +127,5 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | ---- | ---- | ------ |
 | 2026-10-12 | Gap analysis authored from 6 subagent reports | this document |
 | 2026-10-12 | **G1** quotation cost masking | ✅ FIXED |
-| 2026-10-12 | **G21 (next)** §4.2 permission-cell reconciliation | not started |
+| 2026-10-12 | **G21** §4.2 permission-cell reconciliation (rep.track / stocktake.view) | ✅ FIXED |
+| 2026-10-12 | **G22 (next)** add `helmet` | not started |

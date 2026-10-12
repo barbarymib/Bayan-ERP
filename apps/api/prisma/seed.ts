@@ -2,215 +2,12 @@ import 'dotenv/config';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { hashSync } from 'bcryptjs';
+import { ALL_PERMISSIONS, ROLE_PERMISSIONS_MERGED } from '../src/auth/role-permissions';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
-// مصفوفة الصلاحيات §4.2 من مستند التصميم
-const PERMISSIONS: { code: string; nameAr: string }[] = [
-  { code: 'statement.create', nameAr: 'إنشاء بيان أسعار' },
-  { code: 'statement.edit', nameAr: 'تعديل بيان (مسودة)' },
-  { code: 'statement.edit_approved', nameAr: 'تعديل بيان بعد الاعتماد' },
-  { code: 'statement.approve', nameAr: 'اعتماد بيان الأسعار' },
-  { code: 'discount.line', nameAr: 'خصم على صنف (ضمن الحد)' },
-  { code: 'discount.header', nameAr: 'خصم على البيان (ضمن الحد)' },
-  { code: 'discount.approve', nameAr: 'اعتماد تجاوز حد الخصم' },
-  { code: 'cost.view', nameAr: 'رؤية سعر التكلفة' },
-  { code: 'return.create', nameAr: 'إنشاء مرتجع' },
-  { code: 'return.approve', nameAr: 'اعتماد مرتجع' },
-  { code: 'return.receive', nameAr: 'استلام مرتجع (مخزن)' },
-  { code: 'stocktake.execute', nameAr: 'تنفيذ الجرد' },
-  { code: 'stocktake.approve', nameAr: 'اعتماد الجرد' },
-  { code: 'stocktake.view', nameAr: 'عرض الجرد' },
-  { code: 'archive.run', nameAr: 'الترحيل والأرشفة' },
-  { code: 'rep.track', nameAr: 'تتبع المناديب' },
-  { code: 'price.manage', nameAr: 'إدارة الأسعار' },
-  { code: 'item.manage', nameAr: 'إدارة الأصناف' },
-  { code: 'customer.manage', nameAr: 'إدارة العملاء' },
-  { code: 'supplier.manage', nameAr: 'إدارة الموردين' },
-  { code: 'warehouse.manage', nameAr: 'إدارة المخازن' },
-  { code: 'collection.create', nameAr: 'تحصيل / سند قبض' },
-  { code: 'ledger.view', nameAr: 'كشف حساب' },
-  { code: 'report.view', nameAr: 'التقارير' },
-  { code: 'user.manage', nameAr: 'إدارة المستخدمين' },
-  { code: 'notification.view', nameAr: 'عرض الإشعارات' },
-  { code: 'audit.view', nameAr: 'عرض سجل التدقيق' },
-];
-
-// صلاحيات إضافية لتغطية الفجوات (تحويلات/أوامر شراء/خزينة/زيارات/مرتجعات)
-const EXTRA_PERMISSIONS: { code: string; nameAr: string }[] = [
-  { code: 'transfer.execute', nameAr: 'تنفيذ تحويل مخزني' },
-  { code: 'transfer.view', nameAr: 'رؤية التحويلات المخزنية' },
-  { code: 'opening_stock.execute', nameAr: 'إدخال رصيد افتتاحي' },
-  { code: 'purchase_order.create', nameAr: 'إنشاء أمر شراء' },
-  { code: 'purchase_order.approve', nameAr: 'اعتماد أمر شراء' },
-  { code: 'purchase_order.view', nameAr: 'رؤية أوامر الشراء' },
-  { code: 'supplier_return.create', nameAr: 'إنشاء مرتجع مشتريات' },
-  { code: 'supplier_return.view', nameAr: 'رؤية مرتجعات المشتريات' },
-  { code: 'return.without_statement', nameAr: 'مرتجع بدون بيان أصلي' },
-  { code: 'return.cash_refund', nameAr: 'رد نقدية للمرتجع' },
-  { code: 'customer.rating', nameAr: 'تقييم سداد العملاء' },
-  { code: 'treasury.view', nameAr: 'رؤية الخزينة' },
-  { code: 'treasury.manage', nameAr: 'إدارة حسابات الخزينة' },
-  { code: 'cash.handover', nameAr: 'تسليم عهدة نقدية' },
-  { code: 'daily_close.execute', nameAr: 'تنفيذ الإقفال اليومي' },
-  { code: 'visit.plan.manage', nameAr: 'إدارة خطة الزيارات' },
-  { code: 'visit.plan.view', nameAr: 'رؤية خطة الزيارات' },
-  { code: 'user.view', nameAr: 'عرض المستخدمين والأدوار' },
-  { code: 'sync.use', nameAr: 'استخدام قناة مزامنة المناديب' },
-  { code: 'label.view', nameAr: 'باركود/QR ومشاركة كشوف الحساب' },
-  { code: 'geo.fleet', nameAr: 'متابعة أسطول المناديب' },
-];
-PERMISSIONS.push(...EXTRA_PERMISSIONS);
-
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  ADMIN: PERMISSIONS.map((p) => p.code),
-  OWNER: [
-    'statement.create',
-    'statement.edit',
-    'statement.edit_approved',
-    'statement.approve',
-    'discount.line',
-    'discount.header',
-    'discount.approve',
-    'cost.view',
-    'return.create',
-    'return.approve',
-    'stocktake.approve',
-    'stocktake.view',
-    'archive.run',
-    'rep.track',
-    'price.manage',
-    'ledger.view',
-    'report.view',
-    'collection.create',
-    'notification.view',
-    'audit.view',
-  ],
-  ACCOUNTANT: [
-    'statement.create',
-    'statement.edit',
-    'statement.edit_approved',
-    'statement.approve',
-    'discount.line',
-    'discount.header',
-    'cost.view',
-    'return.create',
-    'return.approve',
-    'stocktake.view',
-    'price.manage',
-    'item.manage',
-    'customer.manage',
-    'supplier.manage',
-    'collection.create',
-    'ledger.view',
-    'report.view',
-    'notification.view',
-    'audit.view',
-  ],
-  WAREHOUSEKEEPER: ['return.receive', 'stocktake.execute', 'stocktake.view', 'warehouse.manage'],
-  SALES_OFFICE: [
-    'statement.create',
-    'statement.edit',
-    'discount.line',
-    'discount.header',
-    'return.create',
-    'collection.create',
-    'report.view',
-    'ledger.view',
-  ],
-  SALES_REP: [
-    'statement.create',
-    'statement.edit',
-    'discount.line',
-    'discount.header',
-    'return.create',
-    'collection.create',
-    'report.view',
-    'rep.track',
-  ],
-REP_SUPERVISOR: [
-    'statement.create',
-    'statement.edit',
-    'statement.edit_approved',
-    'statement.approve',
-    'discount.line',
-    'discount.header',
-    'discount.approve',
-    'return.create',
-    'return.approve',
-    'stocktake.view',
-    'collection.create',
-    'report.view',
-    'rep.track',
-    'notification.view',
-    'audit.view',
-  ],
-};
-
-const EXTRA_ROLE_PERMISSIONS: Record<string, string[]> = {
-  OWNER: [
-    'transfer.execute',
-    'transfer.view',
-    'opening_stock.execute',
-    'purchase_order.approve',
-    'purchase_order.view',
-    'supplier_return.view',
-    'treasury.view',
-    'treasury.manage',
-    'daily_close.execute',
-    'visit.plan.manage',
-    'visit.plan.view',
-    'customer.rating',
-    'return.without_statement',
-    'return.cash_refund',
-    'user.view',
-    'label.view',
-    'geo.fleet',
-  ],
-  ACCOUNTANT: [
-    'transfer.view',
-    'purchase_order.create',
-    'purchase_order.approve',
-    'purchase_order.view',
-    'supplier_return.create',
-    'supplier_return.view',
-    'treasury.view',
-    'daily_close.execute',
-    'customer.rating',
-    'user.view',
-    'label.view',
-  ],
-  WAREHOUSEKEEPER: [
-    'transfer.execute',
-    'transfer.view',
-    'opening_stock.execute',
-    'purchase_order.view',
-    'supplier_return.create',
-    'supplier_return.view',
-  ],
-  REP_SUPERVISOR: [
-    'transfer.view',
-    'purchase_order.view',
-    'supplier_return.view',
-    'visit.plan.manage',
-    'visit.plan.view',
-    'cash.handover',
-    'customer.rating',
-    'return.without_statement',
-    'return.cash_refund',
-    'user.view',
-    'label.view',
-    'geo.fleet',
-    'sync.use',
-  ],
-  SALES_OFFICE: ['transfer.view', 'purchase_order.view', 'visit.plan.view', 'return.without_statement', 'label.view', 'sync.use'],
-  SALES_REP: ['visit.plan.view', 'cash.handover', 'return.without_statement', 'label.view', 'sync.use'],
-};
-for (const [role, perms] of Object.entries(EXTRA_ROLE_PERMISSIONS)) {
-  ROLE_PERMISSIONS[role] = [...(ROLE_PERMISSIONS[role] ?? []), ...perms];
-}
 
 const ROLES: { code: string; nameAr: string }[] = [
   { code: 'ADMIN', nameAr: 'مدير النظام' },
@@ -274,7 +71,7 @@ async function main(): Promise<void> {
     create: { code: 'bayan', nameAr: 'شركة بيان', status: 'ACTIVE' },
   });
 
-  for (const p of PERMISSIONS) {
+  for (const p of ALL_PERMISSIONS) {
     await prisma.permission.upsert({
       where: { code: p.code },
       update: { nameAr: p.nameAr },
@@ -288,8 +85,8 @@ async function main(): Promise<void> {
       update: { nameAr: r.nameAr },
       create: r,
     });
-    const codes = ROLE_PERMISSIONS[r.code] ?? [];
-    const perms = await prisma.permission.findMany({ where: { code: { in: codes } } });
+    const allowedCodes = ROLE_PERMISSIONS_MERGED[r.code] ?? [];
+    const perms = await prisma.permission.findMany({ where: { code: { in: allowedCodes } } });
     for (const perm of perms) {
       await prisma.rolePermission.upsert({
         where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
@@ -297,6 +94,15 @@ async function main(): Promise<void> {
         create: { roleId: role.id, permissionId: perm.id },
       });
     }
+    // سحب أي صلاحية معرفة لم تعد ممنوحة للدور في مصفوفة §4.2 (مطابقة منقّية)
+    await prisma.rolePermission.deleteMany({
+      where: {
+        roleId: role.id,
+        permission: {
+          code: { in: ALL_PERMISSIONS.map((p) => p.code), notIn: allowedCodes },
+        },
+      },
+    });
   }
 
   for (const u of UNITS) {
