@@ -139,6 +139,19 @@ export class MigrationService {
         return p;
       };
 
+      // يحافظ على تزامن CustomerRepAssignment (تغذية مندوب الجوال) مع Customer.repId.
+      const ensureAssignment = async (customerId: number, repId: number) => {
+        const active = await tx.customerRepAssignment.findFirst({
+          where: { customerId, repId, toDate: null },
+        });
+        if (active) return;
+        await tx.customerRepAssignment.updateMany({
+          where: { customerId, toDate: null, repId: { not: repId } },
+          data: { toDate: new Date() },
+        });
+        await tx.customerRepAssignment.create({ data: { companyId, customerId, repId } });
+      };
+
       // --- فئات ---
       for (const c of dto.categories ?? []) {
         await record('categories', c.code, async () => {
@@ -326,10 +339,12 @@ export class MigrationService {
           if (existing) {
             if (strict) throw new Error('duplicate customer code');
             await tx.customer.update({ where: { id: existing.id }, data });
+            if (rep) await ensureAssignment(existing.id, rep.id);
             return { ref: c.code, action: 'UPDATED' as const };
           }
-          await tx.customer.create({ data: { companyId, code: c.code, ...data } });
-          custMap.set(c.code, { id: -1, ...data } as never);
+          const created = await tx.customer.create({ data: { companyId, code: c.code, ...data } });
+          if (rep) await ensureAssignment(created.id, rep.id);
+          custMap.set(c.code, created as never);
           return { ref: c.code, action: 'CREATED' as const };
         });
       }

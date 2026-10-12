@@ -18,28 +18,33 @@ export class CustomersService {
     let code = dto.code;
     for (let attempt = 0; attempt < 5; attempt++) {
       if (!code) code = await this.nextCode(companyId, attempt);
+      const customerCode = code;
       try {
-        return await this.prisma.customer.create({
-          data: {
-            code,
-            nameAr: dto.nameAr,
-            nameEn: dto.nameEn,
-            activity: dto.activity,
-            address: dto.address,
-            lat: dto.lat,
-            lng: dto.lng,
-            phone: dto.phone,
-            phone2: dto.phone2,
-            taxNumber: dto.taxNumber,
-            priceListId: priceList.id,
-            creditLimit: dto.creditLimit ?? 0,
-            creditDays: dto.creditDays ?? 0,
-            repId: rep?.id,
-            openingBalance: dto.openingBalance ?? 0,
-            classification: dto.classification ?? 'C',
-            ...tenantWhere(companyId),
-          },
-          include: { priceList: { select: { id: true, code: true, nameAr: true } }, rep: { select: { id: true, name: true, repCode: true } } },
+        return await this.prisma.$transaction(async (tx) => {
+          const customer = await tx.customer.create({
+            data: {
+              code: customerCode,
+              nameAr: dto.nameAr,
+              nameEn: dto.nameEn,
+              activity: dto.activity,
+              address: dto.address,
+              lat: dto.lat,
+              lng: dto.lng,
+              phone: dto.phone,
+              phone2: dto.phone2,
+              taxNumber: dto.taxNumber,
+              priceListId: priceList.id,
+              creditLimit: dto.creditLimit ?? 0,
+              creditDays: dto.creditDays ?? 0,
+              repId: rep?.id,
+              openingBalance: dto.openingBalance ?? 0,
+              classification: dto.classification ?? 'C',
+              ...tenantWhere(companyId),
+            },
+            include: { priceList: { select: { id: true, code: true, nameAr: true } }, rep: { select: { id: true, name: true, repCode: true } } },
+          });
+          await this.syncAssignment(tx, customer.id, customer.repId, companyId);
+          return customer;
         });
       } catch (e) {
         if (isUniqueError(e) && !dto.code) {
@@ -112,27 +117,33 @@ export class CustomersService {
     const priceList = dto.priceListCode ? await this.resolvePriceList(dto.priceListCode, companyId) : null;
     const rep = dto.repCode ? await this.resolveRep(dto.repCode) : null;
 
-    return this.prisma.customer.update({
-      where: { id },
-      data: {
-        nameAr: dto.nameAr,
-        nameEn: dto.nameEn,
-        activity: dto.activity,
-        address: dto.address,
-        lat: dto.lat,
-        lng: dto.lng,
-        phone: dto.phone,
-        phone2: dto.phone2,
-        taxNumber: dto.taxNumber,
-        priceListId: priceList?.id,
-        creditLimit: dto.creditLimit,
-        creditDays: dto.creditDays,
-        repId: rep?.id,
-        openingBalance: dto.openingBalance,
-        classification: dto.classification,
-        active: dto.active,
-      },
-      include: { priceList: { select: { id: true, code: true, nameAr: true } }, rep: { select: { id: true, name: true, repCode: true } } },
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.update({
+        where: { id },
+        data: {
+          nameAr: dto.nameAr,
+          nameEn: dto.nameEn,
+          activity: dto.activity,
+          address: dto.address,
+          lat: dto.lat,
+          lng: dto.lng,
+          phone: dto.phone,
+          phone2: dto.phone2,
+          taxNumber: dto.taxNumber,
+          priceListId: priceList?.id,
+          creditLimit: dto.creditLimit,
+          creditDays: dto.creditDays,
+          repId: rep?.id,
+          openingBalance: dto.openingBalance,
+          classification: dto.classification,
+          active: dto.active,
+        },
+        include: { priceList: { select: { id: true, code: true, nameAr: true } }, rep: { select: { id: true, name: true, repCode: true } } },
+      });
+      if (dto.repCode !== undefined) {
+        await this.syncAssignment(tx, id, customer.repId, companyId);
+      }
+      return customer;
     });
   }
 
@@ -141,6 +152,34 @@ export class CustomersService {
     await this.findOne(id, companyId);
     await this.prisma.customer.update({ where: { id }, data: { active: false } });
     return { ok: true };
+  }
+
+  /**
+   * يزامن جدول `CustomerRepAssignment` (مصدر تغذية المندوب في /sync/delta والمسارح)
+   * مع `Customer.repId`: يفتح تعييناً جديداً للمندوب الحالي ويغلق التعيينات المفتوحة الأخرى.
+   */
+  private async syncAssignment(
+    tx: Prisma.TransactionClient,
+    customerId: number,
+    repId: number | null,
+    companyId: number | null,
+  ) {
+    const open = await tx.customerRepAssignment.findMany({
+      where: { customerId, toDate: null },
+      select: { id: true, repId: true },
+    });
+    if (repId != null && !open.some((a) => a.repId === repId)) {
+      await tx.customerRepAssignment.create({
+        data: { customerId, repId, ...tenantWhere(companyId) },
+      });
+    }
+    const stale = open.filter((a) => a.repId !== repId).map((a) => a.id);
+    if (stale.length > 0) {
+      await tx.customerRepAssignment.updateMany({
+        where: { id: { in: stale } },
+        data: { toDate: new Date() },
+      });
+    }
   }
 
   private async resolvePriceList(code: string, companyId: number | null) {

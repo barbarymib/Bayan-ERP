@@ -29,7 +29,7 @@ const payloadFixture: LegacyImportDto = {
 
 type Row = Record<string, unknown>;
 
-function makePrisma(seed: { items?: number; customers?: number } = {}) {
+function makePrisma(seed: { items?: number; customers?: number; rep?: boolean } = {}) {
   const created: Record<string, Row[]> = {
     category: [],
     unit: [],
@@ -38,6 +38,7 @@ function makePrisma(seed: { items?: number; customers?: number } = {}) {
     item: [],
     supplier: [],
     customer: [],
+    customerRepAssignment: [],
   };
   const prisma = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma as never),
@@ -95,7 +96,15 @@ function makePrisma(seed: { items?: number; customers?: number } = {}) {
       },
       update: async () => ({ id: 1 }) as never,
     },
-    user: { findMany: async () => [] },
+    user: { findMany: async () => (seed.rep ? [{ id: 42, repCode: 'M03' }] : []) },
+    customerRepAssignment: {
+      findFirst: async () => null,
+      updateMany: async () => ({ count: 0 }) as never,
+      create: async (a: { data: Row }) => {
+        created.customerRepAssignment?.push(a.data);
+        return { id: created.customerRepAssignment?.length ?? 0, ...a.data } as never;
+      },
+    },
     itemPrice: {
       upsert: async (a: { create: Row }) => ({ id: 1, ...a.create }) as never,
     },
@@ -204,5 +213,28 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
     expect(created.customer?.[0]).toMatchObject({ companyId: 7 });
     const stockArgs = stockMock.purchaseIn.mock.calls[0]?.[1] as { companyId: number };
     expect(stockArgs.companyId).toBe(7);
+  });
+
+  it('ينشئ تعيين مندوب (CustomerRepAssignment) للعميل المستورد المربوط بمندوب', async () => {
+    const { prisma, created } = makePrisma({ rep: true });
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const res = await svc.importPayload(
+      {
+        mode: 'MERGE',
+        priceLists: [{ code: 'RETAIL', nameAr: 'تجزئة' }],
+        customers: [
+          { code: 'CREP', nameAr: 'عميل مندوب', priceListCode: 'RETAIL', repCode: 'M03' },
+        ],
+      } as LegacyImportDto,
+      1,
+      7,
+    );
+    expect(res.errors).toBe(0);
+    expect(created.customer?.[0]).toMatchObject({ companyId: 7, repId: 42 });
+    expect(created.customerRepAssignment?.[0]).toMatchObject({
+      customerId: 1,
+      repId: 42,
+      companyId: 7,
+    });
   });
 });
