@@ -42,10 +42,12 @@ dependencies:
   connectivity_plus: ^7.3.2
   uuid: ^4.6.0
   drift: 2.31.0
-  sqlite3_flutter_libs: ^0.5.24
+  sqlcipher_flutter_libs: 0.6.8
+  flutter_secure_storage: 10.3.1
   path: ^1.9.0
   path_provider: ^2.1.5
   geolocator: ^14.0.1
+  sqlite3: ^2.9.0
 
   # §5.12/§5.13 E3: طباعة حرارية بلوتوث + PDF (النسخة المحلية مُخزّنة في Pub Cache —
   # لا يُسمح بترقية/تنزيل جديد من pub.dev حالياً).
@@ -65,7 +67,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: 2.31.0
   build_runner: 2.15.1
-  sqlite3: ^2.9.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

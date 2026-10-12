@@ -1,13 +1,24 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
 
-/// تخزين جلسة المندوب محلياً (توكن، هوية، معرّف الجهاز، صندوق الصادر، مؤشر المزامنة).
+/// تخزين جلسة المندوب محلياً.
+///
+/// - رموز الدخول (access/refresh) في [FlutterSecureStorage] (Keystore/Keychain)
+///   داخل التخزين الآمن (§9) مع نسخة مؤقتة في الذاكرة للقراءة السريعة.
+/// - بقية بيانات الجلسة (هوية المستخدم، معرّف الجهاز، صندوق الصادر، مؤشر
+///   المزامنة) في SharedPreferences.
 class SessionStore {
-  static const _kToken = 'auth_token';
-  static const _kRefresh = 'auth_refresh';
+  static const _kSecureToken = 'bayan.session.token.v1';
+  static const _kSecureRefresh = 'bayan.session.refresh.v1';
+
+  // مفاتيح SharedPreferences القديمة — مصدر الترحيل للتثبيتات السابقة.
+  static const _kLegacyToken = 'auth_token';
+  static const _kLegacyRefresh = 'auth_refresh';
+
   static const _kUser = 'auth_user';
   static const _kDeviceId = 'device_id';
   static const _kOutbox = 'outbox';
@@ -15,11 +26,16 @@ class SessionStore {
   static const _kPrinter = 'last_printer_address';
 
   final SharedPreferences _prefs;
+  final FlutterSecureStorage _secure;
 
-  SessionStore(this._prefs);
+  String? _cachedToken;
+  String? _cachedRefresh;
 
-  String? get token => _prefs.getString(_kToken);
-  String? get refreshToken => _prefs.getString(_kRefresh);
+  SessionStore(this._prefs, [FlutterSecureStorage? secure])
+      : _secure = secure ?? const FlutterSecureStorage();
+
+  String? get token => _cachedToken;
+  String? get refreshToken => _cachedRefresh;
   bool get isLoggedIn => (token ?? '').isNotEmpty;
 
   AuthUser? get user {
@@ -36,18 +52,48 @@ class SessionStore {
     return raw == null ? null : DateTime.tryParse(raw);
   }
 
-  Future<void> saveAuth(String token, AuthUser user, {String? refreshToken}) async {
-    await _prefs.setString(_kToken, token);
+  /// يقرأ الرموز من التخزين الآمن عند الإقلاع، ويهاجر أي رموز قديمة كانت
+  /// مخزنة بنصّ صريح في SharedPreferences من الإصدارات السابقة.
+  ///
+  /// يجب استدعاؤه قبل استخدام [token]/[refreshToken] (بمثابة جزء من الإقلاع).
+  Future<void> init() async {
+    _cachedToken = await _secure.read(key: _kSecureToken);
+    _cachedRefresh = await _secure.read(key: _kSecureRefresh);
+
+    final legacyToken = _prefs.getString(_kLegacyToken);
+    if (legacyToken != null && legacyToken.isNotEmpty) {
+      if (_cachedToken == null || _cachedToken!.isEmpty) {
+        await _secure.write(key: _kSecureToken, value: legacyToken);
+        _cachedToken = legacyToken;
+      }
+      final legacyRefresh = _prefs.getString(_kLegacyRefresh);
+      if (legacyRefresh != null && legacyRefresh.isNotEmpty &&
+          (_cachedRefresh == null || _cachedRefresh!.isEmpty)) {
+        await _secure.write(key: _kSecureRefresh, value: legacyRefresh);
+        _cachedRefresh = legacyRefresh;
+      }
+      await _prefs.remove(_kLegacyToken);
+      await _prefs.remove(_kLegacyRefresh);
+    }
+  }
+
+  Future<void> saveAuth(String token, AuthUser user,
+      {String? refreshToken}) async {
+    await _secure.write(key: _kSecureToken, value: token);
+    _cachedToken = token;
     if (refreshToken != null && refreshToken.isNotEmpty) {
-      await _prefs.setString(_kRefresh, refreshToken);
+      await _secure.write(key: _kSecureRefresh, value: refreshToken);
+      _cachedRefresh = refreshToken;
     }
     await _prefs.setString(_kUser, jsonEncode(user.toJson()));
   }
 
   /// يحدّث زوج الرموز بعد التجديد الصامت.
   Future<void> saveTokens(String accessToken, String refreshToken) async {
-    await _prefs.setString(_kToken, accessToken);
-    await _prefs.setString(_kRefresh, refreshToken);
+    await _secure.write(key: _kSecureToken, value: accessToken);
+    await _secure.write(key: _kSecureRefresh, value: refreshToken);
+    _cachedToken = accessToken;
+    _cachedRefresh = refreshToken;
   }
 
   Future<void> saveDeviceId(String id) => _prefs.setString(_kDeviceId, id);
@@ -64,8 +110,10 @@ class SessionStore {
   }
 
   Future<void> clear() async {
-    await _prefs.remove(_kToken);
-    await _prefs.remove(_kRefresh);
+    await _secure.delete(key: _kSecureToken);
+    await _secure.delete(key: _kSecureRefresh);
+    _cachedToken = null;
+    _cachedRefresh = null;
     await _prefs.remove(_kUser);
     await _prefs.remove(_kOutbox);
     await _prefs.remove(_kLastSync);

@@ -2,8 +2,11 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
+import 'db_security.dart';
 
 part 'database.g.dart';
 
@@ -110,16 +113,29 @@ class Meta extends Table {
 )
 class AppDatabase extends _$AppDatabase {
   /// مفتوحة عبر `NativeDatabase` (مسار تطبيق + مكتبة sqlite المحلية).
-  AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
+  /// على الأجهزة تُشفَّر القاعدة بـ SQLCipher ومفتاح داخل التخزين الآمن (§9).
+  AppDatabase([QueryExecutor? executor, FlutterSecureStorage? secure])
+      : super(executor ?? _openConnection(secure));
 
   /// قاعدة بيانات على تنفيذ داخلي (للاختبارات: ذاكرة أو ملف مؤقت).
   AppDatabase.forTesting(super.executor);
 
-  static LazyDatabase _openConnection() {
+  static LazyDatabase _openConnection([FlutterSecureStorage? secure]) {
     return LazyDatabase(() async {
+      await configureDbCipher();
       final dir = await getApplicationDocumentsDirectory();
       final file = File(p.join(dir.path, 'bayan_rep.sqlite'));
-      return NativeDatabase(file);
+
+      if (!dbCipherSupported) {
+        return NativeDatabase(file);
+      }
+
+      final key = await ensureDbKey(secure ?? const FlutterSecureStorage());
+      await migrateLegacyFileIfNeeded(file, key);
+      return NativeDatabase(
+        file,
+        setup: (db) => db.execute(cipherKeyPragma(key)),
+      );
     });
   }
 

@@ -24,6 +24,7 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
 
   final session = SessionStore(prefs);
+  await session.init();
   final db = AppDatabase();
   final store = DataStore(db);
   await store.init();
