@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { DeviceGuard } from '../src/auth/device.guard.js';
 import { SKIP_DEVICE_KEY, type AuthUser } from '../src/auth/auth.decorators.js';
-import { currentCompanyId } from '../src/tenant/tenant.context.js';
+import { currentCompanyId, runWithTenant } from '../src/tenant/tenant.context.js';
 
 const USER: AuthUser = {
   id: 2,
@@ -101,19 +101,25 @@ describe('DeviceGuard', () => {
 
   // Guards run before TenantContextInterceptor, so the RLS tenant GUC is not yet set
   // by the interceptor. This mirrors RLS: the row is only visible when the guard
-  // establishes the tenant context itself (regression for the "sync always 403" bug).
+  // pins the tenant context itself (regression for the "sync always 403" bug).
   it('reads the device under the user tenant context (RLS-visible)', async () => {
     const reflector = { getAllAndOverride: () => undefined } as unknown as Reflector;
     const prisma = {
       deviceRegistration: {
-        findFirst: vi.fn(async () =>
-          currentCompanyId() === 1 ? { id: 7, deviceId: 'dev-1', active: true } : null,
+        // Defer like Prisma: the tenant GUC is read when the query coroutine runs,
+        // not at call time — so a scoped run() would already have exited.
+        findFirst: vi.fn(() =>
+          Promise.resolve().then(() =>
+            currentCompanyId() === 1 ? { id: 7, deviceId: 'dev-1', active: true } : null,
+          ),
         ),
-        update: vi.fn(async () => ({})),
+        update: vi.fn(() => Promise.resolve({})),
       },
     } as never;
     const guard = new DeviceGuard(reflector, prisma as never);
     const { ctx } = makeContext({ deviceId: 'dev-1' });
-    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    await runWithTenant({ companyId: null }, () => guard.canActivate(ctx)).then((ok) =>
+      expect(ok).toBe(true),
+    );
   });
 });

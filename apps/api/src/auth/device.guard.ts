@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
-import { runWithTenant } from '../tenant/tenant.context.js';
+import { setTenant } from '../tenant/tenant.context.js';
 import { SKIP_DEVICE_KEY, type AuthUser } from './auth.decorators.js';
 
 /** الترويسة التي يحملها العميل لتحديد الجهاز (بعد تسجيل الجهاز §5.12). */
@@ -43,23 +43,22 @@ export class DeviceGuard implements CanActivate {
     }
 
     const companyId = user.companyId ?? null;
-    // Guards run before [TenantContextInterceptor]; [AuthGuard]'s enterWith does not
-    // propagate to this guard, so establish the RLS context around the reads here.
-    const device = await runWithTenant({ companyId }, () =>
-      this.prisma.deviceRegistration.findFirst({
-        where: { deviceId, userId: user.id, ...tenantWhere(companyId) },
-      }),
-    );
+    // Guards run before [TenantContextInterceptor] and [AuthGuard]'s enterWith does not
+    // propagate to this guard. Prisma resolves the tenant GUC lazily (when the query is
+    // awaited), so pin the context here with enterWith — a scoped run() would exit
+    // before the query executes and the RLS read would be denied.
+    setTenant({ companyId });
+    const device = await this.prisma.deviceRegistration.findFirst({
+      where: { deviceId, userId: user.id, ...tenantWhere(companyId) },
+    });
     if (!device || !device.active) {
       throw new ForbiddenException('Device not authorized — revoked or bound to another user');
     }
 
-    await runWithTenant({ companyId }, () =>
-      this.prisma.deviceRegistration.update({
-        where: { id: device.id },
-        data: { lastSeenAt: new Date() },
-      }),
-    );
+    await this.prisma.deviceRegistration.update({
+      where: { id: device.id },
+      data: { lastSeenAt: new Date() },
+    });
     request.device = { id: device.id, deviceId: device.deviceId };
     return true;
   }
