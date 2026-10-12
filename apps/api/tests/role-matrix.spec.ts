@@ -82,4 +82,14 @@ describe('§4.2 permission matrix', () => {
       expect(holders, `permission ${p.code}`).toBeGreaterThan(0);
     }
   });
+
+  it('G21: المندوب والمشرف يحتفظان بالإبلاغ الجغرافي الذاتي geo.report ولا يملكهما rep.track', () => {
+    const rep = ROLE_PERMISSIONS_MERGED['SALES_REP'] ?? [];
+    const sup = ROLE_PERMISSIONS_MERGED['REP_SUPERVISOR'] ?? [];
+    expect(rep).not.toContain('rep.track');
+    expect(rep).toContain('geo.report');
+    expect(sup).toContain('geo.report');
+    expect(sup).toContain('rep.track');
+    expect(ROLE_PERMISSIONS_MERGED['ACCOUNTANT'] ?? []).not.toContain('geo.report');
+  });
 });

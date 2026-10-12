@@ -16,6 +16,7 @@ export const PERMISSIONS: { code: string; nameAr: string }[] = [
   { code: 'stocktake.view', nameAr: 'عرض الجرد' },
   { code: 'archive.run', nameAr: 'الترحيل والأرشفة' },
   { code: 'rep.track', nameAr: 'تتبع المناديب' },
+  { code: 'geo.report', nameAr: 'الإبلاغ الجغرافي الذاتي (وردية/موقع/زيارة)' },
   { code: 'price.manage', nameAr: 'إدارة الأسعار' },
   { code: 'item.manage', nameAr: 'إدارة الأصناف' },
   { code: 'customer.manage', nameAr: 'إدارة العملاء' },
@@ -123,6 +124,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'return.create',
     'collection.create',
     'report.view',
+    'geo.report',
   ],
   REP_SUPERVISOR: [
     'statement.create',
@@ -137,6 +139,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'collection.create',
     'report.view',
     'rep.track',
+    'geo.report',
     'notification.view',
     'audit.view',
   ],

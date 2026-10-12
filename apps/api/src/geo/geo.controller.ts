@@ -11,35 +11,35 @@ export class GeoController {
   constructor(private readonly geo: GeoService) {}
 
   @Post('shifts/start')
-  @Permissions('rep.track')
+  @Permissions('geo.report')
   @ApiOkResponse({ description: 'بدء وردية المندوب (يعيد الوردية النشطة إن وجدت)' })
   startShift(@CurrentUser() user: AuthUser, @Body() dto: StartShiftDto) {
     return this.geo.startShift(user.sub, dto, user.companyId ?? null);
   }
 
   @Post('shifts/end')
-  @Permissions('rep.track')
+  @Permissions('geo.report')
   @ApiOkResponse({ description: 'إنهاء الوردية' })
   endShift(@CurrentUser() user: AuthUser, @Body() dto: EndShiftDto) {
     return this.geo.endShift(user.sub, dto, user.companyId ?? null);
   }
 
   @Get('shifts/current')
-  @Permissions('rep.track')
+  @Permissions('geo.report')
   @ApiOkResponse({ description: 'الوردية النشطة للمندوب الحالي' })
   currentShift(@CurrentUser() user: AuthUser) {
     return this.geo.currentShift(user.sub, user.companyId ?? null);
   }
 
   @Post('locations')
-  @Permissions('rep.track')
+  @Permissions('geo.report')
   @ApiOkResponse({ description: 'إرسال موقع أثناء الوردية (30-120 ثانية)' })
   pushLocation(@CurrentUser() user: AuthUser, @Body() dto: LocationDto) {
     return this.geo.pushLocation(user.sub, dto, user.companyId ?? null);
   }
 
   @Post('visits')
-  @Permissions('rep.track')
+  @Permissions('geo.report')
   @ApiOkResponse({ description: 'تسجيل زيارة عميل مع مطابقة القرب (150م)' })
   recordVisit(@CurrentUser() user: AuthUser, @Body() dto: VisitDto) {
     return this.geo.recordVisit(user.sub, dto, user.companyId ?? null);
