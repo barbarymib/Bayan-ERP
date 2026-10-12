@@ -33,7 +33,7 @@
 - **G3** `MISSING` — **Statement revisions not recorded** on edit-after-approval. `StatementRevision` is written **only** by archive *restore* (`apps/api/src/archives/archives.service.ts:918`); the edit-after-approval flow never creates a revision. Spec §5.1 text + §4.2 row "تعديل بيان بعد الاعتماد".
 - **G4** `PARTIAL` — **Mobile device trust.** Device registration failure is swallowed (`apps/mobile/lib/services/api_client.dart:123`); **no remote device revoke**, **no device-lock (biometric/PIN)**. (§9)
 - **G5** `MISSING` — **Mobile secrets at rest:** auth/refresh tokens stored plaintext; Drift DB opened unencrypted (no `sqlcipher`/`NativeDatabase` encryption). (§9)
-- **G6** `PARTIAL` — **Tenant isolation is app-level only.** `companyId` is nullable, many child tables carry no `companyId`, guards rely on `!= null` checks, and there is **no Postgres RLS**. `tenantWhere` at `apps/api/src/common/tenant.ts:4`. (§12, §9 security)
+- **G6** `FIXED` — **Tenant isolation enforced via Postgres RLS.** Migration `20261012000000_rls_tenant_isolation` enables + forces RLS on 41 business tables (schema `bayan`, policy `tenant_isolation` equality on `companyId`, `FORCE` since `bayan` owns the tables), backed by GUC `app.current_company_id` set per request (ALS `runWithTenant` + global interceptor/auth guard) and per Prisma operation (`tenantRlsExtension` wraps every model op in a GUC transaction so `include` relations resolve; `$transaction` array/function forms inject the GUC manually). Closed-by-default: unset GUC returns 0 rows; inserts without it fail WITH CHECK. Live-verified: reads/list/create/delete all company-scoped (11 OK) and full golden suite at baseline parity (90 OK / 0 FAIL). Exempt: `User`, `CompanyFeature` (read pre-GUC), auth/catalog/unit/child-no-companyId tables. Was: `apps/api/src/common/tenant.ts:4` (app-level only).
 
 ### Medium
 
@@ -83,7 +83,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 1. **G1** Gate/mask quotation cost behind `cost.view`. ✅ **done**
 2. **G21** Reconcile §4.2 permission cells + add a permission-matrix test. ✅ **done**
 3. **G22** Add `helmet`. ✅ **done**
-4. **G6** Tenant isolation: enforce non-null `companyId` on write paths + add RLS migration (+ regression tests).
+4. **G6** Tenant isolation: enforce non-null `companyId` on write paths + add RLS migration (+ regression tests). ✅ **done**
 5. **G5** Mobile: encrypt Drift DB + move tokens to secure storage.
 6. **G4** Mobile: fail-loud device registration + remote device revoke + optional device lock.
 
@@ -129,4 +129,5 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-12 | **G1** quotation cost masking | ✅ FIXED |
 | 2026-10-12 | **G21** §4.2 permission-cell reconciliation (rep.track / stocktake.view + geo.report split) | ✅ FIXED |
 | 2026-10-12 | **G22** `helmet` security headers | ✅ FIXED |
-| 2026-10-12 | **G6 (next)** tenant isolation + RLS | not started |
+| 2026-10-12 | **G6** tenant isolation + Postgres RLS (41 tables, GUC `app.current_company_id`, extension wrap-all-ops) | ✅ FIXED (11/11 API verify, 90/90 golden parity) |
+| 2026-10-12 | **G6** RLS regression: non-RLS child includes (`PriceStatementLine→statement`) returned null | ✅ fixed (wrap every model op, incl. their relations) |
