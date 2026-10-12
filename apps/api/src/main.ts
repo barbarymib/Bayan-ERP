@@ -5,12 +5,17 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { runWithTenant } from './tenant/tenant.context.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
+  // سياق المستأجر (§12): يبدأ فارغًا لكل طلب، ويُملأ بعد المصادقة في الاعتراض.
+  app.use((_req: unknown, _res: unknown, next: () => void) => {
+    runWithTenant({ companyId: null }, () => next());
+  });
   // أمان HTTP (§9): ترويسات الحماية؛ CSP كامل في الإنتاج فقط حتى لا يتعطل Swagger في التطوير.
   app.use(
     helmet({

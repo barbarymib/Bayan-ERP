@@ -4,8 +4,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { hashSync } from 'bcryptjs';
 import { ALL_PERMISSIONS, ROLE_PERMISSIONS_MERGED } from '../src/auth/role-permissions';
 
+// اتصال واحد (max: 1) لأن دالة RLS تقرأ GUC على مستوى الجلسة أثناء البذر (§12).
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 1 }),
 });
 
 
@@ -70,6 +71,9 @@ async function main(): Promise<void> {
     update: { status: 'ACTIVE', nameAr: 'شركة بيان' },
     create: { code: 'bayan', nameAr: 'شركة بيان', status: 'ACTIVE' },
   });
+
+  // تهيئة سياق RLS لبقية البذر (نطاق الجلسة؛ اتصال واحد max: 1) (§12).
+  await prisma.$executeRaw`SELECT set_config('app.current_company_id', ${String(company.id)}, false)`;
 
   for (const p of ALL_PERMISSIONS) {
     await prisma.permission.upsert({

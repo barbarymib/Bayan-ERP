@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthController } from './health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
+import { TenantContextInterceptor } from './tenant/tenant.interceptor.js';
 import { CommonModule } from './common/common.module.js';
 import { ObjectStorageModule } from './common/object-storage.module.js';
 import { ItemsModule } from './items/items.module.js';
@@ -92,6 +93,7 @@ import { SettingsModule } from './settings/settings.module.js';
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
   ],
 })
 export class AppModule {}

@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.module.js';
+import { setTenant } from '../tenant/tenant.context.js';
 import {
   FEATURES_KEY,
   GLOBAL_ADMIN_KEY,
@@ -48,6 +49,9 @@ export class AuthGuard implements CanActivate {
     if ((payload as unknown as { typ?: string }).typ === 'refresh') {
       throw new UnauthorizedException('Refresh token cannot be used for access');
     }
+
+    // تثبيت سياق الشركة (§12) قبل أي استعلام يعتمد عليه (الميزات، الفحوصات اللاحقة).
+    setTenant({ companyId: payload.companyId ?? null });
 
     const globalOnly = this.reflector.getAllAndOverride<boolean>(GLOBAL_ADMIN_KEY, [
       context.getHandler(),
