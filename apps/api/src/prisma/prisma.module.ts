@@ -10,20 +10,25 @@ type RawTransaction = (...args: unknown[]) => unknown;
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    super({
-      adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-    });
+    super({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
-    // نلتقط النسختين الأصليتين قبل الاستبدال، لتجنّب الالتفاف المتداخل.
-    const rawTransaction = this.$transaction.bind(this) as RawTransaction;
-    const rawExecuteRaw = this.$executeRaw.bind(this) as RawExecuteRaw;
-
-    const extended = this.$extends(
+    // عميل "خام" نظيف يفتح المعاملات بسياسات أصلية (بدون توسعة RLS) حتى لا تتداخل
+    // الوكلاء الملتفّون عند بدء معاملة من داخل نفسها. (تجمّع super لا يفتح اتصالات
+    // لأن كل أساليبه الصالحة تُستبدل بتلك القادمة من العميل الملتفّ.)
+    const raw = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+    const rawTransaction = raw.$transaction.bind(raw) as RawTransaction;
+    const rawExecuteRaw = raw.$executeRaw.bind(raw) as RawExecuteRaw;
+    const extended = raw.$extends(
       tenantRlsExtension({ runTransaction: rawTransaction as never }),
     ) as unknown as PrismaClient;
-    Object.assign(this, extended);
 
-    this.$transaction = ((arg: unknown, options?: unknown) => {
+    // ننسخ من العميل الملتفّ الأساليب والوكلاء فقط (لا الخصائص الداخلية '_...').
+    const target = this as unknown as Record<string, unknown>;
+    for (const key of Object.keys(extended as unknown as object)) {
+      if (!key.startsWith('_')) target[key] = (extended as unknown as Record<string, unknown>)[key];
+    }
+
+    target.$transaction = ((arg: unknown, options?: unknown) => {
       const companyId = currentCompanyId();
 
       if (typeof arg === 'function') {
