@@ -4,6 +4,7 @@ import type { Readable } from 'node:stream';
 import { gzipSync } from 'node:zlib';
 import type { Prisma } from '../generated/prisma/client';
 import { OBJECT_STORAGE, type ObjectStorage } from '../common/object-storage.js';
+import { recordsToSheet, toXlsx } from '../common/xlsx.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { createZip, sha256, toCsv, type ZipEntry } from './zip.js';
@@ -471,6 +472,9 @@ export class ArchivesService {
       ),
     );
     for (const t of ARCHIVE_TABLES) writeFile(`${t}.csv`, Buffer.from(toCsv(rows[t]), 'utf8'));
+    for (const t of ARCHIVE_TABLES) {
+      writeFile(`${t}.xlsx`, toXlsx([recordsToSheet(t, rows[t] as Record<string, unknown>[])]));
+    }
 
     const manifest = {
       code,

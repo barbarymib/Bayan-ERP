@@ -1,7 +1,8 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Features, Permissions, CurrentUser, type AuthUser } from '../auth/auth.decorators.js';
+import { toXlsx } from '../common/xlsx.js';
 import {
   QueryAgingDto,
   QueryMovementsDto,
@@ -57,8 +58,9 @@ export class ReportsController {
     return this.reports.summary(query, user.companyId ?? null);
   }
 
-  private respond<T>(res: Response, query: unknown, data: T): T {
-    if ((query as { format?: string }).format === 'csv' && data && typeof data === 'object') {
+  private respond<T>(res: Response, query: unknown, data: T): T | StreamableFile {
+    const format = (query as { format?: string }).format;
+    if ((format === 'csv' || format === 'xlsx') && data && typeof data === 'object') {
       const asRecord = data as Record<string, unknown>;
       const list = asRecord.rows as Record<string, unknown>[] | undefined;
       if (!Array.isArray(list) || list.length === 0) return data;
@@ -76,10 +78,18 @@ export class ReportsController {
       }
       allKeys.sort();
       const headers = allKeys.map((k) => (k === 'itemId' ? 'itemName' : k === 'warehouseId' ? 'warehouseName' : k));
-      const csvRows = list.map((r) => allKeys.map((k) => flat(r[k])));
+      const rows = list.map((r) => allKeys.map((k) => flat(r[k])));
+
+      if (format === 'xlsx') {
+        const buf = toXlsx([{ name: 'report', headers, rows }]);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="report.xlsx"');
+        return new StreamableFile(buf);
+      }
+
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="report.csv"');
-      return this.reports.toCsv(headers, csvRows) as unknown as T;
+      return this.reports.toCsv(headers, rows) as unknown as T;
     }
     return data;
   }
