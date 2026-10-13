@@ -7,6 +7,7 @@ import {
   QueryAgingDto,
   QueryDiscountApprovalsDto,
   QueryDiscountsDto,
+  QueryItemCardDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
   QueryRepPerformanceDto,
@@ -43,12 +44,21 @@ export class ReportsController {
     return this.reports.movements(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
-@Get('reports/low-stock')
+  @Get('reports/low-stock')
   @Permissions('report.view')
   @Features('reports.valuation')
   @ApiOkResponse({ description: 'أصناف تحت الحد الأدنى' })
   lowStock(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     return this.reports.lowStock(user.companyId ?? null).then((data) => this.respond(res, {}, data));
+  }
+
+  @Get('reports/item-card')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'بطاقة الصنف: رصيد افتتاحي + الحركات (رصيد جارٍ) + الرصيد الختامي — التكاليف لمن يملك cost.view' })
+  itemCard(@Query() query: QueryItemCardDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports
+      .itemCard(query, user.companyId ?? null, user.permissions.includes('cost.view'))
+      .then((data) => this.respond(res, query, data));
   }
 
 @Get('reports/stock-summary')

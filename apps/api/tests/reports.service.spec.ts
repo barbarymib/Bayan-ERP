@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -729,5 +729,118 @@ describe('ReportsService.repPerformance — أداء المناديب (§5.14)',
     const out = await buildRepPerformance(lookups).repPerformance({ limit: 1 } as QueryRepPerformanceDto);
     expect(out.rows).toHaveLength(1);
     expect(out.rows[0]?.repId).toBe(2);
+  });
+});
+
+interface ItemCardLookups {
+  item?: {
+    id: number;
+    code: string;
+    nameAr: string;
+    minStock: number;
+    minSalePrice: number | null;
+    lastPurchaseCost: number | null;
+    baseUnit: { id: number; code: string; nameAr: string };
+    category: { id: number; nameAr: string };
+  } | null;
+  before?: { qtyBase: number; cost: number | null; warehouseId: number; batchId: string }[];
+  rows?: { id: number; qtyBase: number; cost: number | null; type: string; warehouseId: number; batchId: string }[];
+  balances?: { warehouseId: number; qtyBase: number; batchId: string; warehouse: { id: number; code: string; nameAr: string } }[];
+}
+
+function buildItemCard(lookups: ItemCardLookups = {}) {
+  let call = 0;
+  const prisma = {
+    item: { findFirst: async () => lookups.item ?? null },
+    stockMovement: {
+      findMany: async () => {
+        call += 1;
+        if (call === 1 && lookups.before) return lookups.before;
+        return (lookups.rows ?? []).map((r) => ({
+          id: r.id,
+          createdAt: new Date('2026-10-07T10:00:00Z'),
+          type: r.type,
+          refType: null,
+          refId: null,
+          warehouseId: r.warehouseId,
+          batchId: r.batchId,
+          qtyBase: r.qtyBase,
+          cost: r.cost,
+          warehouse: { id: r.warehouseId, code: `W${r.warehouseId}`, nameAr: 'مخزن' },
+        }));
+      },
+    },
+    stockBalance: { findMany: async () => lookups.balances ?? [] },
+  } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+const itemStub = {
+  id: 1,
+  code: 'IR-16-10',
+  nameAr: 'ماسورة',
+  minStock: 5,
+  minSalePrice: null,
+  lastPurchaseCost: 100,
+  baseUnit: { id: 1, code: 'PCS', nameAr: 'قطعة' },
+  category: { id: 1, nameAr: 'حديد' },
+};
+
+describe('ReportsService.itemCard — بطاقة الصنف (§5.7/§5.14)', () => {
+  it('يرمي NotFound للصنف غير الموجود', async () => {
+    await expect(buildItemCard({ item: null }).itemCard({ itemId: 999 } as QueryItemCardDto)).rejects.toThrow();
+  });
+
+  it('رصيد افتتاحي + رصيد جارٍ وإجماليات', async () => {
+    const svc = buildItemCard({
+      item: itemStub,
+      before: [{ qtyBase: 5, cost: 100, warehouseId: 1, batchId: '' }],
+      rows: [
+        { id: 1, qtyBase: 10, cost: 100, type: 'PURCHASE_IN', warehouseId: 1, batchId: '' },
+        { id: 2, qtyBase: -3, cost: 100, type: 'SALE_OUT', warehouseId: 1, batchId: '' },
+      ],
+    });
+    const out = await svc.itemCard({ itemId: 1, from: '2026-10-01' } as QueryItemCardDto, null, true);
+    expect(out.opening).toEqual({ qty: 5, value: 500 });
+    expect(out.rows.map((r) => r.balance)).toEqual([15, 12]);
+    expect(out.rows[1]).toMatchObject({ out: -3, balance: 12, value: -300 });
+    expect(out.totals).toMatchObject({ in: 10, out: -3, net: 7, openingQty: 5, closingQty: 12, closingValue: 1200 });
+  });
+
+  it('يخفي التكاليف دون cost.view', async () => {
+    const svc = buildItemCard({
+      item: itemStub,
+      rows: [{ id: 1, qtyBase: 10, cost: 100, type: 'PURCHASE_IN', warehouseId: 1, batchId: '' }],
+      balances: [{ warehouseId: 1, qtyBase: 10, batchId: '', warehouse: { id: 1, code: 'W1', nameAr: 'مخزن' } }],
+    });
+    const out = await svc.itemCard({ itemId: 1 } as QueryItemCardDto, null, false);
+    expect(out.item.lastPurchaseCost).toBeNull();
+    expect(out.opening.value).toBeNull();
+    expect(out.totals.closingValue).toBeNull();
+    expect(out.rows[0]).toMatchObject({ unitCost: null, value: null });
+    expect(out.balances[0]?.value).toBeNull();
+  });
+
+  it('أرصدة لحظية لكل مخزن مُقيّمة بآخر سعر شراء', async () => {
+    const svc = buildItemCard({
+      item: itemStub,
+      rows: [],
+      balances: [
+        { warehouseId: 1, qtyBase: 10, batchId: '', warehouse: { id: 1, code: 'W1', nameAr: 'مخزن 1' } },
+        { warehouseId: 2, qtyBase: 4, batchId: 'B1', warehouse: { id: 2, code: 'W2', nameAr: 'مخزن 2' } },
+      ],
+    });
+    const out = await svc.itemCard({ itemId: 1 } as QueryItemCardDto, null, true);
+    expect(out.balances).toHaveLength(2);
+    expect(out.balances[0]).toMatchObject({ qtyBase: 10, value: 1000 });
+    expect(out.balances[1]).toMatchObject({ batchId: 'B1', qtyBase: 4, value: 400 });
+  });
+
+  it('بلا حركات: رصيد ختامي صفري', async () => {
+    const svc = buildItemCard({ item: itemStub, rows: [] });
+    const out = await svc.itemCard({ itemId: 1 } as QueryItemCardDto, null, true);
+    expect(out.rows).toHaveLength(0);
+    expect(out.totals.closingQty).toBe(0);
+    expect(out.totals.closingValue).toBe(0);
   });
 });

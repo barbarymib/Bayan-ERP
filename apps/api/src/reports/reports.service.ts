@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client';
 import { roundMoney, roundQty } from '@bayan/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
@@ -8,6 +8,7 @@ import type {
   QueryAgingDto,
   QueryDiscountApprovalsDto,
   QueryDiscountsDto,
+  QueryItemCardDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
   QueryRepPerformanceDto,
@@ -192,6 +193,140 @@ export class ReportsService {
     });
 
     return { count: out.length, rows: out, totals: { totalIn, totalOut, net: roundQty(totalIn + totalOut) } };
+  }
+
+  /** بطاقة الصنف: رصيد افتتاحي + حركات (رصيد جارٍ) + رصيد ختامي + أرصدة لحظية لكل مخزن (§5.7/§5.14). */
+  async itemCard(query: QueryItemCardDto, companyId: number | null = null, canViewCost = false) {
+    const item = await this.prisma.item.findFirst({
+      where: { id: query.itemId, ...tenantWhere(companyId) },
+      select: {
+        id: true,
+        code: true,
+        barcode: true,
+        nameAr: true,
+        nameEn: true,
+        minStock: true,
+        minSalePrice: true,
+        lastPurchaseCost: true,
+        baseUnit: { select: { id: true, code: true, nameAr: true } },
+        category: { select: { id: true, nameAr: true } },
+      },
+    });
+    if (!item) throw new NotFoundException('الصنف غير موجود');
+
+    const baseWhere: Prisma.StockMovementWhereInput = { ...tenantWhere(companyId), itemId: query.itemId };
+    if (query.warehouseId) baseWhere.warehouseId = query.warehouseId;
+    const from = query.from ? new Date(`${query.from}T00:00:00Z`) : null;
+    const to = query.to ? new Date(`${query.to}T23:59:59Z`) : null;
+    const fallbackCost = item.lastPurchaseCost != null ? Number(item.lastPurchaseCost) : null;
+    const unitCostOf = (c: unknown) => (c != null ? Number(c) : fallbackCost);
+
+    let openingQty = 0;
+    let openingValue = 0;
+    const openingByKey = new Map<string, number>();
+    if (from) {
+      const before = await this.prisma.stockMovement.findMany({
+        where: { ...baseWhere, createdAt: { lt: from } },
+        select: { qtyBase: true, cost: true, warehouseId: true, batchId: true },
+      });
+      for (const m of before) {
+        const qty = Number(m.qtyBase);
+        const cost = unitCostOf(m.cost);
+        openingQty += qty;
+        if (cost != null) openingValue += qty * cost;
+        const key = `${m.warehouseId}:${m.batchId}`;
+        openingByKey.set(key, (openingByKey.get(key) ?? 0) + qty);
+      }
+    }
+    openingQty = roundQty(openingQty);
+    openingValue = roundMoney(openingValue);
+
+    const where: Prisma.StockMovementWhereInput = { ...baseWhere };
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = from;
+      if (to) where.createdAt.lte = to;
+    }
+    const rows = await this.prisma.stockMovement.findMany({
+      where,
+      include: { warehouse: { select: { id: true, code: true, nameAr: true } } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: query.limit ?? 1000,
+    });
+
+    const running = new Map<string, number>(openingByKey);
+    let totalIn = 0;
+    let totalOut = 0;
+    let inValue = 0;
+    let outValue = 0;
+    const out = rows.map((m) => {
+      const key = `${m.warehouseId}:${m.batchId}`;
+      const qty = roundQty(Number(m.qtyBase));
+      const balance = roundQty((running.get(key) ?? 0) + qty);
+      running.set(key, balance);
+      const unitCost = unitCostOf(m.cost);
+      const value = unitCost != null ? roundMoney(qty * unitCost) : null;
+      if (qty > 0) {
+        totalIn = roundQty(totalIn + qty);
+        inValue = roundMoney(inValue + (value ?? 0));
+      } else {
+        totalOut = roundQty(totalOut + qty);
+        outValue = roundMoney(outValue + (value ?? 0));
+      }
+      return {
+        id: m.id,
+        at: m.createdAt,
+        type: m.type,
+        typeLabel: MOVEMENT_LABEL[m.type] ?? m.type,
+        refType: m.refType,
+        refId: m.refId,
+        warehouse: m.warehouse,
+        batchId: m.batchId,
+        qtyBase: qty,
+        in: qty > 0 ? qty : 0,
+        out: qty < 0 ? qty : 0,
+        unitCost,
+        value,
+        balance,
+      };
+    });
+
+    const closingQty = roundQty(openingQty + totalIn + totalOut);
+    const closingValue = roundMoney(openingValue + inValue + outValue);
+
+    const balances = await this.prisma.stockBalance.findMany({
+      where: { ...tenantWhere(companyId), itemId: query.itemId, ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}) },
+      include: { warehouse: { select: { id: true, code: true, nameAr: true } } },
+      orderBy: [{ warehouseId: 'asc' }, { batchId: 'asc' }],
+    });
+    const balanceRows = balances.map((b) => {
+      const qtyBase = roundQty(Number(b.qtyBase));
+      return {
+        warehouse: b.warehouse,
+        batchId: b.batchId,
+        qtyBase,
+        value: fallbackCost != null ? roundMoney(qtyBase * fallbackCost) : null,
+      };
+    });
+
+    const hideCost = !canViewCost;
+    return {
+      item: hideCost ? { ...item, lastPurchaseCost: null } : item,
+      from: from ? from.toISOString().slice(0, 10) : null,
+      to: to ? to.toISOString().slice(0, 10) : null,
+      warehouseId: query.warehouseId ?? null,
+      opening: { qty: openingQty, value: hideCost ? null : openingValue },
+      rows: hideCost ? out.map((r) => ({ ...r, unitCost: null, value: null })) : out,
+      totals: {
+        in: totalIn,
+        out: totalOut,
+        net: roundQty(totalIn + totalOut),
+        openingQty,
+        closingQty,
+        closingValue: hideCost ? null : closingValue,
+      },
+      balances: hideCost ? balanceRows.map((b) => ({ ...b, value: null })) : balanceRows,
+    };
   }
 
   /** أصناف تحت الحد الأدنى عبر المخازن. */
