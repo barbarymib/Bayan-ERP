@@ -154,4 +154,51 @@ describe('ApprovalsService lifecycle', () => {
     );
     await expect(svc.decide(1, { approved: true }, user)).rejects.toThrow('ملغي');
   });
+
+  it('اعتماد مرتجع CASH يتطلب return.cash_refund (G9) — يُرفض بلا الصلاحية ويبقى القرار معلّقاً', async () => {
+    const { prisma, calls } = build();
+    const cashPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({ id: 4, type: 'RETURN', refType: 'return_statement', refId: 9, status: 'PENDING' }),
+        update: async (args: unknown) => {
+          calls.decisionUpdates.push(args as Record<string, unknown>);
+          return {};
+        },
+      },
+      returnStatement: { findUnique: async () => ({ id: 9, status: 'DRAFT', settlement: 'CASH' }) },
+    } as unknown as PrismaService;
+    const finalizeReturn = vi.fn(async () => true);
+    const svc = new ApprovalsService(
+      cashPrisma,
+      { finalizeStatement: async () => true, finalizeReturn } as never,
+      { releaseReservations: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    await expect(svc.decide(4, { approved: true }, returnUser)).rejects.toThrow(/return\.cash_refund/);
+    expect(finalizeReturn).not.toHaveBeenCalled();
+    expect(calls.decisionUpdates).toHaveLength(0);
+  });
+
+  it('اعتماد مرتجع CASH بصلاحية return.cash_refund يمرّ وينفّذ التثبيت (G9)', async () => {
+    const { prisma } = build();
+    const cashPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({ id: 4, type: 'RETURN', refType: 'return_statement', refId: 9, status: 'PENDING' }),
+        update: async () => ({}),
+      },
+      returnStatement: { findUnique: async () => ({ id: 9, status: 'DRAFT', settlement: 'CASH' }) },
+    } as unknown as PrismaService;
+    const finalizeReturn = vi.fn(async () => true);
+    const svc = new ApprovalsService(
+      cashPrisma,
+      { finalizeStatement: async () => true, finalizeReturn } as never,
+      { releaseReservations: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    const cashUser = { id: 2, permissions: ['return.approve', 'return.cash_refund'] } as unknown as AuthUser;
+    await svc.decide(4, { approved: true }, cashUser);
+    expect(finalizeReturn).toHaveBeenCalledWith(9, cashUser);
+  });
 });

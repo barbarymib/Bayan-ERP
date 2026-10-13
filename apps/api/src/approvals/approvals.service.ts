@@ -81,6 +81,10 @@ export class ApprovalsService {
     if (approval.status !== 'PENDING') {
       throw new BadRequestException(`Approval already ${approval.status.toLowerCase()}`);
     }
+    // التحقق من قابلية الاعتماد (المستند غير ملغي + صلاحية رد النقدية عند الحاجة) قبل تغيير الحالة
+    if (dto.approved) {
+      await this.assertDecidable(approval, user);
+    }
 
     const next = dto.approved ? 'APPROVED' : 'REJECTED';
     await this.prisma.approval.update({
@@ -102,7 +106,6 @@ export class ApprovalsService {
     });
 
     if (dto.approved) {
-      await this.assertDecidable(approval);
       if (approval.refType === 'price_statement') {
         await this.ops.finalizeStatement(approval.refId, user);
       } else if (approval.refType === 'return_statement') {
@@ -114,9 +117,10 @@ export class ApprovalsService {
     return { id, approved: dto.approved };
   }
 
-  /** التحقق من أن المستند المرتبط غير مُلغي قبل الاعتماد. */
+  /** التحقق من أن المستند المرتبط غير مُلغي قبل الاعتماد + صلاحية رد النقدية عند الحاجة. */
   private async assertDecidable(
     approval: { refType: string; refId: number; companyId?: number | null },
+    user: AuthUser,
   ): Promise<void> {
     const companyId = approval.companyId ?? null;
     if (approval.refType === 'price_statement') {
@@ -126,11 +130,14 @@ export class ApprovalsService {
       }
       if (st.status === 'CANCELLED') throw new BadRequestException('كشف الحساب ملغي — لا يمكن اعتماده');
     } else if (approval.refType === 'return_statement') {
-      const rt = await this.prisma.returnStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true } });
+      const rt = await this.prisma.returnStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true, settlement: true } });
       if (!rt || (rt.companyId != null && rt.companyId !== companyId)) {
         throw new NotFoundException(`Return ${approval.refId} not found`);
       }
       if (rt.status === 'CANCELLED') throw new BadRequestException('بيان المرتجع ملغي — لا يمكن اعتماده');
+      if (rt.settlement === 'CASH' && !user.permissions.includes('return.cash_refund')) {
+        throw new ForbiddenException('Missing permission: return.cash_refund');
+      }
     }
   }
 

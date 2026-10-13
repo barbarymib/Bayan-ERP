@@ -450,6 +450,7 @@ export class SyncService {
       date: payload['date'] as string | undefined,
       reasonCode,
       notes: payload['notes'] as string | undefined,
+      settlement: payload['settlement'] as string | undefined,
       clientUuid: uuid,
       number: item.number,
       lines: Array.isArray(payload['lines'])

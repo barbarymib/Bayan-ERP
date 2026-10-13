@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
 import type { AuthUser } from '../auth/auth.decorators.js';
 import { NumberingService } from '../numbering.service.js';
@@ -130,6 +135,10 @@ export class SalesOpsService {
     if (rt.status === 'APPROVED') return false;
     if (rt.status === 'CANCELLED') throw new BadRequestException('Return is cancelled — cannot finalize');
     if (!rt.customerId) throw new NotFoundException('Return has no customer to credit');
+    // رد النقدية من الخزينة يتطلب صلاحية صريحة (§5.9 / §4.2)
+    if (rt.settlement === 'CASH' && !by.permissions.includes('return.cash_refund')) {
+      throw new ForbiddenException('Missing permission: return.cash_refund');
+    }
 
     const tenant = by.companyId ?? null;
     const period = await this.periods.open(tenant);
@@ -175,8 +184,8 @@ export class SalesOpsService {
       });
       // رد نقدية: يعادل أثر العميل ويُخرج النقدية من الخزينة
       if (rt.settlement === 'CASH') {
-        const cash = await tx.cashAccount.findFirst({ where: { active: true, ...tenantWhere(tenant) }, orderBy: { id: 'asc' } });
-        if (cash) {
+        const cashAccountId = await this.ledger.resolveCashAccountId(tx, tenant);
+        if (cashAccountId != null) {
           await this.ledger.entry(tx, {
             periodId: period?.id ?? null,
             companyId: tenant,
@@ -187,11 +196,10 @@ export class SalesOpsService {
             refId: rt.id,
             description: `رد نقدية مرتجع ${rt.number}`,
           });
-          await this.ledger.entry(tx, {
+          await this.ledger.cashEntry(tx, {
             periodId: period?.id ?? null,
             companyId: tenant,
-            accountType: 'CASH',
-            accountId: cash.id,
+            cashAccountId,
             credit: Number(rt.total),
             refType: 'return_refund',
             refId: rt.id,

@@ -39,7 +39,7 @@
 
 - `G7` `FIXED` — §5.3 pricing rules: added a per-item **min-sale-price floor** (`Item.minSalePrice`, base unit, scaled by the sale-unit factor); below it (or below last cost) the statement is held with a `BELOW_MIN_PRICE`/`BELOW_COST` approval and a `pricingAlerts` array is returned (**below-price alert**). **percent↔value discount conversion** added to `shared` (`convertDiscount`/`discountToPercent`/`discountToAmount`) and used for **type-agnostic discount-limit checks** (an amount discount is converted to its equivalent % and compared to the user limit); fixed the DTO `@Max(100)` that wrongly capped amount discounts. `Item.minSalePrice` wired through items create/update. (`price-statements.service.ts`, `packages/shared/src/discount.ts`)
 - `G8` `FIXED` — §5.7 draft/held-statement stock reservation: a statement held as `PENDING_REVIEW` now **holds its stock** via a reservation. `SalesOpsService.holdForReview` reverses the posting (restock + reversing ledger credit) when the statement had been auto-approved, then reserves its quantities and sets `PENDING_REVIEW` (drafts already reserved by the approval flow are not double-reserved; paid statements are refused like cancel). `SyncService.pushPriceStatement` uses it on a net mismatch, and best-effort holds any statement created before a failed finalize. `cancel()` already releases the hold. Also mapped `BELOW_MIN_PRICE` → `discount.approve` in `ApprovalsService.TYPE_PERMISSION` (the G7 approval type was undecidable). (`sales-ops.service.ts`, `sync.service.ts`, `approvals.service.ts`)
-- `G9` `PARTIAL` — §5.9 return **mode/settlement semantics** (settle vs. credit) partial.
+- `G9` `FIXED` — §5.9 return **settlement semantics** now enforced end-to-end: `return.cash_refund` (defined in the §4.2 matrix but previously unused) is required to create/approve/finalize a `CASH` return (`ReturnsService.create`, `ApprovalsService.decide`→`assertDecidable`, `SalesOpsService.finalizeReturn`); `settlement` (`BALANCE`/`CASH`/`CREDIT`) is validated on the direct **and** sync paths (`SyncService.pushReturnStatement` was dropping it → mobile returns always became `BALANCE`); the `CASH` refund now posts the cash side via `ledger.cashEntry`. `BALANCE`/`CREDIT` credit the customer account (reduce balance / leave credit); `CASH` additionally debits the customer and credits the cash account (net-zero). (`returns.service.ts`, `approvals.service.ts`, `sales-ops.service.ts`, `sync.service.ts`)
 - `G10` `PARTIAL` — §5.5 **landed-cost shipping apportionment** across purchase lines absent.
 - `G11` `PARTIAL` — §5.14 / §12 **CSV-only export**; spec asks XLSX (and SQLite/Excel archive).
 - `G12` `PARTIAL` — §5.2 **mixed-unit decomposition display** ("3 كرتونة + 2 عبوة") not surfaced.
@@ -92,7 +92,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 8. ~~**G7** Min-sale-price floor, percent↔value conversion, below-price alert.~~ ✅ done
 9. ~~**G8** Draft-level stock reservation.~~ ✅ done
 10. ~~**G27** Stock-valuation equation parity in `shared` + Dart.~~ ✅ done
-11. **G9** Return mode/settlement semantics.
+11. ~~**G9** Return mode/settlement semantics.~~ ✅ done
 12. **G10** Landed-cost shipping apportionment.
 
 ### Batch C — Reporting & exports
@@ -137,3 +137,4 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-13 | **G7** min-sale-price floor + below-min-price alert + percent↔value conversion + type-agnostic discount limits | ✅ FIXED (5 new tests; 20/20 live verify, 90/90 golden) |
 | 2026-10-13 | **G8** held-statement (`PENDING_REVIEW`) stock reservation + `BELOW_MIN_PRICE` approval permission mapping | ✅ FIXED (7 new tests) |
 | 2026-10-13 | **G27** stock-valuation equation parity in `shared` + Dart (LAST/WEIGHTED/SALES) | ✅ FIXED (13 shared + 13 mobile tests) |
+| 2026-10-13 | **G9** return settlement semantics: enforce `return.cash_refund`, carry `settlement` through sync, cash side via `ledger.cashEntry` | ✅ FIXED (6 new tests) |

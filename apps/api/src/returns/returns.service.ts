@@ -62,6 +62,16 @@ export class ReturnsService {
       throw new BadRequestException('sourceLineId مطلوب لكل بند (أو استخدم withoutStatement)');
     }
 
+    // أثر المرتجع المالي (§5.9): BALANCE (خصم من الرصيد) / CREDIT (رصيد دائن) / CASH (رد نقدية).
+    // القناة المباشرة تُتحقق في DTO، أما قناة المزامنة فتمرّ مباشرة — لذا نتحقق مرة أخرى هنا.
+    const settlement = dto.settlement ?? 'BALANCE';
+    if (!['BALANCE', 'CASH', 'CREDIT'].includes(settlement)) {
+      throw new BadRequestException(`Unknown settlement ${String(dto.settlement)}`);
+    }
+    if (settlement === 'CASH' && !user.permissions.includes('return.cash_refund')) {
+      throw new ForbiddenException('Missing permission: return.cash_refund');
+    }
+
     const resolved: {
       sourceLineId: number | null;
       itemId: number;
@@ -183,7 +193,7 @@ export class ReturnsService {
         status: 'DRAFT',
         total,
         withoutStatement,
-        settlement: dto.settlement ?? 'BALANCE',
+        settlement,
         reasonId: reason.id,
         notes: dto.notes,
         periodId: period?.id ?? null,
