@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStoppedCustomersDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -404,5 +404,75 @@ describe('ReportsService.returnsBy — المرتجعات ونسبتها للم�
     const r = ret({ id: 3, customerId: null, repId: null, reasonId: null, total: 50, lines: [] });
     const out = await buildReturns([r], lookups).returnsBy({ by: 'rep' } as QueryReturnsDto);
     expect(out.rows[0]).toMatchObject({ id: null, name: 'بدون', total: 50 });
+  });
+});
+
+function daysAgo(n: number) {
+  return new Date(Date.now() - n * 86_400_000);
+}
+
+interface StoppedLookups {
+  customers?: { id: number; code: string; nameAr: string; phone?: string | null; repId?: number | null; active?: boolean }[];
+  users?: { id: number; name: string }[];
+  lastSales?: { customerId: number; date: Date }[];
+}
+
+function buildStopped(lookups: StoppedLookups = {}) {
+  const prisma = {
+    customer: {
+      findMany: async ({ where }: { where?: { repId?: number } } = {}) =>
+        (lookups.customers ?? []).filter((c) => where?.repId == null || c.repId === where.repId),
+    },
+    priceStatement: {
+      groupBy: async () => (lookups.lastSales ?? []).map((l) => ({ customerId: l.customerId, _max: { date: l.date } })),
+    },
+    user: { findMany: async () => lookups.users ?? [] },
+  } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+describe('ReportsService.stoppedCustomers — العملاء المتوقفون (§5.14)', () => {
+  const lookups: StoppedLookups = {
+    customers: [
+      { id: 1, code: 'C1', nameAr: 'عميل 1', phone: '011', repId: 2, active: true },
+      { id: 2, code: 'C2', nameAr: 'عميل 2', phone: null, repId: 2, active: true },
+      { id: 3, code: 'C3', nameAr: 'عميل 3', phone: null, repId: null, active: true },
+    ],
+    users: [{ id: 2, name: 'مندوب' }],
+    lastSales: [
+      { customerId: 1, date: daysAgo(40) },
+      { customerId: 2, date: daysAgo(5) },
+    ],
+  };
+
+  it('يُرجع فقط من تجاوز الحد مع اسم المندوب', async () => {
+    const out = await buildStopped(lookups).stoppedCustomers({ days: 30 } as QueryStoppedCustomersDto);
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]).toMatchObject({ id: 1, code: 'C1', name: 'عميل 1', repId: 2, repName: 'مندوب' });
+    expect(out.rows[0]?.daysSince).toBeGreaterThanOrEqual(39);
+    expect(out.rows[0]?.lastSaleDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(out.totals).toMatchObject({ count: 1, scanned: 3 });
+  });
+
+  it('يستبعد العميل الذي لم يشترِ قط', async () => {
+    const out = await buildStopped(lookups).stoppedCustomers({ days: 1 } as QueryStoppedCustomersDto);
+    expect(out.rows.map((r) => r.id)).not.toContain(3);
+  });
+
+  it('يوسّع النتيجة عند تقليل عدد الأيام', async () => {
+    const out = await buildStopped(lookups).stoppedCustomers({ days: 3 } as QueryStoppedCustomersDto);
+    expect(out.rows.map((r) => r.id).sort()).toEqual([1, 2]);
+  });
+
+  it('يُرتب تنازلياً حسب عدد أيام التوقف ويطبّق limit', async () => {
+    const out = await buildStopped(lookups).stoppedCustomers({ days: 1, limit: 1 } as QueryStoppedCustomersDto);
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]?.id).toBe(1);
+  });
+
+  it('يحترم فلتر المندوب', async () => {
+    const out = await buildStopped(lookups).stoppedCustomers({ days: 30, repId: 2 } as QueryStoppedCustomersDto);
+    expect(out.rows.map((r) => r.id)).toEqual([1]);
+    expect(out.totals.scanned).toBe(2);
   });
 });

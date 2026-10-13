@@ -172,6 +172,27 @@ export class QueryReturnsDto extends CsvQuery {
   by!: ReturnDimension;
 }
 
+export class QueryStoppedCustomersDto extends CsvQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  days?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  repId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  limit?: number;
+}
+
 export class QueryAgingDto {
   @IsOptional()
   @IsDateString()

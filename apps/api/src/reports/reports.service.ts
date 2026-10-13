@@ -14,6 +14,7 @@ import type {
   QuerySalesSummaryDto,
   QueryStockSummaryDto,
   QueryStockValuesDto,
+  QueryStoppedCustomersDto,
 } from './reports.dto.js';
 
 const ACTIVE_STOCKTAKE = ['OPEN', 'COUNTING', 'REVIEW'] as const;
@@ -746,6 +747,63 @@ export class ReportsService {
         salesTotal,
         ratioPct: salesTotal !== 0 ? roundMoney((grandTotal / salesTotal) * 100) : 0,
       },
+    };
+  }
+
+  /** العملاء المتوقفون: لم يتم البيع لهم خلال آخر N يوم (§5.14). */
+  async stoppedCustomers(query: QueryStoppedCustomersDto, companyId: number | null = null) {
+    const days = query.days ?? 30;
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - days * 86_400_000);
+
+    const customerWhere: Prisma.CustomerWhereInput = { ...tenantWhere(companyId) };
+    if (query.repId != null) customerWhere.repId = query.repId;
+    const customers = await this.prisma.customer.findMany({
+      where: customerWhere,
+      select: { id: true, code: true, nameAr: true, phone: true, repId: true, active: true },
+    });
+
+    const grouped = await this.prisma.priceStatement.groupBy({
+      by: ['customerId'],
+      where: { ...tenantWhere(companyId), status: 'APPROVED', customerId: { in: customers.map((c) => c.id) } },
+      _max: { date: true },
+    });
+    const lastSale = new Map<number, Date>();
+    for (const g of grouped) {
+      if (g.customerId != null && g._max.date) lastSale.set(g.customerId, g._max.date);
+    }
+
+    const repIds = [...new Set(customers.map((c) => c.repId).filter((v): v is number => v != null))];
+    const reps = repIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: repIds }, ...tenantWhere(companyId) }, select: { id: true, name: true } })
+      : [];
+    const repName = new Map(reps.map((r) => [r.id, r.name]));
+
+    let rows = customers
+      .map((c) => {
+        const last = lastSale.get(c.id) ?? null;
+        const daysSince = last ? Math.floor((now.getTime() - last.getTime()) / 86_400_000) : null;
+        return {
+          id: c.id,
+          code: c.code,
+          name: c.nameAr,
+          phone: c.phone,
+          active: c.active,
+          repId: c.repId,
+          repName: c.repId != null ? repName.get(c.repId) ?? null : null,
+          lastSaleDate: last ? last.toISOString().slice(0, 10) : null,
+          daysSince,
+        };
+      })
+      .filter((r) => r.lastSaleDate != null && r.daysSince != null && r.daysSince >= days)
+      .sort((a, b) => (b.daysSince ?? 0) - (a.daysSince ?? 0));
+    if (query.limit != null) rows = rows.slice(0, query.limit);
+
+    return {
+      days,
+      cutoff: cutoff.toISOString().slice(0, 10),
+      rows,
+      totals: { count: rows.length, scanned: customers.length },
     };
   }
 
