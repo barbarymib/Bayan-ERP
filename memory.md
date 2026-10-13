@@ -447,7 +447,7 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 
 ## Relevant Files
 - **G2f (rep-performance):** `apps/api/src/reports/reports.service.ts` (`repPerformance`, `haversineM` import); `reports.dto.ts` (`QueryRepPerformanceDto`); `reports.controller.ts` (`reports/rep-performance`); `apps/api/src/geo/geo.service.ts` (exported `haversineM`); `apps/api/tests/reports.service.spec.ts` (+7).
-- **G2g (supplier-debt):** `apps/api/src/reports/reports.service.ts` (`supplierDebt`); `reports.dto.ts` (`QuerySupplierDebtDto`); `reports.controller.ts` (`reports/supplier-debt`); `apps/api/tests/reports.service.spec.ts` (+4).
+- **Item Card (G2):** `apps/api/src/reports/reports.service.ts` (`itemCard`, NotFoundException import); `reports.dto.ts` (`QueryItemCardDto`); `reports.controller.ts` (`reports/item-card`); `apps/api/tests/reports.service.spec.ts` (+5).
 - **G2e (stocktake-diff):** `apps/api/src/reports/reports.service.ts` (`stocktakeDiff`); `reports.dto.ts` (`QueryStocktakeDiffDto`); `reports.controller.ts` (`reports/stocktake-diff`); `apps/api/tests/reports.service.spec.ts` (+6).
 - **G2d (stopped-customers):** `apps/api/src/reports/reports.service.ts` (`stoppedCustomers`); `reports.dto.ts` (`QueryStoppedCustomersDto`); `reports.controller.ts` (`reports/stopped-customers`); `apps/api/tests/reports.service.spec.ts` (+5).
 - **G2c (returns):** `apps/api/src/reports/reports.service.ts` (`returnsBy`); `reports.dto.ts` (`RETURN_DIMENSIONS`, `QueryReturnsDto`); `reports.controller.ts` (`reports/returns`); `apps/api/tests/reports.service.spec.ts` (+7).
