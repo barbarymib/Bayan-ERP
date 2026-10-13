@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export const SALES_DIMENSIONS = ['item', 'category', 'brand', 'customer', 'rep', 'warehouse'] as const;
@@ -184,6 +184,39 @@ export class QueryStoppedCustomersDto extends CsvQuery {
   @Type(() => Number)
   @IsInt()
   repId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  limit?: number;
+}
+
+export class QueryStocktakeDiffDto extends CsvQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  sessionId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  warehouseId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value !== 'false' && value !== false)
+  onlyDiff?: boolean;
 
   @IsOptional()
   @Type(() => Number)

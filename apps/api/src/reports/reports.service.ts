@@ -14,6 +14,7 @@ import type {
   QuerySalesSummaryDto,
   QueryStockSummaryDto,
   QueryStockValuesDto,
+  QueryStocktakeDiffDto,
   QueryStoppedCustomersDto,
 } from './reports.dto.js';
 
@@ -804,6 +805,119 @@ export class ReportsService {
       cutoff: cutoff.toISOString().slice(0, 10),
       rows,
       totals: { count: rows.length, scanned: customers.length },
+    };
+  }
+
+  /** فروقات الجرد: النظام مقابل المعدود وقيمة الفرق (§5.14). */
+  async stocktakeDiff(query: QueryStocktakeDiffDto, companyId: number | null = null) {
+    const onlyDiff = query.onlyDiff ?? true;
+    const sessionWhere: Prisma.StocktakeSessionWhereInput = { ...tenantWhere(companyId) };
+    if (query.sessionId != null) sessionWhere.id = query.sessionId;
+    if (query.warehouseId != null) sessionWhere.warehouseId = query.warehouseId;
+    const range: { gte?: Date; lte?: Date } = {};
+    if (query.from) range.gte = new Date(`${query.from}T00:00:00Z`);
+    if (query.to) range.lte = new Date(`${query.to}T23:59:59.999Z`);
+    if (query.from != null || query.to != null) sessionWhere.openedAt = range;
+
+    const lines = await this.prisma.stocktakeLine.findMany({
+      where: { session: sessionWhere },
+      select: {
+        sessionId: true,
+        itemId: true,
+        systemQtyBase: true,
+        countedQtyBase: true,
+        diffQty: true,
+        lastCost: true,
+        diffValue: true,
+        session: { select: { number: true, status: true, warehouse: { select: { code: true, nameAr: true } } } },
+        item: { select: { code: true, nameAr: true } },
+      },
+    });
+
+    type Acc = {
+      sessionId: number;
+      sessionNumber: string;
+      status: string;
+      warehouse: string;
+      itemId: number;
+      code: string;
+      name: string;
+      systemQtyBase: number;
+      countedQtyBase: number | null;
+      anyCounted: boolean;
+      diffQty: number;
+      diffValue: number;
+      lastCost: number | null;
+    };
+    const acc = new Map<string, Acc>();
+    for (const l of lines) {
+      const key = `${l.sessionId}:${l.itemId}`;
+      const system = Number(l.systemQtyBase);
+      const counted = l.countedQtyBase != null ? Number(l.countedQtyBase) : null;
+      const diffQty = l.diffQty != null ? Number(l.diffQty) : counted != null ? roundQty(counted - system) : 0;
+      const diffValue = l.diffValue != null ? Number(l.diffValue) : roundMoney(diffQty * (l.lastCost != null ? Number(l.lastCost) : 0));
+      const a = acc.get(key) ?? {
+        sessionId: l.sessionId,
+        sessionNumber: l.session.number,
+        status: l.session.status,
+        warehouse: l.session.warehouse?.nameAr ?? '',
+        itemId: l.itemId,
+        code: l.item.code,
+        name: l.item.nameAr,
+        systemQtyBase: 0,
+        countedQtyBase: null,
+        anyCounted: false,
+        diffQty: 0,
+        diffValue: 0,
+        lastCost: l.lastCost != null ? Number(l.lastCost) : null,
+      };
+      a.systemQtyBase = roundQty(a.systemQtyBase + system);
+      if (counted != null) {
+        a.countedQtyBase = roundQty((a.countedQtyBase ?? 0) + counted);
+        a.anyCounted = true;
+      }
+      a.diffQty = roundQty(a.diffQty + diffQty);
+      a.diffValue = roundMoney(a.diffValue + diffValue);
+      acc.set(key, a);
+    }
+
+    const all = [...acc.values()];
+    const totals = {
+      sessions: new Set(all.map((a) => a.sessionId)).size,
+      lines: all.length,
+      diffLines: all.filter((a) => a.diffQty !== 0).length,
+      surplusQty: roundQty(all.reduce((s, a) => s + (a.diffQty > 0 ? a.diffQty : 0), 0)),
+      shortageQty: roundQty(all.reduce((s, a) => s + (a.diffQty < 0 ? a.diffQty : 0), 0)),
+      surplusValue: roundMoney(all.reduce((s, a) => s + (a.diffValue > 0 ? a.diffValue : 0), 0)),
+      shortageValue: roundMoney(all.reduce((s, a) => s + (a.diffValue < 0 ? a.diffValue : 0), 0)),
+      netValue: roundMoney(all.reduce((s, a) => s + a.diffValue, 0)),
+    };
+
+    let rows = all
+      .filter((a) => (onlyDiff ? a.diffQty !== 0 : true))
+      .map((a) => ({
+        sessionId: a.sessionId,
+        sessionNumber: a.sessionNumber,
+        status: a.status,
+        warehouse: a.warehouse,
+        itemId: a.itemId,
+        code: a.code,
+        name: a.name,
+        systemQtyBase: a.systemQtyBase,
+        countedQtyBase: a.anyCounted ? a.countedQtyBase : null,
+        diffQty: a.diffQty,
+        lastCost: a.lastCost,
+        diffValue: a.diffValue,
+      }))
+      .sort((x, y) => Math.abs(y.diffValue) - Math.abs(x.diffValue));
+    if (query.limit != null) rows = rows.slice(0, query.limit);
+
+    return {
+      onlyDiff,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      rows,
+      totals,
     };
   }
 

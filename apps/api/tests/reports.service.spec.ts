@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStoppedCustomersDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -474,5 +474,82 @@ describe('ReportsService.stoppedCustomers — العملاء المتوقفون 
     const out = await buildStopped(lookups).stoppedCustomers({ days: 30, repId: 2 } as QueryStoppedCustomersDto);
     expect(out.rows.map((r) => r.id)).toEqual([1]);
     expect(out.totals.scanned).toBe(2);
+  });
+});
+
+interface StockLineTest {
+  sessionId?: number;
+  sessionNumber?: string;
+  status?: string;
+  warehouse?: string;
+  itemId?: number;
+  code?: string;
+  name?: string;
+  systemQtyBase?: number;
+  countedQtyBase?: number | null;
+  diffQty?: number | null;
+  lastCost?: number | null;
+  diffValue?: number | null;
+}
+
+function stLine(over: StockLineTest = {}) {
+  return {
+    sessionId: over.sessionId ?? 1,
+    itemId: over.itemId ?? 1,
+    systemQtyBase: over.systemQtyBase ?? 10,
+    countedQtyBase: over.countedQtyBase === undefined ? 8 : over.countedQtyBase,
+    diffQty: over.diffQty === undefined ? -2 : over.diffQty,
+    lastCost: over.lastCost === undefined ? 50 : over.lastCost,
+    diffValue: over.diffValue === undefined ? -100 : over.diffValue,
+    session: { number: over.sessionNumber ?? 'ST-1', status: over.status ?? 'APPROVED', warehouse: { code: 'MAIN', nameAr: over.warehouse ?? 'المخزن الرئيسي' } },
+    item: { code: over.code ?? 'A', nameAr: over.name ?? 'صنف A' },
+  };
+}
+
+function buildStocktakeDiff(lines: ReturnType<typeof stLine>[]) {
+  const prisma = { stocktakeLine: { findMany: async () => lines } } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+describe('ReportsService.stocktakeDiff — فروقات الجرد (§5.14)', () => {
+  const lines = [
+    stLine({ itemId: 1, code: 'A', systemQtyBase: 10, countedQtyBase: 8, diffQty: -2, lastCost: 50, diffValue: -100 }),
+    stLine({ itemId: 1, code: 'A', systemQtyBase: 5, countedQtyBase: 5, diffQty: 0, lastCost: 50, diffValue: 0 }),
+    stLine({ itemId: 2, code: 'B', name: 'صنف B', systemQtyBase: 4, countedQtyBase: 7, diffQty: 3, lastCost: 10, diffValue: 30 }),
+    stLine({ itemId: 3, code: 'C', name: 'صنف C', systemQtyBase: 6, countedQtyBase: 6, diffQty: 0, lastCost: 5, diffValue: 0 }),
+  ];
+
+  it('يجمع البنود لكل صنف ويُظهر الفروقات فقط افتراضياً', async () => {
+    const out = await buildStocktakeDiff(lines).stocktakeDiff({});
+    expect(out.onlyDiff).toBe(true);
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows[0]).toMatchObject({ itemId: 1, code: 'A', systemQtyBase: 15, countedQtyBase: 13, diffQty: -2, diffValue: -100 });
+    expect(out.rows[1]).toMatchObject({ itemId: 2, diffQty: 3, diffValue: 30 });
+  });
+
+  it('يرتّب تنازلياً حسب |قيمة الفرق|', async () => {
+    const out = await buildStocktakeDiff(lines).stocktakeDiff({});
+    expect(out.rows.map((r) => r.itemId)).toEqual([1, 2]);
+  });
+
+  it('onlyDiff=false يُظهر كل الأصناف المعدودة', async () => {
+    const out = await buildStocktakeDiff(lines).stocktakeDiff({ onlyDiff: false } as QueryStocktakeDiffDto);
+    expect(out.rows).toHaveLength(3);
+    expect(out.rows.map((r) => r.itemId).sort()).toEqual([1, 2, 3]);
+  });
+
+  it('يحسب الإجماليات (زيادة/عجز/صافي)', async () => {
+    const out = await buildStocktakeDiff(lines).stocktakeDiff({});
+    expect(out.totals).toMatchObject({ sessions: 1, lines: 3, diffLines: 2, surplusQty: 3, shortageQty: -2, surplusValue: 30, shortageValue: -100, netValue: -70 });
+  });
+
+  it('بيانات وصفية للجلسة والمخزن', async () => {
+    const out = await buildStocktakeDiff(lines).stocktakeDiff({});
+    expect(out.rows[0]).toMatchObject({ sessionId: 1, sessionNumber: 'ST-1', status: 'APPROVED', warehouse: 'المخزن الرئيسي', name: 'صنف A' });
+  });
+
+  it('يستبعد الأسطر غير المعدودة (countedQtyBase=null)', async () => {
+    const out = await buildStocktakeDiff([stLine({ itemId: 9, countedQtyBase: null, diffQty: null, diffValue: null })]).stocktakeDiff({});
+    expect(out.rows).toHaveLength(0);
   });
 });

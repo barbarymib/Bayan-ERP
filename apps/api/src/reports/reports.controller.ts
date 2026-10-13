@@ -14,6 +14,7 @@ import {
   QuerySalesSummaryDto,
   QueryStockSummaryDto,
   QueryStockValuesDto,
+  QueryStocktakeDiffDto,
   QueryStoppedCustomersDto,
 } from './reports.dto.js';
 import { ReportsService } from './reports.service.js';
@@ -108,6 +109,13 @@ export class ReportsController {
   @ApiOkResponse({ description: 'العملاء المتوقفون (لا مبيعات خلال آخر N يوم)' })
   stoppedCustomers(@Query() query: QueryStoppedCustomersDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     return this.reports.stoppedCustomers(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/stocktake-diff')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'فروقات الجرد: النظام مقابل المعدود وقيمة الفرق' })
+  stocktakeDiff(@Query() query: QueryStocktakeDiffDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.stocktakeDiff(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
   private respond<T>(res: Response, query: unknown, data: T): T | StreamableFile {
