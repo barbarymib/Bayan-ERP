@@ -5,8 +5,12 @@ import { Features, Permissions, CurrentUser, type AuthUser } from '../auth/auth.
 import { toXlsx } from '../common/xlsx.js';
 import {
   QueryAgingDto,
+  QueryDiscountApprovalsDto,
+  QueryDiscountsDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
+  QuerySalesByDto,
+  QuerySalesSummaryDto,
   QueryStockSummaryDto,
   QueryStockValuesDto,
 } from './reports.dto.js';
@@ -50,12 +54,44 @@ export class ReportsController {
     return this.reports.stockSummary(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
-@Get('reports/summary')
+  @Get('reports/summary')
   @Permissions('report.view')
   @Features('reports.valuation')
   @ApiOkResponse({ description: 'لوحة المؤشرات' })
   summary(@Query() query: QueryReportSummaryDto, @CurrentUser() user: AuthUser) {
     return this.reports.summary(query, user.companyId ?? null);
+  }
+
+  @Get('reports/sales-summary')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'المبيعات حسب الفترة (يومي/شهري) — الأرباح لمن يملك cost.view' })
+  salesSummary(@Query() query: QuerySalesSummaryDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports
+      .salesSummary(query, user.companyId ?? null, user.permissions.includes('cost.view'))
+      .then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/sales-by')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'المبيعات حسب بُعد: صنف/تصنيف/ماركة/عميل/مندوب/مخزن' })
+  salesBy(@Query() query: QuerySalesByDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports
+      .salesBy(query, user.companyId ?? null, user.permissions.includes('cost.view'))
+      .then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/discounts')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'إجمالي الخصومات حسب المستخدم/المندوب/الصنف' })
+  discounts(@Query() query: QueryDiscountsDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.discountsBy(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/discount-approvals')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'الخصومات المتجاوزة وطلبات اعتمادها' })
+  discountApprovals(@Query() query: QueryDiscountApprovalsDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.discountApprovals(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
   private respond<T>(res: Response, query: unknown, data: T): T | StreamableFile {

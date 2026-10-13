@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+
+export const SALES_DIMENSIONS = ['item', 'category', 'brand', 'customer', 'rep', 'warehouse'] as const;
+export type SalesDimension = (typeof SALES_DIMENSIONS)[number];
+
+export const DISCOUNT_DIMENSIONS = ['user', 'rep', 'item'] as const;
+export type DiscountDimension = (typeof DISCOUNT_DIMENSIONS)[number];
 class CsvQuery {
   @IsOptional()
   @IsString()
@@ -70,6 +76,82 @@ export class QueryStockSummaryDto extends CsvQuery {
   @IsNumber({}, { message: 'stagnantDays must be number' })
   @Min(0)
   stagnantDays?: number = 90;
+}
+
+export class QuerySalesSummaryDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsOptional()
+  @IsIn(['day', 'month'])
+  groupBy?: 'day' | 'month' = 'day';
+}
+
+export class QuerySalesByDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsIn(SALES_DIMENSIONS)
+  by!: SalesDimension;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number;
+}
+
+export class QueryDiscountsDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsIn(DISCOUNT_DIMENSIONS)
+  by!: DiscountDimension;
+}
+
+export class QueryDiscountApprovalsDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsOptional()
+  @IsIn(['PENDING', 'APPROVED', 'REJECTED'])
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number = 200;
 }
 
 export class QueryAgingDto {

@@ -5,8 +5,12 @@ import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
 import type {
   QueryAgingDto,
+  QueryDiscountApprovalsDto,
+  QueryDiscountsDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
+  QuerySalesByDto,
+  QuerySalesSummaryDto,
   QueryStockSummaryDto,
   QueryStockValuesDto,
 } from './reports.dto.js';
@@ -340,6 +344,309 @@ export class ReportsService {
         }),
       ),
     };
+  }
+
+  /** بنود المبيعات المعتمدة ضمن الفترة (يشمل حقول التكلفة لحساب أرباح من يملك cost.view). */
+  private async loadSales(query: { from?: string; to?: string }, companyId: number | null) {
+    const where: Prisma.PriceStatementWhereInput = { ...tenantWhere(companyId), status: 'APPROVED' };
+    if (query.from || query.to) {
+      const date: { gte?: Date; lte?: Date } = {};
+      if (query.from) date.gte = new Date(`${query.from}T00:00:00Z`);
+      if (query.to) date.lte = new Date(`${query.to}T23:59:59.999Z`);
+      where.date = date;
+    }
+    return this.prisma.priceStatement.findMany({
+      where,
+      select: {
+        id: true,
+        date: true,
+        customerId: true,
+        repId: true,
+        warehouseId: true,
+        createdById: true,
+        discountAmount: true,
+        shipping: true,
+        taxAmount: true,
+        net: true,
+        lines: {
+          select: {
+            itemId: true,
+            qty: true,
+            unitPrice: true,
+            qtyBase: true,
+            netLine: true,
+            lineDiscountAmount: true,
+            allocatedHeaderDiscount: true,
+            costSnapshot: true,
+            item: { select: { categoryId: true, brandId: true } },
+          },
+        },
+      },
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /**
+   * تقرير المبيعات حسب الفترة (§5.14 — يومي/شهري):
+   * لكل فترة: عدد الفواتير، الكميات، الإجمالي قبل الخصم، الخصم، صافي البضاعة، الضريبة، النقل، الإجمالي.
+   * الأرباح (cost/profit) تُدرج فقط لمن يملك صلاحية رؤية التكلفة.
+   */
+  async salesSummary(query: QuerySalesSummaryDto, companyId: number | null = null, canViewCost = false) {
+    const statements = await this.loadSales(query, companyId);
+    const groupBy = query.groupBy ?? 'day';
+
+    type Bucket = { period: string; count: number; qtyBase: number; gross: number; discount: number; net: number; tax: number; shipping: number; total: number; cost: number };
+    const buckets = new Map<string, Bucket>();
+    const grand: Bucket = { period: '', count: 0, qtyBase: 0, gross: 0, discount: 0, net: 0, tax: 0, shipping: 0, total: 0, cost: 0 };
+
+    for (const s of statements) {
+      const period = groupBy === 'month' ? s.date.toISOString().slice(0, 7) : s.date.toISOString().slice(0, 10);
+      const b = buckets.get(period) ?? { period, count: 0, qtyBase: 0, gross: 0, discount: 0, net: 0, tax: 0, shipping: 0, total: 0, cost: 0 };
+
+      let sQty = 0;
+      let sGross = 0;
+      let sNet = 0;
+      let sCost = 0;
+      for (const l of s.lines) {
+        const q = roundQty(Number(l.qtyBase));
+        sQty = roundQty(sQty + q);
+        sGross = roundMoney(sGross + Number(l.qty) * Number(l.unitPrice));
+        sNet = roundMoney(sNet + Number(l.netLine));
+        sCost = roundMoney(sCost + (l.costSnapshot != null ? Number(l.costSnapshot) * q : 0));
+      }
+      const add = (t: Bucket) => {
+        t.count += 1;
+        t.qtyBase = roundQty(t.qtyBase + sQty);
+        t.gross = roundMoney(t.gross + sGross);
+        t.net = roundMoney(t.net + sNet);
+        t.tax = roundMoney(t.tax + Number(s.taxAmount));
+        t.shipping = roundMoney(t.shipping + Number(s.shipping));
+        t.total = roundMoney(t.total + Number(s.net));
+        t.cost = roundMoney(t.cost + sCost);
+        t.discount = roundMoney(t.gross - t.net);
+      };
+      add(b);
+      add(grand);
+      buckets.set(period, b);
+    }
+
+    const shape = (t: Bucket) => ({
+      count: t.count,
+      qtyBase: t.qtyBase,
+      gross: t.gross,
+      discount: t.discount,
+      net: t.net,
+      tax: t.tax,
+      shipping: t.shipping,
+      total: t.total,
+      ...(canViewCost ? { cost: t.cost, profit: roundMoney(t.net - t.cost) } : {}),
+    });
+
+    const rows = [...buckets.values()].sort((a, b) => a.period.localeCompare(b.period)).map((t) => ({ period: t.period, ...shape(t) }));
+    return { from: query.from ?? null, to: query.to ?? null, groupBy, rows, totals: { ...shape(grand), periods: rows.length } };
+  }
+
+  /**
+   * تقرير المبيعات حسب بُعد (§5.14): الصنف/التصنيف/الماركة/العميل/المندوب/المخزن.
+   * الرتب: الكميات الأساسية، الإجمالي قبل الخصم، الخصم، صافي البضاعة، والأرباح لمن يملك cost.view.
+   */
+  async salesBy(query: QuerySalesByDto, companyId: number | null = null, canViewCost = false) {
+    const by = query.by;
+    const statements = await this.loadSales(query, companyId);
+
+    type Acc = { id: number | null; qtyBase: number; gross: number; net: number; cost: number };
+    const acc = new Map<string, Acc>();
+    for (const s of statements) {
+      for (const l of s.lines) {
+        let id: number | null;
+        switch (by) {
+          case 'item': id = l.itemId; break;
+          case 'category': id = l.item.categoryId; break;
+          case 'brand': id = l.item.brandId ?? null; break;
+          case 'customer': id = s.customerId; break;
+          case 'rep': id = s.repId ?? null; break;
+          default: id = s.warehouseId; break;
+        }
+        const q = roundQty(Number(l.qtyBase));
+        const key = String(id ?? 0);
+        const a = acc.get(key) ?? { id, qtyBase: 0, gross: 0, net: 0, cost: 0 };
+        a.qtyBase = roundQty(a.qtyBase + q);
+        a.gross = roundMoney(a.gross + Number(l.qty) * Number(l.unitPrice));
+        a.net = roundMoney(a.net + Number(l.netLine));
+        a.cost = roundMoney(a.cost + (l.costSnapshot != null ? Number(l.costSnapshot) * q : 0));
+        acc.set(key, a);
+      }
+    }
+
+    const ids = [...acc.values()].map((a) => a.id).filter((v): v is number => v != null);
+    let names = new Map<number, { code: string | null; name: string }>();
+    if (by === 'item') {
+      const rows = await this.prisma.item.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    } else if (by === 'category') {
+      const rows = await this.prisma.category.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: null, name: r.nameAr }]));
+    } else if (by === 'brand') {
+      const rows = await this.prisma.brand.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: null, name: r.nameAr }]));
+    } else if (by === 'customer') {
+      const rows = await this.prisma.customer.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    } else if (by === 'rep') {
+      const rows = await this.prisma.user.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, name: true } });
+      names = new Map(rows.map((r) => [r.id, { code: null, name: r.name }]));
+    } else {
+      const rows = await this.prisma.warehouse.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    }
+
+    let rows = [...acc.values()].map((a) => {
+      const meta = a.id != null ? names.get(a.id) : undefined;
+      return {
+        id: a.id,
+        code: meta?.code ?? null,
+        name: meta?.name ?? (a.id == null ? 'بدون' : `#${a.id}`),
+        qtyBase: a.qtyBase,
+        gross: a.gross,
+        discount: roundMoney(a.gross - a.net),
+        net: a.net,
+        ...(canViewCost ? { cost: a.cost, profit: roundMoney(a.net - a.cost) } : {}),
+      };
+    });
+    rows.sort((a, b) => b.net - a.net);
+    if (query.limit) rows = rows.slice(0, query.limit);
+
+    const tQty = roundQty([...acc.values()].reduce((s, a) => s + a.qtyBase, 0));
+    const tGross = roundMoney([...acc.values()].reduce((s, a) => s + a.gross, 0));
+    const tNet = roundMoney([...acc.values()].reduce((s, a) => s + a.net, 0));
+    const tCost = roundMoney([...acc.values()].reduce((s, a) => s + a.cost, 0));
+    return {
+      by,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      rows,
+      totals: {
+        qtyBase: tQty,
+        gross: tGross,
+        discount: roundMoney(tGross - tNet),
+        net: tNet,
+        ...(canViewCost ? { cost: tCost, profit: roundMoney(tNet - tCost) } : {}),
+      },
+    };
+  }
+
+  /** إجمالي الخصومات حسب المستخدم (منشئ البيان) / المندوب / الصنف (§5.14). */
+  async discountsBy(query: QueryDiscountsDto, companyId: number | null = null) {
+    const by = query.by;
+    const statements = await this.loadSales(query, companyId);
+
+    type Acc = { id: number | null; count: number; qtyBase: number; net: number; discount: number };
+    const acc = new Map<string, Acc>();
+    const add = (id: number | null, qty: number, net: number, discount: number, count: number) => {
+      const key = String(id ?? 0);
+      const a = acc.get(key) ?? { id, count: 0, qtyBase: 0, net: 0, discount: 0 };
+      a.count += count;
+      a.qtyBase = roundQty(a.qtyBase + qty);
+      a.net = roundMoney(a.net + net);
+      a.discount = roundMoney(a.discount + discount);
+      acc.set(key, a);
+    };
+
+    for (const s of statements) {
+      if (by === 'item') {
+        for (const l of s.lines) {
+          const q = roundQty(Number(l.qtyBase));
+          const disc = roundMoney(Number(l.lineDiscountAmount) + Number(l.allocatedHeaderDiscount));
+          add(l.itemId, q, roundMoney(Number(l.netLine)), disc, 1);
+        }
+      } else {
+        const q = roundQty(s.lines.reduce((sum, l) => sum + Number(l.qtyBase), 0));
+        const net = roundMoney(s.lines.reduce((sum, l) => sum + Number(l.netLine), 0));
+        const disc = roundMoney(Number(s.discountAmount) + s.lines.reduce((sum, l) => sum + Number(l.lineDiscountAmount), 0));
+        add(by === 'user' ? s.createdById : s.repId ?? null, q, net, disc, 1);
+      }
+    }
+
+    const ids = [...acc.values()].map((a) => a.id).filter((v): v is number => v != null);
+    let names = new Map<number, { code: string | null; name: string }>();
+    if (by === 'item') {
+      const rows = await this.prisma.item.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    } else {
+      const rows = await this.prisma.user.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, name: true } });
+      names = new Map(rows.map((r) => [r.id, { code: null, name: r.name }]));
+    }
+
+    const rows = [...acc.values()]
+      .map((a) => {
+        const meta = a.id != null ? names.get(a.id) : undefined;
+        const net = a.net;
+        return {
+          id: a.id,
+          code: meta?.code ?? null,
+          name: meta?.name ?? (a.id == null ? 'بدون' : `#${a.id}`),
+          count: a.count,
+          qtyBase: a.qtyBase,
+          net,
+          discount: a.discount,
+          discountPct: net + a.discount !== 0 ? roundMoney(((a.discount / (net + a.discount)) * 100)) : 0,
+        };
+      })
+      .sort((a, b) => b.discount - a.discount);
+
+    const totals = {
+      count: rows.reduce((s, r) => s + r.count, 0),
+      qtyBase: roundQty(rows.reduce((s, r) => s + r.qtyBase, 0)),
+      net: roundMoney(rows.reduce((s, r) => s + r.net, 0)),
+      discount: roundMoney(rows.reduce((s, r) => s + r.discount, 0)),
+    };
+    return { by, from: query.from ?? null, to: query.to ?? null, rows, totals };
+  }
+
+  /** الخصومات المتجاوزة وطلبات اعتمادها (§5.14) — طلبات ITEM_DISCOUNT/HEADER_DISCOUNT. */
+  async discountApprovals(query: QueryDiscountApprovalsDto, companyId: number | null = null) {
+    const where: Prisma.ApprovalWhereInput = { ...tenantWhere(companyId), type: { in: ['ITEM_DISCOUNT', 'HEADER_DISCOUNT'] } };
+    if (query.status) where.status = query.status;
+    if (query.from || query.to) {
+      const date: { gte?: Date; lte?: Date } = {};
+      if (query.from) date.gte = new Date(`${query.from}T00:00:00Z`);
+      if (query.to) date.lte = new Date(`${query.to}T23:59:59.999Z`);
+      where.createdAt = date;
+    }
+
+    const rows = await this.prisma.approval.findMany({
+      where,
+      include: {
+        requestedBy: { select: { id: true, name: true } },
+        decidedBy: { select: { id: true, name: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: query.limit ?? 200,
+    });
+
+    const items = rows.map((a) => ({
+      id: a.id,
+      type: a.type,
+      status: a.status,
+      refType: a.refType,
+      refId: a.refId,
+      requestedBy: a.requestedBy?.name ?? null,
+      decidedBy: a.decidedBy?.name ?? null,
+      decidedAt: a.decidedAt,
+      note: a.note,
+      details: a.refJson,
+      createdAt: a.createdAt,
+    }));
+
+    const counts = await this.prisma.approval.groupBy({
+      by: ['status'],
+      where,
+      _count: { _all: true },
+    });
+    const byStatus: Record<string, number> = { PENDING: 0, APPROVED: 0, REJECTED: 0 };
+    for (const c of counts) byStatus[c.status] = c._count._all;
+
+    return { from: query.from ?? null, to: query.to ?? null, status: query.status ?? null, count: items.length, byStatus, rows: items };
   }
 
   toCsv(headers: string[], rows: (string | number | null | undefined)[][]): string {
