@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QuerySalesByDto, QuerySalesSummaryDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -301,5 +301,108 @@ describe('ReportsService.discountsBy / discountApprovals — الخصومات (�
     expect(out.rows[0]).toMatchObject({ id: 1, type: 'ITEM_DISCOUNT', status: 'APPROVED', requestedBy: 'مستخدم 5', decidedBy: 'المالك' });
     expect(out.rows[0]?.details).toEqual({ itemCode: 'A', userLimitPct: 5, effectivePercent: 12 });
     expect(out.rows[1]).toMatchObject({ id: 2, status: 'PENDING', decidedBy: null });
+  });
+});
+
+interface ReturnRowTest {
+  id?: number;
+  customerId?: number | null;
+  repId?: number | null;
+  reasonId?: number | null;
+  total?: number;
+  lines?: { itemId: number; qtyBase: number; lineTotal: number }[];
+}
+
+function ret(over: ReturnRowTest = {}) {
+  return {
+    id: over.id ?? 1,
+    customerId: over.customerId === undefined ? 1 : over.customerId,
+    repId: over.repId === undefined ? 2 : over.repId,
+    reasonId: over.reasonId === undefined ? 10 : over.reasonId,
+    total: over.total ?? 0,
+    lines: over.lines ?? [],
+  };
+}
+
+function buildReturns(returns: ReturnType<typeof ret>[], lookups: Lookups & { reasons?: { id: number; code: string; nameAr: string }[] } = {}, salesNet = 0) {
+  const prisma = {
+    returnStatement: { findMany: async () => returns },
+    customer: { findMany: async () => lookups.customers ?? [] },
+    user: { findMany: async () => lookups.users ?? [] },
+    returnReason: { findMany: async () => lookups.reasons ?? [] },
+    item: { findMany: async () => lookups.items ?? [] },
+    priceStatement: { aggregate: async () => ({ _sum: { net: salesNet } }) },
+  } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+describe('ReportsService.returnsBy — المرتجعات ونسبتها للمبيعات (§5.14)', () => {
+  const lookups: Lookups & { reasons?: { id: number; code: string; nameAr: string }[] } = {
+    customers: [
+      { id: 1, code: 'C1', nameAr: 'عميل 1' },
+      { id: 2, code: 'C2', nameAr: 'عميل 2' },
+    ],
+    users: [{ id: 2, name: 'مندوب' }],
+    reasons: [
+      { id: 10, code: 'DAMAGED', nameAr: 'تالف' },
+      { id: 11, code: 'OTHER', nameAr: 'أخرى' },
+    ],
+    items: [
+      { id: 1, code: 'A', nameAr: 'صنف A' },
+      { id: 2, code: 'B', nameAr: 'صنف B' },
+    ],
+  };
+  const r1 = ret({
+    id: 1,
+    customerId: 1,
+    repId: 2,
+    reasonId: 10,
+    total: 200,
+    lines: [
+      { itemId: 1, qtyBase: 5, lineTotal: 120 },
+      { itemId: 2, qtyBase: 2, lineTotal: 80 },
+    ],
+  });
+  const r2 = ret({ id: 2, customerId: 2, repId: 2, reasonId: 11, total: 100, lines: [{ itemId: 1, qtyBase: 5, lineTotal: 100 }] });
+
+  it('حسب العميل مع الاسم والمجموع', async () => {
+    const out = await buildReturns([r1, r2], lookups, 1000).returnsBy({ by: 'customer' } as QueryReturnsDto);
+    expect(out.rows[0]).toMatchObject({ id: 1, code: 'C1', name: 'عميل 1', total: 200, count: 1 });
+    expect(out.rows[1]).toMatchObject({ id: 2, code: 'C2', name: 'عميل 2', total: 100 });
+  });
+
+  it('حسب المندوب: يجمع المرتجعات', async () => {
+    const out = await buildReturns([r1, r2], lookups).returnsBy({ by: 'rep' } as QueryReturnsDto);
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]).toMatchObject({ id: 2, name: 'مندوب', total: 300, qtyBase: 12, count: 2 });
+  });
+
+  it('حسب السبب', async () => {
+    const out = await buildReturns([r1, r2], lookups).returnsBy({ by: 'reason' } as QueryReturnsDto);
+    expect(out.rows[0]).toMatchObject({ id: 10, code: 'DAMAGED', name: 'تالف', total: 200 });
+    expect(out.rows[1]).toMatchObject({ id: 11, name: 'أخرى', total: 100 });
+  });
+
+  it('حسب الصنف يجمع البنود', async () => {
+    const out = await buildReturns([r1, r2], lookups).returnsBy({ by: 'item' } as QueryReturnsDto);
+    expect(out.rows[0]).toMatchObject({ id: 1, code: 'A', total: 220, qtyBase: 10, count: 2 });
+    expect(out.rows[1]).toMatchObject({ id: 2, code: 'B', total: 80, qtyBase: 2, count: 1 });
+  });
+
+  it('يحسب النسبة إلى المبيعات والإجماليات', async () => {
+    const out = await buildReturns([r1, r2], lookups, 1000).returnsBy({ by: 'rep' } as QueryReturnsDto);
+    expect(out.totals).toMatchObject({ count: 2, qtyBase: 12, total: 300, salesTotal: 1000, ratioPct: 30 });
+  });
+
+  it('يحسب حصة كل مجموعة من إجمالي المرتجعات', async () => {
+    const out = await buildReturns([r1, r2], lookups).returnsBy({ by: 'customer' } as QueryReturnsDto);
+    expect(out.rows[0]?.sharePct).toBe(66.67);
+    expect(out.rows[1]?.sharePct).toBe(33.33);
+  });
+
+  it('يتعامل مع الأبعاد الفارغة (بدون مرجع)', async () => {
+    const r = ret({ id: 3, customerId: null, repId: null, reasonId: null, total: 50, lines: [] });
+    const out = await buildReturns([r], lookups).returnsBy({ by: 'rep' } as QueryReturnsDto);
+    expect(out.rows[0]).toMatchObject({ id: null, name: 'بدون', total: 50 });
   });
 });

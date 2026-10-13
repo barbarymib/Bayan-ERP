@@ -6,6 +6,9 @@ export type SalesDimension = (typeof SALES_DIMENSIONS)[number];
 
 export const DISCOUNT_DIMENSIONS = ['user', 'rep', 'item'] as const;
 export type DiscountDimension = (typeof DISCOUNT_DIMENSIONS)[number];
+
+export const RETURN_DIMENSIONS = ['customer', 'rep', 'reason', 'item'] as const;
+export type ReturnDimension = (typeof RETURN_DIMENSIONS)[number];
 class CsvQuery {
   @IsOptional()
   @IsString()
@@ -152,6 +155,21 @@ export class QueryDiscountApprovalsDto extends CsvQuery {
   @Min(1)
   @Max(1000)
   limit?: number = 200;
+}
+
+export class QueryReturnsDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsIn(RETURN_DIMENSIONS)
+  by!: ReturnDimension;
 }
 
 export class QueryAgingDto {

@@ -9,6 +9,7 @@ import type {
   QueryDiscountsDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
+  QueryReturnsDto,
   QuerySalesByDto,
   QuerySalesSummaryDto,
   QueryStockSummaryDto,
@@ -647,6 +648,105 @@ export class ReportsService {
     for (const c of counts) byStatus[c.status] = c._count._all;
 
     return { from: query.from ?? null, to: query.to ?? null, status: query.status ?? null, count: items.length, byStatus, rows: items };
+  }
+
+  /** مرتجعات حسب العميل/المندوب/السبب/الصنف ونسبة المرتجع إلى المبيعات (§5.14). */
+  async returnsBy(query: QueryReturnsDto, companyId: number | null = null) {
+    const by = query.by;
+    const range: { gte?: Date; lte?: Date } = {};
+    if (query.from) range.gte = new Date(`${query.from}T00:00:00Z`);
+    if (query.to) range.lte = new Date(`${query.to}T23:59:59.999Z`);
+    const hasRange = query.from != null || query.to != null;
+
+    const where: Prisma.ReturnStatementWhereInput = { ...tenantWhere(companyId), status: 'APPROVED', ...(hasRange ? { date: range } : {}) };
+    const returns = await this.prisma.returnStatement.findMany({
+      where,
+      select: {
+        id: true,
+        customerId: true,
+        repId: true,
+        reasonId: true,
+        total: true,
+        lines: { select: { itemId: true, qtyBase: true, lineTotal: true } },
+      },
+    });
+
+    type Acc = { id: number | null; count: number; qtyBase: number; total: number };
+    const acc = new Map<string, Acc>();
+    const add = (id: number | null, qty: number, total: number, count: number) => {
+      const key = String(id ?? 0);
+      const a = acc.get(key) ?? { id, count: 0, qtyBase: 0, total: 0 };
+      a.count += count;
+      a.qtyBase = roundQty(a.qtyBase + qty);
+      a.total = roundMoney(a.total + total);
+      acc.set(key, a);
+    };
+
+    let grandCount = 0;
+    let grandQty = 0;
+    let grandTotal = 0;
+    for (const r of returns) {
+      const rQty = roundQty(r.lines.reduce((s, l) => s + Number(l.qtyBase), 0));
+      const rTotal = roundMoney(Number(r.total));
+      grandCount += 1;
+      grandQty = roundQty(grandQty + rQty);
+      grandTotal = roundMoney(grandTotal + rTotal);
+      if (by === 'item') {
+        for (const l of r.lines) add(l.itemId, roundQty(Number(l.qtyBase)), roundMoney(Number(l.lineTotal)), 1);
+      } else {
+        const id = by === 'customer' ? r.customerId : by === 'rep' ? r.repId ?? null : r.reasonId ?? null;
+        add(id, rQty, rTotal, 1);
+      }
+    }
+
+    const ids = [...acc.values()].map((a) => a.id).filter((v): v is number => v != null);
+    let names = new Map<number, { code: string | null; name: string }>();
+    if (by === 'customer') {
+      const rows = await this.prisma.customer.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    } else if (by === 'rep') {
+      const rows = await this.prisma.user.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, name: true } });
+      names = new Map(rows.map((r) => [r.id, { code: null, name: r.name }]));
+    } else if (by === 'reason') {
+      const rows = await this.prisma.returnReason.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    } else {
+      const rows = await this.prisma.item.findMany({ where: { id: { in: ids }, ...tenantWhere(companyId) }, select: { id: true, code: true, nameAr: true } });
+      names = new Map(rows.map((r) => [r.id, { code: r.code, name: r.nameAr }]));
+    }
+
+    const salesWhere: Prisma.PriceStatementWhereInput = { ...tenantWhere(companyId), status: 'APPROVED', ...(hasRange ? { date: range } : {}) };
+    const salesAgg = await this.prisma.priceStatement.aggregate({ where: salesWhere, _sum: { net: true } });
+    const salesTotal = roundMoney(Number(salesAgg._sum.net ?? 0));
+
+    const rows = [...acc.values()]
+      .map((a) => {
+        const meta = a.id != null ? names.get(a.id) : undefined;
+        return {
+          id: a.id,
+          code: meta?.code ?? null,
+          name: meta?.name ?? (a.id == null ? 'بدون' : `#${a.id}`),
+          count: a.count,
+          qtyBase: a.qtyBase,
+          total: a.total,
+          sharePct: grandTotal !== 0 ? roundMoney((a.total / grandTotal) * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      by,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      rows,
+      totals: {
+        count: grandCount,
+        qtyBase: grandQty,
+        total: grandTotal,
+        salesTotal,
+        ratioPct: salesTotal !== 0 ? roundMoney((grandTotal / salesTotal) * 100) : 0,
+      },
+    };
   }
 
   toCsv(headers: string[], rows: (string | number | null | undefined)[][]): string {
