@@ -2,6 +2,7 @@ import {
   Discount,
   NO_DISCOUNT,
   allocateHeaderDiscount,
+  allocateProportional,
   calcHeaderDiscount,
   calcLineDiscount,
 } from './discount.js';
@@ -85,4 +86,40 @@ export function calcStatementTotals(input: StatementTotalsInput): StatementTotal
   const net = roundMoney(taxable + tax);
 
   return { lines, subtotal, headerDiscountAmount, shipping, tax, net };
+}
+
+/** أساس توزيع مصاريف النقل/الإضافية (Landed Cost) — §5.5 */
+export type LandedCostBasis = 'VALUE' | 'QTY';
+
+export interface LandedCostLine {
+  /** صافي البند بعد خصومات البند والبيان */
+  net: number;
+  /** الكمية بالوحدة الأساسية */
+  qtyBase: number;
+}
+
+/**
+ * توزيع مصاريف النقل/المصاريف الإضافية (Landed Cost) على البنود تناسبياً (§5.5).
+ * basis: 'VALUE' (حسب صافي البند) أو 'QTY' (حسب الكمية الأساسية).
+ * إذا كانت أوزان الأساس المطلوب كلها صفراً يُستخدم الأساس البديل تلقائياً
+ * (مثلاً بنود مجانية بصافي صفري تُوزَّع بالكمية).
+ * فرق التقريب يُصحَّح على آخر بند غير صفري (نفس سياسة خصم البيان).
+ */
+export function apportionLandedCost(
+  lines: readonly LandedCostLine[],
+  total: number,
+  basis: LandedCostBasis = 'VALUE',
+): number[] {
+  if (lines.length === 0) return [];
+  const amount = roundMoney(total);
+  if (amount === 0) return lines.map(() => 0);
+
+  const primary = lines.map((l) => (basis === 'VALUE' ? l.net : l.qtyBase));
+  const primarySum = primary.reduce((s, w) => s + w, 0);
+  const weights =
+    primarySum === 0
+      ? lines.map((l) => (basis === 'VALUE' ? l.qtyBase : l.net))
+      : primary;
+
+  return allocateProportional(weights, amount);
 }

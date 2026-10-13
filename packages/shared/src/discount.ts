@@ -75,6 +75,33 @@ export function convertDiscount(discount: Discount, base: number): DiscountEquiv
 }
 
 /**
+ * توزيع مبلغ تناسبياً على أوزان مرافقة (كل وزن > 0 يُقابل نصيباً).
+ * القاعدة: نصيب العنصر = المبلغ × (وزنه / مجموع الأوزان).
+ * التدوير: يُصحَّح فرق التقريب على آخر وزن غير صفري.
+ * دالة عامة تُستخدم لخصم البيان وتوزيع مصاريف النقل (Landed Cost).
+ */
+export function allocateProportional(weights: readonly number[], total: number): number[] {
+  const sum = roundMoney(weights.reduce((s, w) => s + w, 0));
+  const amount = roundMoney(total);
+  if (weights.length === 0) return [];
+  if (sum === 0 || amount === 0) return weights.map(() => 0);
+
+  const allocations = weights.map((w) => (w === 0 ? 0 : roundMoney((amount * w) / sum)));
+
+  const allocatedSum = allocations.reduce((s, a) => s + a, 0);
+  const diff = roundMoney(amount - allocatedSum);
+  if (diff !== 0) {
+    for (let i = allocations.length - 1; i >= 0; i--) {
+      if (weights[i] !== 0) {
+        allocations[i] = roundMoney((allocations[i] ?? 0) + diff);
+        break;
+      }
+    }
+  }
+  return allocations;
+}
+
+/**
  * توزيع خصم البيان (الثابت أو النسبي) على البنود نسبياً لأغراض
  * حساب الربحية والمرتجعات.
  * القاعدة: نصيب البند = خصم البيان × (صافي البند بعد خصم البند / مجموع الصافي).
@@ -84,22 +111,5 @@ export function allocateHeaderDiscount(
   lineNets: readonly number[],
   headerDiscountTotal: number,
 ): number[] {
-  const subtotal = roundMoney(lineNets.reduce((sum, n) => sum + n, 0));
-  const total = roundMoney(headerDiscountTotal);
-  if (lineNets.length === 0) return [];
-  if (subtotal === 0 || total === 0) return lineNets.map(() => 0);
-
-  const allocations = lineNets.map((net) => (net === 0 ? 0 : roundMoney((total * net) / subtotal)));
-
-  const allocatedSum = allocations.reduce((sum, a) => sum + a, 0);
-  const diff = roundMoney(total - allocatedSum);
-  if (diff !== 0) {
-    for (let i = allocations.length - 1; i >= 0; i--) {
-      if (lineNets[i] !== 0) {
-        allocations[i] = roundMoney((allocations[i] ?? 0) + diff);
-        break;
-      }
-    }
-  }
-  return allocations;
+  return allocateProportional(lineNets, headerDiscountTotal);
 }

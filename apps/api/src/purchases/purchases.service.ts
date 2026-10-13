@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  apportionLandedCost,
   calcStatementTotals,
   roundMoney,
   roundQty,
@@ -88,6 +89,16 @@ export class PurchasesService {
       taxPercent: dto.taxPercent,
     });
 
+    // توزيع مصاريف النقل/الإضافية على البنود (Landed Cost §5.5)
+    const qtyBases = resolved.map((r) => roundQty(r.qty * r.factor));
+    const shippingShares = apportionLandedCost(
+      resolved.map((r, i) => ({ net: totals.lines[i]!.netFinal, qtyBase: qtyBases[i]! })),
+      totals.shipping,
+      dto.landedCostBasis ?? 'VALUE',
+    );
+    const landedUnitCost = (i: number): number =>
+      qtyBases[i]! > 0 ? roundMoney((totals.lines[i]!.netFinal + shippingShares[i]!) / qtyBases[i]!) : 0;
+
     if (dto.paid && dto.paid > totals.net) {
       throw new BadRequestException(`paid (${dto.paid}) cannot exceed net (${totals.net})`);
     }
@@ -110,12 +121,13 @@ export class PurchasesService {
           discountAmount: totals.headerDiscountAmount,
           shipping: totals.shipping,
           net: totals.net,
+          landedCostTotal: totals.shipping > 0 ? totals.shipping : null,
           paid: dto.paid ?? 0,
           notes: dto.notes,
           periodId: period?.id ?? null,
           lines: {
             create: resolved.map((r, i) => {
-              const qtyBase = roundQty(r.qty * r.factor);
+              const qtyBase = qtyBases[i]!;
               const t = totals.lines[i]!;
               return {
                 itemId: r.itemId,
@@ -128,7 +140,7 @@ export class PurchasesService {
                 lineDiscountValue: r.discount?.value ?? null,
                 lineDiscountAmount: t.lineDiscountAmount,
                 netLine: t.netFinal,
-                landedCost: qtyBase > 0 ? roundMoney(t.netFinal / qtyBase) : 0,
+                landedCost: landedUnitCost(i),
                 periodId: period?.id ?? null,
               };
             }),
@@ -137,10 +149,9 @@ export class PurchasesService {
       });
 
       for (const line of resolved) {
-        const qtyBase = roundQty(line.qty * line.factor);
         const i = resolved.indexOf(line);
-        const t = totals.lines[i]!;
-        const baseCost = qtyBase > 0 ? t.netFinal / qtyBase : 0;
+        const qtyBase = qtyBases[i]!;
+        const cost = landedUnitCost(i);
         await this.stock.purchaseIn(tx, {
           warehouseId: warehouse.id,
           refType: 'purchase_statement',
@@ -148,11 +159,11 @@ export class PurchasesService {
           userId: user.id,
           periodId: period?.id ?? null,
           companyId: tenant,
-          lines: [{ itemId: line.itemId, qtyBase, cost: baseCost }],
+          lines: [{ itemId: line.itemId, qtyBase, cost }],
         });
         await tx.item.update({
           where: { id: line.itemId },
-          data: { lastPurchaseCost: roundMoney(baseCost) },
+          data: { lastPurchaseCost: cost },
         });
       }
 

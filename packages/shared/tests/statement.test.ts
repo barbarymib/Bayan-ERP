@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { calcStatementTotals, allocateHeaderDiscount, roundMoney } from '../src/index.js';
+import {
+  calcStatementTotals,
+  allocateHeaderDiscount,
+  allocateProportional,
+  apportionLandedCost,
+  roundMoney,
+} from '../src/index.js';
 
 describe('calcStatementTotals — المثال المرجعي (§13)', () => {
   // بند 1: 10 طن حديد × 40,000 = 400,000 خصم 1% ← 396,000
@@ -111,5 +117,69 @@ describe('allocateHeaderDiscount', () => {
 
   it('يُرجع مصفوفة فارغة لبندات فارغة', () => {
     expect(allocateHeaderDiscount([], 50)).toEqual([]);
+  });
+
+  it('مطابق للتوزيع التناسبي العام', () => {
+    expect(allocateHeaderDiscount([100, 300], 40)).toEqual(allocateProportional([100, 300], 40));
+  });
+});
+
+describe('apportionLandedCost — توزيع مصاريف النقل (§5.5)', () => {
+  it('وزن القيمة: التوزيع بحسب صافي البند', () => {
+    const shares = apportionLandedCost(
+      [
+        { net: 300, qtyBase: 10 },
+        { net: 100, qtyBase: 1 },
+      ],
+      80,
+      'VALUE',
+    );
+    expect(shares).toEqual([60, 20]);
+    expect(roundMoney(shares.reduce((s, v) => s + v, 0))).toBe(80);
+  });
+
+  it('وزن الكمية: التوزيع بحسب الكمية الأساسية', () => {
+    const shares = apportionLandedCost(
+      [
+        { net: 300, qtyBase: 10 },
+        { net: 100, qtyBase: 1 },
+      ],
+      11,
+      'QTY',
+    );
+    expect(shares).toEqual([10, 1]);
+  });
+
+  it('الافتراضي هو أساس القيمة', () => {
+    expect(apportionLandedCost([{ net: 1, qtyBase: 100 }], 5)).toEqual([5]);
+  });
+
+  it('يصحّح فرق التقريب على آخر بند غير صفري', () => {
+    const shares = apportionLandedCost(
+      [
+        { net: 100, qtyBase: 1 },
+        { net: 100, qtyBase: 1 },
+        { net: 100, qtyBase: 1 },
+      ],
+      10,
+    );
+    expect(roundMoney(shares.reduce((s, v) => s + v, 0))).toBe(10);
+  });
+
+  it('يتراجع لأساس الكمية عندما تكون كل القيم صفراً (بنود مجانية)', () => {
+    const shares = apportionLandedCost(
+      [
+        { net: 0, qtyBase: 3 },
+        { net: 0, qtyBase: 1 },
+      ],
+      40,
+      'VALUE',
+    );
+    expect(shares).toEqual([30, 10]);
+  });
+
+  it('يُرجع أصفاراً عند عدم وجود مصاريف أو بنود', () => {
+    expect(apportionLandedCost([{ net: 100, qtyBase: 1 }], 0)).toEqual([0]);
+    expect(apportionLandedCost([], 50)).toEqual([]);
   });
 });

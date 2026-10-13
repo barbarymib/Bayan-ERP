@@ -199,6 +199,7 @@ export class PurchaseOrdersService {
           unitPrice: Number(l.unitPrice),
         })),
         shipping: dto.shipping,
+        landedCostBasis: dto.landedCostBasis,
         taxPercent: dto.taxPercent,
         paid: dto.paid,
         paymentMethod: dto.paymentMethod,

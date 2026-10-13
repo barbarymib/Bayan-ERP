@@ -77,6 +77,15 @@ export class CreatePurchaseDto {
   @Min(0)
   shipping?: number;
 
+  @ApiPropertyOptional({
+    enum: ['VALUE', 'QTY'],
+    default: 'VALUE',
+    description: 'أساس توزيع مصاريف النقل على تكلفة الأصناف (§5.5)',
+  })
+  @IsOptional()
+  @IsIn(['VALUE', 'QTY'])
+  landedCostBasis?: 'VALUE' | 'QTY';
+
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()
   @IsNumber()

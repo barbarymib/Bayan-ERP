@@ -180,7 +180,7 @@ function buildReturn(opts: { settlement?: Settlement; permissions?: string[] } =
 
 describe('SalesOpsService.finalizeReturn (G9 §5.9 settlement)', () => {
   it('BALANCE: يرجع للمخزن + قيد دائن للعميل فقط (لا خزينة)', async () => {
-    const { service, calls, returnIn, entry, cashEntry, actingUser } = buildReturn({ settlement: 'BALANCE' });
+    const { service, calls, returnIn, cashEntry, actingUser } = buildReturn({ settlement: 'BALANCE' });
     const r = await service.finalizeReturn(8, actingUser);
     expect(r).toBe(true);
     expect(returnIn).toHaveBeenCalledTimes(2); // صالح → MAIN، تالف → DAMAGED
