@@ -99,6 +99,12 @@ export class CreateItemDto {
   @Min(0)
   minStock?: number;
 
+  @ApiPropertyOptional({ example: 45000, description: 'حد أدنى لسعر البيع للوحدة الأساسية (§5.3)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minSalePrice?: number;
+
   @IsOptional()
   @IsString()
   barcode?: string;
@@ -157,6 +163,12 @@ export class UpdateItemDto {
   @IsNumber()
   @Min(0)
   minStock?: number;
+
+  @ApiPropertyOptional({ example: 45000, description: 'حد أدنى لسعر البيع للوحدة الأساسية (§5.3)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minSalePrice?: number;
 
   @IsOptional()
   @IsString()

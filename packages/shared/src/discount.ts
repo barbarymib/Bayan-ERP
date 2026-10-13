@@ -42,6 +42,38 @@ export function calcHeaderDiscount(subtotalAfterLineDiscounts: number, discount:
   return calcLineDiscount(subtotalAfterLineDiscounts, discount);
 }
 
+export interface DiscountEquivalent {
+  /** المبلغ المكافئ للخصم بالجنيه. */
+  amount: number;
+  /** النسبة المكافئة للخصم (0-100). */
+  percent: number;
+}
+
+/** المبلغ المكافئ لأي خصم (نسبة أو قيمة ثابتة) على أساس معطى. */
+export function discountToAmount(discount: Discount, base: number): number {
+  return calcLineDiscount(base, discount);
+}
+
+/**
+ * النسبة المكافئة لأي خصم (نسبة أو قيمة ثابتة) على أساس معطى.
+ * القيمة الثابتة الأكبر من الأساس تُقصر على الأساس ⇒ 100%.
+ */
+export function discountToPercent(discount: Discount, base: number): number {
+  validateDiscount(discount);
+  if (discount.type === 'percent') return roundMoney(discount.value);
+  const gross = roundMoney(base);
+  if (gross <= 0) return 0;
+  return roundMoney((calcLineDiscount(gross, discount) / gross) * 100);
+}
+
+/**
+ * يحوّل الخصم بين النسبة والقيمة آلياً (§5.3/§5.6: "إدخال النسبة يُظهر القيمة والعكس")
+ * فيعيد التمثيلين معاً على أساس معطى — يُستخدم لفحص حدود الخصم وعرض المكافئ للعميل.
+ */
+export function convertDiscount(discount: Discount, base: number): DiscountEquivalent {
+  return { amount: discountToAmount(discount, base), percent: discountToPercent(discount, base) };
+}
+
 /**
  * توزيع خصم البيان (الثابت أو النسبي) على البنود نسبياً لأغراض
  * حساب الربحية والمرتجعات.

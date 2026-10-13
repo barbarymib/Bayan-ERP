@@ -3,6 +3,9 @@ import {
   allocateHeaderDiscount,
   calcHeaderDiscount,
   calcLineDiscount,
+  convertDiscount,
+  discountToAmount,
+  discountToPercent,
   validateDiscount,
 } from '../src/index.js';
 
@@ -42,5 +45,29 @@ describe('خصم البيان وتوزيعه النسبي على البنود (�
   it('لا توزيع على صفر بنود أو صفر خصم', () => {
     expect(allocateHeaderDiscount([], 100)).toEqual([]);
     expect(allocateHeaderDiscount([100, 200], 0)).toEqual([0, 0]);
+  });
+});
+
+describe('التحويل الآلي بين النسبة والقيمة (§5.3)', () => {
+  it('نسبة → قيمة: 10% من 30,000 = 3,000 و 10', () => {
+    expect(convertDiscount({ type: 'percent', value: 10 }, 30000)).toEqual({ amount: 3000, percent: 10 });
+  });
+
+  it('قيمة → نسبة: 3,000 من 30,000 = 10%', () => {
+    expect(convertDiscount({ type: 'amount', value: 3000 }, 30000)).toEqual({ amount: 3000, percent: 10 });
+  });
+
+  it('قيمة كبيرة على أساس صغير تُقصر على 100%', () => {
+    expect(discountToPercent({ type: 'amount', value: 500 }, 100)).toBe(100);
+    expect(discountToAmount({ type: 'amount', value: 500 }, 100)).toBe(100);
+  });
+
+  it('أساس صفري ⇒ النسبة صفر والقيمة صفر', () => {
+    expect(discountToPercent({ type: 'amount', value: 50 }, 0)).toBe(0);
+    expect(discountToAmount({ type: 'amount', value: 50 }, 0)).toBe(0);
+  });
+
+  it('تقريب النسبة المكافئة إلى خانتين', () => {
+    expect(discountToPercent({ type: 'amount', value: 100 }, 30000)).toBe(0.33);
   });
 });

@@ -27,6 +27,7 @@ type Harness = {
     updates: { data: Record<string, unknown> }[];
     lineCreates: { data: Record<string, unknown>[] }[];
     reservations: number[];
+    approvals: { type: string; refJson?: Record<string, unknown> }[];
     finalized: boolean;
     notified: number;
   };
@@ -76,7 +77,11 @@ function makeStatement(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function harness(stOverrides: Record<string, unknown> = {}, maxRevision: number | null = null): Harness {
+function harness(
+  stOverrides: Record<string, unknown> = {},
+  maxRevision: number | null = null,
+  itemOverrides: Record<string, unknown> = {},
+): Harness {
   const st = makeStatement(stOverrides);
   const calls: Harness['calls'] = {
     revisions: [],
@@ -87,6 +92,7 @@ function harness(stOverrides: Record<string, unknown> = {}, maxRevision: number 
     updates: [],
     lineCreates: [],
     reservations: [],
+    approvals: [],
     finalized: false,
     notified: 0,
   };
@@ -112,7 +118,13 @@ function harness(stOverrides: Record<string, unknown> = {}, maxRevision: number 
         return { ...st, ...args.data };
       },
     },
-    approval: { updateMany: async () => ({ count: 0 }), createMany: async () => ({ count: 0 }) },
+    approval: {
+      updateMany: async () => ({ count: 0 }),
+      createMany: async (args: { data: { type: string; refJson?: Record<string, unknown> }[] }) => {
+        calls.approvals.push(...args.data);
+        return { count: args.data.length };
+      },
+    },
   };
 
   const prisma = {
@@ -122,7 +134,16 @@ function harness(stOverrides: Record<string, unknown> = {}, maxRevision: number 
       findFirst: async () => ({ id: 3, code: 'MAIN', companyId: 1 }),
       findUnique: async () => ({ id: 3, code: 'MAIN', companyId: 1 }),
     },
-    item: { findFirst: async () => ({ id: 5, code: 'IR', baseUnitId: 6, lastPurchaseCost: 40, active: true }) },
+    item: {
+      findFirst: async () => ({
+        id: 5,
+        code: 'IR',
+        baseUnitId: 6,
+        lastPurchaseCost: 40,
+        active: true,
+        ...itemOverrides,
+      }),
+    },
     unit: { findUnique: async () => ({ id: 6, code: 'PCS' }) },
     itemUnit: { findUnique: async () => null },
     approval: { findMany: async () => [] },
@@ -294,5 +315,100 @@ describe('PriceStatementsService.update (G3)', () => {
     expect(calls.finalized).toBe(false);
     // لا نسخة لأنها مسودة
     expect(calls.revisions).toHaveLength(0);
+  });
+});
+
+describe('PriceStatementsService pricing floor & conversion (G7)', () => {
+  it('يرفع طلب موافقة BELOW_MIN_PRICE وينبّه عند البيع تحت الحد الأدنى', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { lastPurchaseCost: null, minSalePrice: 60 });
+    const res = (await service.update(
+      7,
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }] },
+      editor,
+    )) as unknown as { pricingAlerts: unknown[] };
+
+    expect(calls.approvals.map((a) => a.type)).toContain('BELOW_MIN_PRICE');
+    expect(calls.reservations).toEqual([1]);
+    expect(calls.finalized).toBe(false);
+    expect(res.pricingAlerts).toEqual([{ type: 'below_min_price', itemCode: 'IR', unitPrice: 50, threshold: 60 }]);
+  });
+
+  it('لا يرفع طلباً ولا ينبّه عندما يكون السعر عند الحد الأدنى أو أعلى', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { lastPurchaseCost: null, minSalePrice: 50 });
+    const res = (await service.update(
+      7,
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }] },
+      editor,
+    )) as unknown as { pricingAlerts: unknown[] };
+
+    expect(calls.approvals).toHaveLength(0);
+    expect(calls.finalized).toBe(true);
+    expect(res.pricingAlerts).toEqual([]);
+  });
+
+  it('يحوّل خصم البند بالقيمة إلى نسبة ويفحص الحد (نوع-مستقل §5.3)', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { lastPurchaseCost: null, minSalePrice: null });
+    // خصم قيمة 30 على بند 50 = 60% > حد 0
+    await service.update(
+      7,
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50, discount: { type: 'amount' as const, value: 30 } }] },
+      editor,
+    );
+    expect(calls.approvals.map((a) => a.type)).toContain('ITEM_DISCOUNT');
+  });
+
+  it('يفحص خصم البيان بالقيمة مقابل حد النسبة (تحويل آلي)', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { lastPurchaseCost: null, minSalePrice: null });
+    // بند 1 × 50 = 50، خصم قيمة 25 = 50% > حد 0
+    await service.update(
+      7,
+      {
+        customerId: 2,
+        lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }],
+        discount: { type: 'amount' as const, value: 25 },
+      },
+      editor,
+    );
+    expect(calls.approvals.map((a) => a.type)).toContain('HEADER_DISCOUNT');
+  });
+
+  it('يعيد النسبة المكافئة للخصم على الرأس والبنود', async () => {
+    const { service } = harness(
+      {
+        status: 'DRAFT',
+        subtotal: 50,
+        discountType: 'AMOUNT',
+        discountValue: 10,
+        lines: [
+          {
+            itemId: 5,
+            unitId: 6,
+            factor: 1,
+            qty: 1,
+            qtyBase: 1,
+            unitPrice: 50,
+            lineDiscountType: 'AMOUNT',
+            lineDiscountValue: 5,
+            lineDiscountAmount: 5,
+            allocatedHeaderDiscount: 0,
+            netLine: 45,
+            costSnapshot: null,
+            item: { id: 5, code: 'IR', lastPurchaseCost: null },
+            unit: { id: 6, code: 'PCS' },
+          },
+        ],
+      },
+      null,
+      { lastPurchaseCost: null, minSalePrice: null },
+    );
+    const res = (await service.update(
+      7,
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }] },
+      editor,
+    )) as unknown as { discountPercent: number; lines: { lineDiscountPercent: number }[] };
+
+    // رأس 10 من 50 = 20%، بند 5 من 50 = 10%
+    expect(res.discountPercent).toBe(20);
+    expect(res.lines[0]!.lineDiscountPercent).toBe(10);
   });
 });

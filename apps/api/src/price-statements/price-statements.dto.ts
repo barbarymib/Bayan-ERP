@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -19,9 +20,10 @@ export class DiscountInputDto {
   @IsIn(['percent', 'amount'])
   type!: 'percent' | 'amount';
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ example: 1, description: 'النسبة (0-100) أو المبلغ بالجنيه حسب النوع' })
   @IsNumber()
   @Min(0)
+  @ValidateIf((o: DiscountInputDto) => o.type === 'percent')
   @Max(100)
   value!: number;
 }

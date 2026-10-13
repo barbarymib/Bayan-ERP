@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import {
   calcStatementTotals,
+  discountToPercent,
   roundMoney,
   roundQty,
   type Discount,
@@ -35,13 +36,32 @@ interface ResolvedLine {
   unitPrice: number;
   discount?: Discount;
   cost: number | null;
+  minPrice: number | null;
 }
 
 interface DiscountFlag {
   itemCode: string;
   discount: Discount;
   limitPct: number;
+  effectivePercent: number;
 }
+
+/** خرق سعر: صنف سُعّر أقل من التكلفة أو أقل من الحد الأدنى (§5.3). */
+interface PriceViolation {
+  itemCode: string;
+  unitPrice: number;
+  threshold: number;
+}
+
+/** تنبيه سعري يُعرض للمستخدم (§5.3 "تنبيه عند البيع بأقل من ..."). */
+interface PricingAlert {
+  type: 'below_cost' | 'below_min_price';
+  itemCode: string;
+  unitPrice: number;
+  threshold: number;
+}
+
+type ApprovalKind = 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST' | 'BELOW_MIN_PRICE';
 
 type StatementTotals = ReturnType<typeof calcStatementTotals>;
 
@@ -117,7 +137,7 @@ export class PriceStatementsService {
 
     const number = dto.number ?? (await this.numbering.issue('BP', user.repCode ?? '', tenant));
 
-    const { resolved, discountFlags, belowCost } = await this.resolveLines(
+    const { resolved, discountFlags, belowCostLines, belowMinPriceLines } = await this.resolveLines(
       dto,
       tenant,
       customer,
@@ -135,9 +155,10 @@ export class PriceStatementsService {
       throw new BadRequestException(`paid (${dto.paid}) cannot exceed net (${totals.net})`);
     }
 
-    const headerExceeds =
-      dto.discount?.type === 'percent' && dto.discount.value > Number(user.maxInvoiceDiscountPct);
-    const requiresApproval = discountFlags.length > 0 || headerExceeds || belowCost;
+    const headerExceeds = this.headerDiscountExceeds(dto.discount, totals.subtotal, Number(user.maxInvoiceDiscountPct));
+    const requiresApproval =
+      discountFlags.length > 0 || headerExceeds || belowCostLines.length > 0 || belowMinPriceLines.length > 0;
+    const pricingAlerts = this.buildAlerts(belowCostLines, belowMinPriceLines);
 
     const period = await this.periods.open(tenant);
     const creditWarning = await this.checkCreditLimit(customer.id, totals.net, tenant);
@@ -191,16 +212,14 @@ export class PriceStatementsService {
           tenant,
         );
       });
-      const approvals: { type: 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST'; refJson: object }[] = discountFlags.map(
-        (flag) => ({
-          type: 'ITEM_DISCOUNT',
-          refJson: { itemCode: flag.itemCode, discount: flag.discount, userLimitPct: flag.limitPct },
-        }),
+      const approvals = this.buildApprovals(
+        discountFlags,
+        headerExceeds,
+        dto.discount,
+        belowCostLines,
+        belowMinPriceLines,
+        Number(user.maxInvoiceDiscountPct),
       );
-      if (headerExceeds) {
-        approvals.push({ type: 'HEADER_DISCOUNT', refJson: { discount: dto.discount, userLimitPct: Number(user.maxInvoiceDiscountPct) } });
-      }
-      if (belowCost) approvals.push({ type: 'BELOW_COST', refJson: { note: 'Selling below last purchase cost' } });
 
       await this.prisma.approval.createMany({
         data: approvals.map((a) => ({
@@ -229,7 +248,7 @@ export class PriceStatementsService {
     }
 
     const fresh = await this.findWithDetail(statement.id);
-    return { ...this.stripCost(fresh, user), creditWarning };
+    return { ...this.stripCost(fresh, user), creditWarning, pricingAlerts };
   }
 
   /**
@@ -273,7 +292,7 @@ export class PriceStatementsService {
     }
     await this.stock.assertMovable(warehouse.id, tenant);
 
-    const { resolved, discountFlags, belowCost } = await this.resolveLines(
+    const { resolved, discountFlags, belowCostLines, belowMinPriceLines } = await this.resolveLines(
       dto,
       tenant,
       customer,
@@ -288,9 +307,20 @@ export class PriceStatementsService {
     if (dto.paid && dto.paid > totals.net) {
       throw new BadRequestException(`paid (${dto.paid}) cannot exceed net (${totals.net})`);
     }
-    const headerExceeds =
-      dto.discount?.type === 'percent' && dto.discount.value > Number(user.maxInvoiceDiscountPct);
-    const requiresApproval = discountFlags.length > 0 || headerExceeds || belowCost;
+    const headerExceeds = this.headerDiscountExceeds(dto.discount, totals.subtotal, Number(user.maxInvoiceDiscountPct));
+    const requiresApproval =
+      discountFlags.length > 0 || headerExceeds || belowCostLines.length > 0 || belowMinPriceLines.length > 0;
+    const pricingAlerts = this.buildAlerts(belowCostLines, belowMinPriceLines);
+    const approvals = requiresApproval
+      ? this.buildApprovals(
+          discountFlags,
+          headerExceeds,
+          dto.discount,
+          belowCostLines,
+          belowMinPriceLines,
+          Number(user.maxInvoiceDiscountPct),
+        )
+      : [];
 
     const period = await this.periods.open(tenant);
     const required = resolved.map((r) => ({ itemId: r.item.id, qtyBase: roundQty(r.qty * r.factor) }));
@@ -372,7 +402,6 @@ export class PriceStatementsService {
         await tx.priceStatement.update({ where: { id }, data: { ...headerData, status: 'DRAFT' } });
         if (requiresApproval) {
           await this.stock.reserve(tx, 'price_statement', id, warehouse.id, required, tenant);
-          const approvals = this.buildApprovals(discountFlags, headerExceeds, dto.discount, belowCost, Number(user.maxInvoiceDiscountPct));
           await tx.approval.createMany({
             data: approvals.map((a) => ({
               type: a.type,
@@ -388,7 +417,7 @@ export class PriceStatementsService {
       });
       if (requiresApproval) {
         const targetIds = await this.notifications.userIdsWithPermission('discount.approve');
-        for (let i = 0; i < (discountFlags.length || 1); i++) {
+        for (let i = 0; i < approvals.length; i++) {
           await this.notifications.notifyMany(targetIds, {
             type: 'discount_approval',
             title: 'طلب موافقة على خصم يتجاوز الحد',
@@ -416,7 +445,7 @@ export class PriceStatementsService {
     });
 
     const fresh = await this.findWithDetail(id);
-    return this.stripCost(fresh, user);
+    return { ...this.stripCost(fresh, user), pricingAlerts };
   }
 
   async list(query: QueryStatementsDto, companyId: number | null = null) {
@@ -536,10 +565,16 @@ export class PriceStatementsService {
     tenant: number | null,
     customer: { id: number; priceListId: number | null },
     maxItemDiscountPct: number,
-  ): Promise<{ resolved: ResolvedLine[]; discountFlags: DiscountFlag[]; belowCost: boolean }> {
+  ): Promise<{
+    resolved: ResolvedLine[];
+    discountFlags: DiscountFlag[];
+    belowCostLines: PriceViolation[];
+    belowMinPriceLines: PriceViolation[];
+  }> {
     const resolved: ResolvedLine[] = [];
     const discountFlags: DiscountFlag[] = [];
-    let belowCost = false;
+    const belowCostLines: PriceViolation[] = [];
+    const belowMinPriceLines: PriceViolation[] = [];
 
     for (const line of dto.lines) {
       const item = await this.prisma.item.findFirst({ where: { code: line.itemCode, ...tenantWhere(tenant) } });
@@ -577,11 +612,23 @@ export class PriceStatementsService {
         throw new BadRequestException(`No price for ${item.code} in the customer's price list — provide unitPrice`);
       }
 
+      // حد أدنى لسعر البيع (§5.3) — يُقاس على وحدة البيع بمعامل التحويل
       const cost = item.lastPurchaseCost != null ? Number(item.lastPurchaseCost) * factor : null;
-      if (cost !== null && unitPrice < cost) belowCost = true;
+      if (cost !== null && unitPrice < cost) {
+        belowCostLines.push({ itemCode: item.code, unitPrice, threshold: cost });
+      }
+      const minPrice = item.minSalePrice != null ? Number(item.minSalePrice) * factor : null;
+      if (minPrice !== null && unitPrice < minPrice) {
+        belowMinPriceLines.push({ itemCode: item.code, unitPrice, threshold: minPrice });
+      }
 
-      if (line.discount?.type === 'percent' && line.discount.value > maxItemDiscountPct) {
-        discountFlags.push({ itemCode: item.code, discount: line.discount, limitPct: maxItemDiscountPct });
+      // تقييد الخصم: يُحوَّل النوعان لبعضهما (§5.3) فيُفحص الخصم بالنسبة المكافئة أيّاً كان نوعه
+      if (line.discount && line.discount.value > 0) {
+        const gross = roundMoney(line.qty * unitPrice);
+        const effectivePercent = discountToPercent(line.discount, gross);
+        if (effectivePercent > maxItemDiscountPct) {
+          discountFlags.push({ itemCode: item.code, discount: line.discount, limitPct: maxItemDiscountPct, effectivePercent });
+        }
       }
 
       resolved.push({
@@ -592,9 +639,24 @@ export class PriceStatementsService {
         unitPrice,
         discount: line.discount,
         cost,
+        minPrice,
       });
     }
-    return { resolved, discountFlags, belowCost };
+    return { resolved, discountFlags, belowCostLines, belowMinPriceLines };
+  }
+
+  /** هل يتجاوز خصم البيان الحد المسموح؟ يُحوَّل بالقيمة/النسبة لبعضهما ثم يُقاس بالنسبة المكافئة (§5.3). */
+  private headerDiscountExceeds(discount: Discount | undefined, subtotal: number, maxInvoiceDiscountPct: number): boolean {
+    if (!discount || discount.value <= 0) return false;
+    return discountToPercent(discount, subtotal) > maxInvoiceDiscountPct;
+  }
+
+  /** تنبيهات سعرية (أقل من التكلفة / أقل من الحد الأدنى) تُعاد مع البيان (§5.3). */
+  private buildAlerts(belowCostLines: PriceViolation[], belowMinPriceLines: PriceViolation[]): PricingAlert[] {
+    return [
+      ...belowCostLines.map((v): PricingAlert => ({ type: 'below_cost', ...v })),
+      ...belowMinPriceLines.map((v): PricingAlert => ({ type: 'below_min_price', ...v })),
+    ];
   }
 
   /** صفوف بنود البيان الجاهزة للكتابة (مشتركة بين الإنشاء والتعديل). */
@@ -623,12 +685,18 @@ export class PriceStatementsService {
     discountFlags: DiscountFlag[],
     headerExceeds: boolean,
     headerDiscount: Discount | undefined,
-    belowCost: boolean,
+    belowCostLines: PriceViolation[],
+    belowMinPriceLines: PriceViolation[],
     maxInvoiceDiscountPct: number,
-  ): { type: 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST'; refJson: object }[] {
-    const approvals: { type: 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST'; refJson: object }[] = discountFlags.map((flag) => ({
+  ): { type: ApprovalKind; refJson: object }[] {
+    const approvals: { type: ApprovalKind; refJson: object }[] = discountFlags.map((flag) => ({
       type: 'ITEM_DISCOUNT',
-      refJson: { itemCode: flag.itemCode, discount: flag.discount, userLimitPct: flag.limitPct } as object,
+      refJson: {
+        itemCode: flag.itemCode,
+        discount: flag.discount,
+        userLimitPct: flag.limitPct,
+        effectivePercent: flag.effectivePercent,
+      } as object,
     }));
     if (headerExceeds) {
       approvals.push({
@@ -636,7 +704,15 @@ export class PriceStatementsService {
         refJson: { discount: headerDiscount, userLimitPct: maxInvoiceDiscountPct } as object,
       });
     }
-    if (belowCost) approvals.push({ type: 'BELOW_COST', refJson: { note: 'Selling below last purchase cost' } as object });
+    if (belowCostLines.length > 0) {
+      approvals.push({ type: 'BELOW_COST', refJson: { lines: belowCostLines } as object });
+    }
+    if (belowMinPriceLines.length > 0) {
+      approvals.push({
+        type: 'BELOW_MIN_PRICE',
+        refJson: { note: 'Selling below the item minimum sale price', lines: belowMinPriceLines } as object,
+      });
+    }
     return approvals;
   }
 
@@ -724,7 +800,7 @@ export class PriceStatementsService {
   }
 
   private async findWithDetail(id: number) {
-    return this.prisma.priceStatement.findUnique({
+    const detail = await this.prisma.priceStatement.findUnique({
       where: { id },
       include: {
         lines: { include: { item: true, unit: true } },
@@ -734,5 +810,26 @@ export class PriceStatementsService {
         approvedBy: { select: { id: true, name: true } },
       },
     });
+    if (detail) this.addDiscountConversion(detail);
+    return detail;
+  }
+
+  /** يضيف التمثيل المكافئ للخصم (النسبة المكافئة) على الرأس والبنود — تحويل آلي (§5.3). */
+  private addDiscountConversion<T>(detail: T): T {
+    const d = detail as { subtotal: unknown; discountType: string | null; discountValue: unknown; lines?: Array<Record<string, unknown>> } & Record<string, unknown>;
+    d.discountPercent = this.effectivePercent(d.discountType, d.discountValue, Number(d.subtotal));
+    for (const line of d.lines ?? []) {
+      const gross = roundMoney(Number(line.qty) * Number(line.unitPrice));
+      line.lineDiscountPercent = this.effectivePercent((line.lineDiscountType as string | null) ?? null, line.lineDiscountValue, gross);
+    }
+    return detail;
+  }
+
+  /** النسبة المكافئة لخصم مخزَّن (نوع + قيمة) على أساس معطى (§5.3). */
+  private effectivePercent(dbType: string | null, value: unknown, base: number): number {
+    if (value == null) return 0;
+    const discount: Discount =
+      dbType === 'PERCENT' ? { type: 'percent', value: Number(value) } : { type: 'amount', value: Number(value) };
+    return discountToPercent(discount, base);
   }
 }
