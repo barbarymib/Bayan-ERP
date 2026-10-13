@@ -12,6 +12,7 @@ import { PriceStatementsService } from '../price-statements/price-statements.ser
 import { ReturnsService } from '../returns/returns.service.js';
 import { CollectionsService } from '../collections/collections.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { SalesOpsService } from '../common/sales-ops.service.js';
 import type { CreateStatementDto, StatementLineInputDto, DiscountInputDto } from '../price-statements/price-statements.dto.js';
 import type { DeviceRegisterDto, PushItemDto, PushDto, ReserveBlockDto } from './sync.dto.js';
 
@@ -43,6 +44,7 @@ export class SyncService {
     private readonly returnsSvc: ReturnsService,
     private readonly collections: CollectionsService,
     private readonly notifications: NotificationsService,
+    private readonly ops: SalesOpsService,
   ) {}
 
   /** ربط جهاز واحد لكل مستخدم (§5.12). */
@@ -378,7 +380,25 @@ export class SyncService {
       }),
     };
 
-    const stmt = await this.statements.create(dto, user);
+    const stmt = await (async () => {
+      try {
+        return await this.statements.create(dto, user);
+      } catch (e) {
+        // فشل إتمام الاعتماد: إن أُنشئ البيان، احتُجز للمراجعة مع حجز الكميات (§5.7/G8)
+        const created = await this.prisma.priceStatement.findFirst({
+          where: { clientUuid: uuid, ...tenantWhere(companyId) },
+          select: { id: true, status: true },
+        });
+        if (created && created.status !== 'CANCELLED') {
+          try {
+            await this.ops.holdForReview(created.id, user);
+          } catch {
+            /* best-effort: لا نحجب خطأ الرفع الأصلي */
+          }
+        }
+        throw e;
+      }
+    })();
     const s = stmt as unknown as {
       id: number;
       net: string | number;
@@ -387,10 +407,8 @@ export class SyncService {
     };
     const net = num(payload['net']);
     if (net !== undefined && Math.abs(Number(s.net) - net) > 0.01) {
-      await this.prisma.priceStatement.update({
-        where: { id: s.id },
-        data: { status: 'PENDING_REVIEW' },
-      });
+      // كميات مخالفة: يُحتجز البيان للمراجعة (عكس الترحيل إن كان معتمداً) مع حجز الكميات (§5.7/G8)
+      await this.ops.holdForReview(s.id, user);
       return {
         clientUuid: uuid,
         status: 'PENDING_REVIEW' as const,

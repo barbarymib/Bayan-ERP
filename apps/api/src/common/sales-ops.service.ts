@@ -207,6 +207,62 @@ export class SalesOpsService {
     return true;
   }
 
+  /**
+   * حجز بيان بانتظار المراجعة (PENDING_REVIEW) مع الاحتفاظ بالكميات (§5.7).
+   * - إن كان معتمداً: يُعكس الصرف والقيد ثم تُحتجز الكميات (لم يُعد مباعاً).
+   * - إن كان مسودة: يُضمن وجود حجز نشط (البيانات المطلوبة للموافقة محجوزة أصلاً).
+   * البيان المدفوع لا يُحجز (يتعذّر عكس سند القبض) — يُرفض كالإلغاء.
+   */
+  async holdForReview(statementId: number, by: AuthUser): Promise<boolean> {
+    const st = await this.prisma.priceStatement.findUnique({ where: { id: statementId }, include: { lines: true } });
+    if (!st || (st.companyId != null && st.companyId !== (by.companyId ?? null))) {
+      throw new NotFoundException(`Statement ${statementId} not found`);
+    }
+    if (st.status === 'CANCELLED') throw new BadRequestException('Statement is cancelled — cannot hold');
+    if (st.status === 'PENDING_REVIEW') return false;
+    if (st.status === 'APPROVED' && Number(st.paid) > 0) {
+      throw new BadRequestException(`Statement ${statementId} has payments — cannot hold for review`);
+    }
+
+    const tenant = by.companyId ?? null;
+    const lines = st.lines.map((l) => ({ itemId: l.itemId, qtyBase: Number(l.qtyBase) }));
+    const period = await this.periods.open(tenant);
+    await this.prisma.$transaction(async (tx) => {
+      if (st.status === 'APPROVED') {
+        await this.stock.restock(tx, {
+          warehouseId: st.warehouseId,
+          refType: 'price_statement',
+          refId: st.id,
+          userId: by.id,
+          periodId: period?.id ?? null,
+          companyId: tenant,
+          lines,
+        });
+        await this.ledger.entry(tx, {
+          periodId: period?.id ?? null,
+          companyId: tenant,
+          accountType: 'CUSTOMER',
+          accountId: st.customerId,
+          credit: Number(st.net),
+          refType: 'price_statement',
+          refId: st.id,
+          description: `حجز بيان للمراجعة ${st.number}`,
+        });
+      }
+      if (st.status !== 'DRAFT') {
+        await this.stock.reserve(tx, 'price_statement', st.id, st.warehouseId, lines, tenant);
+      } else {
+        const active = await tx.stockReservation.findFirst({
+          where: { refType: 'price_statement', refId: st.id, status: 'ACTIVE', ...tenantWhere(tenant) },
+          select: { id: true },
+        });
+        if (!active) await this.stock.reserve(tx, 'price_statement', st.id, st.warehouseId, lines, tenant);
+      }
+      await tx.priceStatement.update({ where: { id: st.id }, data: { status: 'PENDING_REVIEW' } });
+    });
+    return true;
+  }
+
   /** تراجع عن بيان معتمد (إلغاء): عكس الصرف + قيد عكسي. */
   async cancelStatement(statementId: number, by: AuthUser): Promise<boolean> {
     const st = await this.prisma.priceStatement.findUnique({ where: { id: statementId }, include: { lines: true } });

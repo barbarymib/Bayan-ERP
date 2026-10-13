@@ -16,6 +16,7 @@ const TYPE_PERMISSION: Record<string, string> = {
   ITEM_DISCOUNT: 'discount.approve',
   HEADER_DISCOUNT: 'discount.approve',
   BELOW_COST: 'discount.approve',
+  BELOW_MIN_PRICE: 'discount.approve',
   RETURN: 'return.approve',
 };
 

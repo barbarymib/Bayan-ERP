@@ -94,6 +94,32 @@ describe('ApprovalsService lifecycle', () => {
     expect(finalizeStatement).toHaveBeenCalledWith(5, user);
   });
 
+  it('اعتماد BELOW_MIN_PRICE: يُربط بصلاحية discount.approve (G7/G8)', async () => {
+    const { prisma } = build();
+    const belowMinPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({
+          id: 3,
+          type: 'BELOW_MIN_PRICE',
+          refType: 'price_statement',
+          refId: 5,
+          status: 'PENDING',
+        }),
+        update: async () => ({}),
+      },
+    } as unknown as PrismaService;
+    const finalizeStatement = vi.fn(async () => true);
+    const svc = new ApprovalsService(
+      belowMinPrisma,
+      { finalizeStatement, finalizeReturn: async () => true } as never,
+      { releaseReservations: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    await svc.decide(3, { approved: true }, user);
+    expect(finalizeStatement).toHaveBeenCalledWith(5, user);
+  });
+
   it('رفض مرتجع: يلغي بيان المرتجع', async () => {
     const { prisma, calls } = build();
     const returnPrisma = {
