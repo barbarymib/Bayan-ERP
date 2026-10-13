@@ -37,7 +37,7 @@
 
 ### Medium
 
-- `G7` `PARTIAL` — §5.3 pricing rules: **min-sale-price floor** missing; **auto percent↔value discount conversion** missing; **below-price alert** only partially covered by a below-cost approval flag. (`price-statements.service.ts`)
+- `G7` `FIXED` — §5.3 pricing rules: added a per-item **min-sale-price floor** (`Item.minSalePrice`, base unit, scaled by the sale-unit factor); below it (or below last cost) the statement is held with a `BELOW_MIN_PRICE`/`BELOW_COST` approval and a `pricingAlerts` array is returned (**below-price alert**). **percent↔value discount conversion** added to `shared` (`convertDiscount`/`discountToPercent`/`discountToAmount`) and used for **type-agnostic discount-limit checks** (an amount discount is converted to its equivalent % and compared to the user limit); fixed the DTO `@Max(100)` that wrongly capped amount discounts. `Item.minSalePrice` wired through items create/update. (`price-statements.service.ts`, `packages/shared/src/discount.ts`)
 - `G8` `PARTIAL` — §5 draft reservation occurs only when `requiresApproval`, not on every draft (`price-statements.service.ts:214`).
 - `G9` `PARTIAL` — §5.9 return **mode/settlement semantics** (settle vs. credit) partial.
 - `G10` `PARTIAL` — §5.5 **landed-cost shipping apportionment** across purchase lines absent.
@@ -89,7 +89,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 
 ### Batch B — Core correctness
 7. ~~**G3** Record `StatementRevision` on edit-after-approval (+ audit + test).~~ ✅ done
-8. **G7** Min-sale-price floor, percent↔value conversion, below-price alert.
+8. ~~**G7** Min-sale-price floor, percent↔value conversion, below-price alert.~~ ✅ done
 9. **G8** Draft-level stock reservation.
 10. **G27** Stock-valuation equation parity in `shared` + Dart.
 11. **G9** Return mode/settlement semantics.
@@ -133,4 +133,5 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-12 | **G6** RLS regression: non-RLS child includes (`PriceStatementLine→statement`) returned null | ✅ fixed (wrap every model op, incl. their relations) |
 | 2026-10-12 | **G5** mobile secrets at rest (SQLCipher + secure_storage) | ✅ FIXED (APK-build verified) |
 | 2026-10-12 | **G4** mobile device trust (DeviceGuard + revoke/activate + biometric lock + header) | ✅ FIXED (17/17 live verify, api 153, mobile 190) |
-| 2026-10-13 | **G3** edit-after-approval records `StatementRevision` + reverse/repost + audit | ✅ FIXED (9 tests) |
+| 2026-10-13 | **G3** edit-after-approval records `StatementRevision` + reverse/repost + audit | ✅ FIXED (9 tests; 25/25 live verify, 90/90 golden) |
+| 2026-10-13 | **G7** min-sale-price floor + below-min-price alert + percent↔value conversion + type-agnostic discount limits | ✅ FIXED (5 new tests) |
