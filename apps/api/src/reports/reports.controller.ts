@@ -16,6 +16,7 @@ import {
   QueryStockValuesDto,
   QueryStocktakeDiffDto,
   QueryStoppedCustomersDto,
+  QuerySupplierDebtDto,
 } from './reports.dto.js';
 import { ReportsService } from './reports.service.js';
 
@@ -116,6 +117,13 @@ export class ReportsController {
   @ApiOkResponse({ description: 'فروقات الجرد: النظام مقابل المعدود وقيمة الفرق' })
   stocktakeDiff(@Query() query: QueryStocktakeDiffDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     return this.reports.stocktakeDiff(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/supplier-debt')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'مديونية الموردين (الرصيد الافتتاحي + المشتريات − المدفوع)' })
+  supplierDebt(@Query() query: QuerySupplierDebtDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.supplierDebt(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
   private respond<T>(res: Response, query: unknown, data: T): T | StreamableFile {

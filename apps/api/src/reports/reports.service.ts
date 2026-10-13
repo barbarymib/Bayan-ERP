@@ -16,6 +16,7 @@ import type {
   QueryStockValuesDto,
   QueryStocktakeDiffDto,
   QueryStoppedCustomersDto,
+  QuerySupplierDebtDto,
 } from './reports.dto.js';
 
 const ACTIVE_STOCKTAKE = ['OPEN', 'COUNTING', 'REVIEW'] as const;
@@ -918,6 +919,74 @@ export class ReportsService {
       to: query.to ?? null,
       rows,
       totals,
+    };
+  }
+
+  /** مديونية الموردين: الرصيد الافتتاحي + المشتريات − المدفوع (§5.14). */
+  async supplierDebt(query: QuerySupplierDebtDto, companyId: number | null = null) {
+    const asOf = query.asOf ? new Date(`${query.asOf}T23:59:59.999Z`) : new Date();
+    const onlyOutstanding = query.onlyOutstanding ?? true;
+
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { ...tenantWhere(companyId) },
+      select: { id: true, code: true, nameAr: true, phone: true, openingBalance: true, active: true },
+    });
+
+    const purch = await this.prisma.purchaseStatement.groupBy({
+      by: ['supplierId'],
+      where: { ...tenantWhere(companyId), status: 'APPROVED', date: { lte: asOf } },
+      _sum: { net: true, paid: true },
+      _max: { date: true },
+    });
+    const purchMap = new Map(
+      purch.map((p) => [p.supplierId, { net: Number(p._sum.net ?? 0), paid: Number(p._sum.paid ?? 0), last: p._max.date ?? null }]),
+    );
+
+    const payAgg = await this.prisma.payment.groupBy({
+      by: ['supplierId'],
+      where: { ...tenantWhere(companyId), paidAt: { lte: asOf } },
+      _sum: { amount: true },
+    });
+    const payMap = new Map(payAgg.map((p) => [p.supplierId, Number(p._sum.amount ?? 0)]));
+
+    let rows = suppliers
+      .map((s) => {
+        const pm = purchMap.get(s.id);
+        const opening = Number(s.openingBalance);
+        const purchases = roundMoney(pm?.net ?? 0);
+        const paid = roundMoney(pm?.paid ?? 0);
+        const payments = roundMoney(payMap.get(s.id) ?? 0);
+        const last = pm?.last ?? null;
+        return {
+          id: s.id,
+          code: s.code,
+          name: s.nameAr,
+          phone: s.phone,
+          active: s.active,
+          openingBalance: roundMoney(opening),
+          purchases,
+          paid,
+          payments,
+          balance: roundMoney(opening + purchases - paid),
+          lastPurchaseDate: last ? last.toISOString().slice(0, 10) : null,
+        };
+      })
+      .filter((r) => (onlyOutstanding ? r.balance > 0 : true))
+      .sort((a, b) => b.balance - a.balance);
+    if (query.limit != null) rows = rows.slice(0, query.limit);
+
+    return {
+      asOf: asOf.toISOString().slice(0, 10),
+      onlyOutstanding,
+      rows,
+      totals: {
+        suppliers: rows.length,
+        openingBalance: roundMoney(rows.reduce((s, r) => s + r.openingBalance, 0)),
+        purchases: roundMoney(rows.reduce((s, r) => s + r.purchases, 0)),
+        paid: roundMoney(rows.reduce((s, r) => s + r.paid, 0)),
+        payments: roundMoney(rows.reduce((s, r) => s + r.payments, 0)),
+        balance: roundMoney(rows.reduce((s, r) => s + r.balance, 0)),
+      },
     };
   }
 

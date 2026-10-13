@@ -226,6 +226,23 @@ export class QueryStocktakeDiffDto extends CsvQuery {
   limit?: number;
 }
 
+export class QuerySupplierDebtDto extends CsvQuery {
+  @IsOptional()
+  @IsDateString()
+  asOf?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value !== 'false' && value !== false)
+  onlyOutstanding?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  limit?: number;
+}
+
 export class QueryAgingDto {
   @IsOptional()
   @IsDateString()

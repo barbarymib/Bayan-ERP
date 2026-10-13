@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -551,5 +551,64 @@ describe('ReportsService.stocktakeDiff — فروقات الجرد (§5.14)', ()
   it('يستبعد الأسطر غير المعدودة (countedQtyBase=null)', async () => {
     const out = await buildStocktakeDiff([stLine({ itemId: 9, countedQtyBase: null, diffQty: null, diffValue: null })]).stocktakeDiff({});
     expect(out.rows).toHaveLength(0);
+  });
+});
+
+interface SupplierLookups {
+  suppliers?: { id: number; code: string; nameAr: string; phone?: string | null; openingBalance?: number; active?: boolean }[];
+  purchases?: { supplierId: number; net: number; paid: number; last?: Date | null }[];
+  payments?: { supplierId: number; amount: number }[];
+}
+
+function buildSupplierDebt(lookups: SupplierLookups = {}) {
+  const prisma = {
+    supplier: { findMany: async () => lookups.suppliers ?? [] },
+    purchaseStatement: {
+      groupBy: async () =>
+        (lookups.purchases ?? []).map((p) => ({ supplierId: p.supplierId, _sum: { net: p.net, paid: p.paid }, _max: { date: p.last ?? null } })),
+    },
+    payment: {
+      groupBy: async () => (lookups.payments ?? []).map((p) => ({ supplierId: p.supplierId, _sum: { amount: p.amount } })),
+    },
+  } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+describe('ReportsService.supplierDebt — مديونية الموردين (§5.14)', () => {
+  const lookups: SupplierLookups = {
+    suppliers: [
+      { id: 1, code: 'SUP-01', nameAr: 'مورد 1', phone: '011', openingBalance: 100, active: true },
+      { id: 2, code: 'SUP-02', nameAr: 'مورد 2', phone: null, openingBalance: 0, active: true },
+    ],
+    purchases: [
+      { supplierId: 1, net: 1000, paid: 400, last: new Date('2026-10-07T00:00:00Z') },
+      { supplierId: 2, net: 500, paid: 500, last: new Date('2026-10-06T00:00:00Z') },
+    ],
+    payments: [{ supplierId: 1, amount: 400 }],
+  };
+
+  it('يحسب الرصيد = افتتاحي + مشتريات − مدفوع (المديونون فقط افتراضياً)', async () => {
+    const out = await buildSupplierDebt(lookups).supplierDebt({});
+    expect(out.onlyOutstanding).toBe(true);
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]).toMatchObject({ id: 1, code: 'SUP-01', openingBalance: 100, purchases: 1000, paid: 400, payments: 400, balance: 700, lastPurchaseDate: '2026-10-07' });
+  });
+
+  it('onlyOutstanding=false يشمل الرصيد الصفري', async () => {
+    const out = await buildSupplierDebt(lookups).supplierDebt({ onlyOutstanding: false } as QuerySupplierDebtDto);
+    expect(out.rows.map((r) => r.id)).toEqual([1, 2]);
+    expect(out.rows[1]).toMatchObject({ id: 2, balance: 0 });
+  });
+
+  it('الإجماليات تعكس الصفوف المُرشَّحة', async () => {
+    const out = await buildSupplierDebt(lookups).supplierDebt({});
+    expect(out.totals).toMatchObject({ suppliers: 1, openingBalance: 100, purchases: 1000, paid: 400, payments: 400, balance: 700 });
+  });
+
+  it('المورد بلا مشتريات برصيده الافتتاحي فقط', async () => {
+    const out = await buildSupplierDebt({
+      suppliers: [{ id: 3, code: 'SUP-03', nameAr: 'مورد 3', openingBalance: 250, active: true }],
+    }).supplierDebt({});
+    expect(out.rows[0]).toMatchObject({ id: 3, purchases: 0, paid: 0, balance: 250, lastPurchaseDate: null });
   });
 });
