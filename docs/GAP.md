@@ -134,4 +134,4 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-12 | **G5** mobile secrets at rest (SQLCipher + secure_storage) | ✅ FIXED (APK-build verified) |
 | 2026-10-12 | **G4** mobile device trust (DeviceGuard + revoke/activate + biometric lock + header) | ✅ FIXED (17/17 live verify, api 153, mobile 190) |
 | 2026-10-13 | **G3** edit-after-approval records `StatementRevision` + reverse/repost + audit | ✅ FIXED (9 tests; 25/25 live verify, 90/90 golden) |
-| 2026-10-13 | **G7** min-sale-price floor + below-min-price alert + percent↔value conversion + type-agnostic discount limits | ✅ FIXED (5 new tests) |
+| 2026-10-13 | **G7** min-sale-price floor + below-min-price alert + percent↔value conversion + type-agnostic discount limits | ✅ FIXED (5 new tests; 20/20 live verify, 90/90 golden) |
