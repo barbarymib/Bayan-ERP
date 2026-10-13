@@ -4,6 +4,7 @@ export * from './statement.js';
 export * from './return.js';
 export * from './stocktake.js';
 export * from './units.js';
+export * from './valuation.js';
 export * from './numbering.js';
 export * from './steel.js';
 export * from './paint.js';

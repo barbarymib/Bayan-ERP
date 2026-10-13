@@ -60,7 +60,7 @@
 - `G23` — Redis/BullMQ configured but unused (no background queues).
 - `G24` — No `prisma migrate` check/guard on boot.
 - `G25` — No 50k-row performance benchmark (§9).
-- `G27` — §7.4 **stock-valuation equation** absent from `packages/shared`/Dart (server-only).
+- `G27` `FIXED` — §7.4 **stock-valuation equation** ported to `packages/shared` (`valuation.ts`: `calcStockLineValue`/`calcStockValue`/`weightedAverageCost`/`resolveUnitCost`, methods `LAST`/`WEIGHTED`/`SALES` mirroring `ReportsService.stockValues`) + Dart clone (`apps/mobile/lib/core/calc/valuation.dart`). Was server-only.
 - `G28` — No Dockerfiles.
 - `G29` — Print/PDF limited to statements (no A4/A5/80mm for other docs).
 
@@ -91,7 +91,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 7. ~~**G3** Record `StatementRevision` on edit-after-approval (+ audit + test).~~ ✅ done
 8. ~~**G7** Min-sale-price floor, percent↔value conversion, below-price alert.~~ ✅ done
 9. ~~**G8** Draft-level stock reservation.~~ ✅ done
-10. **G27** Stock-valuation equation parity in `shared` + Dart.
+10. ~~**G27** Stock-valuation equation parity in `shared` + Dart.~~ ✅ done
 11. **G9** Return mode/settlement semantics.
 12. **G10** Landed-cost shipping apportionment.
 
@@ -136,3 +136,4 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-13 | **G3** edit-after-approval records `StatementRevision` + reverse/repost + audit | ✅ FIXED (9 tests; 25/25 live verify, 90/90 golden) |
 | 2026-10-13 | **G7** min-sale-price floor + below-min-price alert + percent↔value conversion + type-agnostic discount limits | ✅ FIXED (5 new tests; 20/20 live verify, 90/90 golden) |
 | 2026-10-13 | **G8** held-statement (`PENDING_REVIEW`) stock reservation + `BELOW_MIN_PRICE` approval permission mapping | ✅ FIXED (7 new tests) |
+| 2026-10-13 | **G27** stock-valuation equation parity in `shared` + Dart (LAST/WEIGHTED/SALES) | ✅ FIXED (13 shared + 13 mobile tests) |
