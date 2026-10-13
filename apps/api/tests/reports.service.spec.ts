@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -610,5 +610,124 @@ describe('ReportsService.supplierDebt — مديونية الموردين (§5.1
       suppliers: [{ id: 3, code: 'SUP-03', nameAr: 'مورد 3', openingBalance: 250, active: true }],
     }).supplierDebt({});
     expect(out.rows[0]).toMatchObject({ id: 3, purchases: 0, paid: 0, balance: 250, lastPurchaseDate: null });
+  });
+});
+
+interface RepPerfLookups {
+  reps?: { id: number; name: string; repCode: string | null }[];
+  targets?: { repId: number; targetAmount: number; achievedAmount: number; commissionDue: number }[];
+  sales?: { repId: number; net: number; count: number }[];
+  customers?: { id: number; repId: number | null }[];
+  visits?: { repId: number; status: string; count: number }[];
+  points?: { repId: number; lat: number; lng: number }[];
+  receipts?: { customerId: number; amount: number }[];
+}
+
+function buildRepPerformance(lookups: RepPerfLookups = {}) {
+  const prisma = {
+    user: { findMany: async () => lookups.reps ?? [] },
+    repTarget: { findMany: async () => lookups.targets ?? [] },
+    priceStatement: {
+      groupBy: async () => (lookups.sales ?? []).map((s) => ({ repId: s.repId, _sum: { net: s.net }, _count: { _all: s.count } })),
+    },
+    customer: { findMany: async () => lookups.customers ?? [] },
+    repVisit: {
+      groupBy: async () => (lookups.visits ?? []).map((v) => ({ repId: v.repId, status: v.status, _count: { _all: v.count } })),
+    },
+    repLocation: { findMany: async () => lookups.points ?? [] },
+    receipt: {
+      groupBy: async () => (lookups.receipts ?? []).map((r) => ({ customerId: r.customerId, _sum: { amount: r.amount } })),
+    },
+  } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+describe('ReportsService.repPerformance — أداء المناديب (§5.14)', () => {
+  const lookups: RepPerfLookups = {
+    reps: [
+      { id: 2, name: 'مندوب', repCode: 'M03' },
+      { id: 5, name: 'مندوب 2', repCode: 'M05' },
+    ],
+    targets: [{ repId: 2, targetAmount: 1000, achievedAmount: 400, commissionDue: 40 }],
+    sales: [
+      { repId: 2, net: 500, count: 3 },
+      { repId: 5, net: 200, count: 1 },
+    ],
+    customers: [
+      { id: 1, repId: 2 },
+      { id: 2, repId: 2 },
+      { id: 3, repId: 5 },
+    ],
+    visits: [
+      { repId: 2, status: 'DONE', count: 4 },
+      { repId: 2, status: 'MISSED', count: 1 },
+      { repId: 5, status: 'DONE', count: 2 },
+    ],
+    points: [
+      { repId: 2, lat: 30.0, lng: 31.0 },
+      { repId: 2, lat: 30.009, lng: 31.0 },
+      { repId: 5, lat: 30.0, lng: 31.0 },
+      { repId: 5, lat: 30.0, lng: 31.009 },
+    ],
+    receipts: [
+      { customerId: 1, amount: 300 },
+      { customerId: 3, amount: 100 },
+    ],
+  };
+
+  it('يجمع الأهداف والمبيعات والتحصيل والزيارات', async () => {
+    const out = await buildRepPerformance(lookups).repPerformance({});
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows[0]).toMatchObject({
+      repId: 2,
+      repCode: 'M03',
+      targetAmount: 1000,
+      achievedAmount: 400,
+      commissionDue: 40,
+      salesNet: 500,
+      salesCount: 3,
+      collected: 300,
+      collectionRatePct: 60,
+      visits: 5,
+      visitsDone: 4,
+      visitsMissed: 1,
+      achievementPct: 50,
+    });
+  });
+
+  it('يرتّب تنازلياً حسب صافي المبيعات', async () => {
+    const out = await buildRepPerformance(lookups).repPerformance({});
+    expect(out.rows.map((r) => r.repId)).toEqual([2, 5]);
+  });
+
+  it('مندوب بلا هدف: achievementPct = 0', async () => {
+    const out = await buildRepPerformance(lookups).repPerformance({});
+    const r5 = out.rows.find((r) => r.repId === 5);
+    expect(r5).toMatchObject({ targetAmount: 0, achievementPct: 0, collected: 100, collectionRatePct: 50, visits: 2, visitsDone: 2 });
+  });
+
+  it('يحسب المسافة المقطوعة (كم) من مسار GPS', async () => {
+    const out = await buildRepPerformance(lookups).repPerformance({});
+    const r2 = out.rows.find((r) => r.repId === 2);
+    expect(r2?.distanceKm).toBeGreaterThan(0.9);
+    expect(r2?.distanceKm).toBeLessThan(1.1);
+    expect(out.totals.distanceKm).toBeGreaterThan(1.8);
+  });
+
+  it('يحسب الإجماليات على الصفوف', async () => {
+    const out = await buildRepPerformance(lookups).repPerformance({});
+    expect(out.totals).toMatchObject({ reps: 2, targetAmount: 1000, salesNet: 700, salesCount: 4, collected: 400, visits: 7 });
+  });
+
+  it('بلا مناديب: صفوف وإجماليات صفرية', async () => {
+    const out = await buildRepPerformance({ reps: [] }).repPerformance({});
+    expect(out.rows).toHaveLength(0);
+    expect(out.totals.reps).toBe(0);
+  });
+
+  it('يطبّق limit', async () => {
+    const out = await buildRepPerformance(lookups).repPerformance({ limit: 1 } as QueryRepPerformanceDto);
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]?.repId).toBe(2);
   });
 });

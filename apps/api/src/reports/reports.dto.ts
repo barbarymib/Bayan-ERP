@@ -226,6 +226,30 @@ export class QueryStocktakeDiffDto extends CsvQuery {
   limit?: number;
 }
 
+export class QueryRepPerformanceDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  repId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number;
+}
+
 export class QuerySupplierDebtDto extends CsvQuery {
   @IsOptional()
   @IsDateString()

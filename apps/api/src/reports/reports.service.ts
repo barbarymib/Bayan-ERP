@@ -3,12 +3,14 @@ import type { Prisma } from '../generated/prisma/client';
 import { roundMoney, roundQty } from '@bayan/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { haversineM } from '../geo/geo.service.js';
 import type {
   QueryAgingDto,
   QueryDiscountApprovalsDto,
   QueryDiscountsDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
+  QueryRepPerformanceDto,
   QueryReturnsDto,
   QuerySalesByDto,
   QuerySalesSummaryDto,
@@ -986,6 +988,151 @@ export class ReportsService {
         paid: roundMoney(rows.reduce((s, r) => s + r.paid, 0)),
         payments: roundMoney(rows.reduce((s, r) => s + r.payments, 0)),
         balance: roundMoney(rows.reduce((s, r) => s + r.balance, 0)),
+      },
+    };
+  }
+
+  /** أداء المناديب: الأهداف والتحصيل والزيارات والمسافات (§5.14). */
+  async repPerformance(query: QueryRepPerformanceDto, companyId: number | null = null) {
+    const now = new Date();
+    const from = query.from
+      ? new Date(`${query.from}T00:00:00Z`)
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const to = query.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
+
+    const repWhere: Prisma.UserWhereInput = { ...tenantWhere(companyId), repCode: { not: null } };
+    if (query.repId != null) repWhere.id = query.repId;
+    const reps = await this.prisma.user.findMany({ where: repWhere, select: { id: true, name: true, repCode: true } });
+    const repIds = reps.map((r) => r.id);
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    if (repIds.length === 0) {
+      return {
+        from: from.toISOString().slice(0, 10),
+        to: to.toISOString().slice(0, 10),
+        rows: [],
+        totals: { reps: 0, targetAmount: 0, achievedAmount: 0, commissionDue: 0, salesNet: 0, salesCount: 0, collected: 0, visits: 0, distanceKm: 0 },
+      };
+    }
+
+    const [targets, salesAgg, customers, visitAgg, points] = await Promise.all([
+      this.prisma.repTarget.findMany({
+        where: { ...tenantWhere(companyId), repId: { in: repIds }, active: true, fromDate: { lte: to }, toDate: { gte: from } },
+        select: { repId: true, targetAmount: true, achievedAmount: true, commissionDue: true },
+      }),
+      this.prisma.priceStatement.groupBy({
+        by: ['repId'],
+        where: { ...tenantWhere(companyId), status: 'APPROVED', repId: { in: repIds }, date: { gte: from, lte: to } },
+        _sum: { net: true },
+        _count: { _all: true },
+      }),
+      this.prisma.customer.findMany({ where: { ...tenantWhere(companyId), repId: { in: repIds } }, select: { id: true, repId: true } }),
+      this.prisma.repVisit.groupBy({
+        by: ['repId', 'status'],
+        where: { ...tenantWhere(companyId), repId: { in: repIds }, at: { gte: from, lte: to } },
+        _count: { _all: true },
+      }),
+      this.prisma.repLocation.findMany({
+        where: { ...tenantWhere(companyId), repId: { in: repIds }, capturedAt: { gte: from, lte: to } },
+        orderBy: [{ repId: 'asc' }, { capturedAt: 'asc' }],
+        select: { repId: true, lat: true, lng: true },
+      }),
+    ]);
+
+    const targetMap = new Map<number, { target: number; achieved: number; commission: number }>();
+    for (const t of targets) {
+      const e = targetMap.get(t.repId) ?? { target: 0, achieved: 0, commission: 0 };
+      e.target = roundMoney(e.target + Number(t.targetAmount));
+      e.achieved = roundMoney(e.achieved + Number(t.achievedAmount));
+      e.commission = roundMoney(e.commission + Number(t.commissionDue));
+      targetMap.set(t.repId, e);
+    }
+
+    const salesMap = new Map<number, { net: number; count: number }>();
+    for (const s of salesAgg) {
+      if (s.repId == null) continue;
+      salesMap.set(s.repId, { net: roundMoney(Number(s._sum.net ?? 0)), count: s._count._all });
+    }
+
+    const custRep = new Map<number, number>();
+    for (const c of customers) if (c.repId != null) custRep.set(c.id, c.repId);
+    const collectByRep = new Map<number, number>();
+    const custIds = [...custRep.keys()];
+    if (custIds.length > 0) {
+      const receipts = await this.prisma.receipt.groupBy({
+        by: ['customerId'],
+        where: { ...tenantWhere(companyId), customerId: { in: custIds }, receivedAt: { gte: from, lte: to } },
+        _sum: { amount: true },
+      });
+      for (const r of receipts) {
+        const rep = custRep.get(r.customerId);
+        if (rep == null) continue;
+        collectByRep.set(rep, roundMoney((collectByRep.get(rep) ?? 0) + Number(r._sum.amount ?? 0)));
+      }
+    }
+
+    const visitMap = new Map<number, { total: number; done: number; missed: number }>();
+    for (const v of visitAgg) {
+      const e = visitMap.get(v.repId) ?? { total: 0, done: 0, missed: 0 };
+      e.total += v._count._all;
+      if (v.status === 'DONE') e.done += v._count._all;
+      else e.missed += v._count._all;
+      visitMap.set(v.repId, e);
+    }
+
+    const distByRep = new Map<number, number>();
+    let prev: { repId: number; lat: number; lng: number } | null = null;
+    for (const p of points) {
+      const cur = { repId: p.repId, lat: Number(p.lat), lng: Number(p.lng) };
+      if (prev && prev.repId === cur.repId) {
+        distByRep.set(cur.repId, (distByRep.get(cur.repId) ?? 0) + haversineM(prev.lat, prev.lng, cur.lat, cur.lng));
+      }
+      prev = cur;
+    }
+
+    let rows = reps.map((r) => {
+      const t = targetMap.get(r.id);
+      const s = salesMap.get(r.id);
+      const col = collectByRep.get(r.id) ?? 0;
+      const v = visitMap.get(r.id);
+      const salesNet = s?.net ?? 0;
+      const target = t?.target ?? 0;
+      return {
+        repId: r.id,
+        repCode: r.repCode,
+        name: r.name,
+        targetAmount: target,
+        achievedAmount: t?.achieved ?? 0,
+        commissionDue: t?.commission ?? 0,
+        salesNet,
+        salesCount: s?.count ?? 0,
+        collected: col,
+        collectionRatePct: salesNet > 0 ? roundMoney((col / salesNet) * 100) : 0,
+        visits: v?.total ?? 0,
+        visitsDone: v?.done ?? 0,
+        visitsMissed: v?.missed ?? 0,
+        distanceKm: round2((distByRep.get(r.id) ?? 0) / 1000),
+        achievementPct: target > 0 ? roundMoney((salesNet / target) * 100) : 0,
+      };
+    });
+    rows = rows.sort((a, b) => b.salesNet - a.salesNet);
+    if (query.limit != null) rows = rows.slice(0, query.limit);
+
+    return {
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+      rows,
+      totals: {
+        reps: rows.length,
+        targetAmount: roundMoney(rows.reduce((s, r) => s + r.targetAmount, 0)),
+        achievedAmount: roundMoney(rows.reduce((s, r) => s + r.achievedAmount, 0)),
+        commissionDue: roundMoney(rows.reduce((s, r) => s + r.commissionDue, 0)),
+        salesNet: roundMoney(rows.reduce((s, r) => s + r.salesNet, 0)),
+        salesCount: rows.reduce((s, r) => s + r.salesCount, 0),
+        collected: roundMoney(rows.reduce((s, r) => s + r.collected, 0)),
+        visits: rows.reduce((s, r) => s + r.visits, 0),
+        distanceKm: round2(rows.reduce((s, r) => s + r.distanceKm, 0)),
       },
     };
   }

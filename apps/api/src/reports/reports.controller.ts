@@ -9,6 +9,7 @@ import {
   QueryDiscountsDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
+  QueryRepPerformanceDto,
   QueryReturnsDto,
   QuerySalesByDto,
   QuerySalesSummaryDto,
@@ -124,6 +125,13 @@ export class ReportsController {
   @ApiOkResponse({ description: 'مديونية الموردين (الرصيد الافتتاحي + المشتريات − المدفوع)' })
   supplierDebt(@Query() query: QuerySupplierDebtDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     return this.reports.supplierDebt(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/rep-performance')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'أداء المناديب: الأهداف والتحصيل والزيارات والمسافات' })
+  repPerformance(@Query() query: QueryRepPerformanceDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.repPerformance(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
   private respond<T>(res: Response, query: unknown, data: T): T | StreamableFile {
