@@ -62,7 +62,7 @@
 - `G25` — No 50k-row performance benchmark (§9).
 - `G27` `FIXED` — §7.4 **stock-valuation equation** ported to `packages/shared` (`valuation.ts`: `calcStockLineValue`/`calcStockValue`/`weightedAverageCost`/`resolveUnitCost`, methods `LAST`/`WEIGHTED`/`SALES` mirroring `ReportsService.stockValues`) + Dart clone (`apps/mobile/lib/core/calc/valuation.dart`). Was server-only.
 - `G28` — No Dockerfiles.
-- `G29` — Print/PDF limited to statements (no A4/A5/80mm for other docs).
+- `G29` — Print/PDF limited to statements (no A4/A5/80mm for other docs). **Progress:** quotations now have a web print view (`/quotations/[id]/print`, A4/A5/80mm) + client PDF (`lib/quotation-pdf.ts`) — increment 1. Remaining: purchase orders, receipts/collections, transfers, returns, supplier-returns, stocktakes, daily-close, etc. (web + mobile).
 
 ---
 
@@ -98,7 +98,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 ### Batch C — Reporting & exports
 13. **G2** Add the missing §5.14 reports. **G2a** sales ✅ · **G2b** discounts ✅ · **G2c** returns ✅ · **G2d** stopped-customers ✅ · **G2e** stocktake-diff ✅ · **G2f** rep-performance ✅ · **G2g** supplier-debt ✅ · **item-card** ✅. Next: PDF (G29).
 14. ~~**G11** XLSX export engine (reuse across reports).~~ ✅ done
-15. **G29** Print/PDF templates beyond statements.
+15. **G29** Print/PDF templates beyond statements. **Quotations ✅ (web print + PDF, increment 1)** · remaining: purchase orders, receipts/collections, transfers, returns, supplier-returns, stocktakes, daily-close (web + mobile).
 
 ### Batch D — Client parity (web + mobile)
 16. **G13** Mobile barcode/QR scan.
@@ -147,3 +147,4 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-13 | **G2g** supplier-debt report (`reports/supplier-debt`) = opening + purchases − paid | ✅ FIXED (4 tests; 27/27 live verify, 90/90 golden) |
 | 2026-10-13 | **G2f** rep-performance report (`reports/rep-performance`) = targets/achievement, sales, collection, visits, GPS distance | ✅ FIXED (7 tests; 21/21 live verify, 90/90 golden) |
 | 2026-10-13 | **Item Card (G2)** `reports/item-card` = item ledger (opening + movements + running + closing + balances) with cost gating | ✅ FIXED (5 tests; 23/23 live verify, 90/90 golden) |
+| 2026-10-15 | **G29 increment 1** printable quotation on web (`/quotations/[id]/print`, A4/A5/80mm) + Arabic client PDF (`lib/quotation-pdf.ts`) | ✅ PARTIAL (web build/typecheck/lint 0; deployed; live 200/307 parity) |
