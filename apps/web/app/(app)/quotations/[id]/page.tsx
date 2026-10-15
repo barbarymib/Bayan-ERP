@@ -94,12 +94,20 @@ export default function QuotationDetailPage() {
       <PageHeader
         title={`عرض سعر ${q.number}`}
         action={
-          <Link
-            href="/quotations"
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
-          >
-            رجوع للقائمة
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href={`/quotations/${q.id}/print`}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+            >
+              طباعة
+            </Link>
+            <Link
+              href="/quotations"
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+            >
+              رجوع للقائمة
+            </Link>
+          </div>
         }
       />
 
