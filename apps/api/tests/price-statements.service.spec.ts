@@ -530,3 +530,37 @@ describe('PriceStatementsService rep scoping (R3-A9 §4.2)', () => {
     expect(calls.statementFindMany[0]!.where.customerId).toBe(-1);
   });
 });
+
+describe('PriceStatementsService weight note (R3-A6 §5.2)', () => {
+  it('يحفظ ملاحظة الوزن الفعلي لبند حديدي ويُرجعه في صفوف البند', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { category: { code: 'STEEL' } });
+    await service.update(
+      7,
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 3, unitPrice: 50, weightNote: 'الوزن الفعلي 980كج' }] },
+      editor,
+    );
+    expect(calls.lineCreates[0]!.data[0]!.weightNote).toBe('الوزن الفعلي 980كج');
+  });
+
+  it('يقصّ الملاحظة الفارغة (مسافات فقط) فلا تُرفض على صنف غير حديدي', async () => {
+    const { service } = harness({ status: 'DRAFT' }, null, { category: { code: 'PAINT' } });
+    await expect(
+      service.update(
+        7,
+        { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50, weightNote: '   ' }] },
+        editor,
+      ),
+    ).resolves.toBeTruthy();
+  });
+
+  it('يرفض ملاحظة الوزن غير الفارغة على صنف غير حديدي', async () => {
+    const { service } = harness({ status: 'DRAFT' }, null, { category: { code: 'PAINT' } });
+    await expect(
+      service.update(
+        7,
+        { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50, weightNote: 'فرق 20كج' }] },
+        editor,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+});

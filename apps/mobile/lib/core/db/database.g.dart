@@ -57,8 +57,26 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _categoryCodeMeta = const VerificationMeta(
+    'categoryCode',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, code, name, baseUnit, lastPrice];
+  late final GeneratedColumn<String> categoryCode = GeneratedColumn<String>(
+    'category_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    code,
+    name,
+    baseUnit,
+    lastPrice,
+    categoryCode,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -102,6 +120,15 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
         lastPrice.isAcceptableOrUnknown(data['last_price']!, _lastPriceMeta),
       );
     }
+    if (data.containsKey('category_code')) {
+      context.handle(
+        _categoryCodeMeta,
+        categoryCode.isAcceptableOrUnknown(
+          data['category_code']!,
+          _categoryCodeMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -131,6 +158,10 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
         DriftSqlType.double,
         data['${effectivePrefix}last_price'],
       ),
+      categoryCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_code'],
+      ),
     );
   }
 
@@ -146,12 +177,14 @@ class Item extends DataClass implements Insertable<Item> {
   final String name;
   final String? baseUnit;
   final double? lastPrice;
+  final String? categoryCode;
   const Item({
     required this.id,
     required this.code,
     required this.name,
     this.baseUnit,
     this.lastPrice,
+    this.categoryCode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -164,6 +197,9 @@ class Item extends DataClass implements Insertable<Item> {
     }
     if (!nullToAbsent || lastPrice != null) {
       map['last_price'] = Variable<double>(lastPrice);
+    }
+    if (!nullToAbsent || categoryCode != null) {
+      map['category_code'] = Variable<String>(categoryCode);
     }
     return map;
   }
@@ -179,6 +215,9 @@ class Item extends DataClass implements Insertable<Item> {
       lastPrice: lastPrice == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPrice),
+      categoryCode: categoryCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryCode),
     );
   }
 
@@ -193,6 +232,7 @@ class Item extends DataClass implements Insertable<Item> {
       name: serializer.fromJson<String>(json['name']),
       baseUnit: serializer.fromJson<String?>(json['baseUnit']),
       lastPrice: serializer.fromJson<double?>(json['lastPrice']),
+      categoryCode: serializer.fromJson<String?>(json['categoryCode']),
     );
   }
   @override
@@ -204,6 +244,7 @@ class Item extends DataClass implements Insertable<Item> {
       'name': serializer.toJson<String>(name),
       'baseUnit': serializer.toJson<String?>(baseUnit),
       'lastPrice': serializer.toJson<double?>(lastPrice),
+      'categoryCode': serializer.toJson<String?>(categoryCode),
     };
   }
 
@@ -213,12 +254,14 @@ class Item extends DataClass implements Insertable<Item> {
     String? name,
     Value<String?> baseUnit = const Value.absent(),
     Value<double?> lastPrice = const Value.absent(),
+    Value<String?> categoryCode = const Value.absent(),
   }) => Item(
     id: id ?? this.id,
     code: code ?? this.code,
     name: name ?? this.name,
     baseUnit: baseUnit.present ? baseUnit.value : this.baseUnit,
     lastPrice: lastPrice.present ? lastPrice.value : this.lastPrice,
+    categoryCode: categoryCode.present ? categoryCode.value : this.categoryCode,
   );
   Item copyWithCompanion(ItemsCompanion data) {
     return Item(
@@ -227,6 +270,9 @@ class Item extends DataClass implements Insertable<Item> {
       name: data.name.present ? data.name.value : this.name,
       baseUnit: data.baseUnit.present ? data.baseUnit.value : this.baseUnit,
       lastPrice: data.lastPrice.present ? data.lastPrice.value : this.lastPrice,
+      categoryCode: data.categoryCode.present
+          ? data.categoryCode.value
+          : this.categoryCode,
     );
   }
 
@@ -237,13 +283,15 @@ class Item extends DataClass implements Insertable<Item> {
           ..write('code: $code, ')
           ..write('name: $name, ')
           ..write('baseUnit: $baseUnit, ')
-          ..write('lastPrice: $lastPrice')
+          ..write('lastPrice: $lastPrice, ')
+          ..write('categoryCode: $categoryCode')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, code, name, baseUnit, lastPrice);
+  int get hashCode =>
+      Object.hash(id, code, name, baseUnit, lastPrice, categoryCode);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -252,7 +300,8 @@ class Item extends DataClass implements Insertable<Item> {
           other.code == this.code &&
           other.name == this.name &&
           other.baseUnit == this.baseUnit &&
-          other.lastPrice == this.lastPrice);
+          other.lastPrice == this.lastPrice &&
+          other.categoryCode == this.categoryCode);
 }
 
 class ItemsCompanion extends UpdateCompanion<Item> {
@@ -261,12 +310,14 @@ class ItemsCompanion extends UpdateCompanion<Item> {
   final Value<String> name;
   final Value<String?> baseUnit;
   final Value<double?> lastPrice;
+  final Value<String?> categoryCode;
   const ItemsCompanion({
     this.id = const Value.absent(),
     this.code = const Value.absent(),
     this.name = const Value.absent(),
     this.baseUnit = const Value.absent(),
     this.lastPrice = const Value.absent(),
+    this.categoryCode = const Value.absent(),
   });
   ItemsCompanion.insert({
     this.id = const Value.absent(),
@@ -274,6 +325,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     required String name,
     this.baseUnit = const Value.absent(),
     this.lastPrice = const Value.absent(),
+    this.categoryCode = const Value.absent(),
   }) : code = Value(code),
        name = Value(name);
   static Insertable<Item> custom({
@@ -282,6 +334,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     Expression<String>? name,
     Expression<String>? baseUnit,
     Expression<double>? lastPrice,
+    Expression<String>? categoryCode,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -289,6 +342,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
       if (name != null) 'name': name,
       if (baseUnit != null) 'base_unit': baseUnit,
       if (lastPrice != null) 'last_price': lastPrice,
+      if (categoryCode != null) 'category_code': categoryCode,
     });
   }
 
@@ -298,6 +352,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     Value<String>? name,
     Value<String?>? baseUnit,
     Value<double?>? lastPrice,
+    Value<String?>? categoryCode,
   }) {
     return ItemsCompanion(
       id: id ?? this.id,
@@ -305,6 +360,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
       name: name ?? this.name,
       baseUnit: baseUnit ?? this.baseUnit,
       lastPrice: lastPrice ?? this.lastPrice,
+      categoryCode: categoryCode ?? this.categoryCode,
     );
   }
 
@@ -326,6 +382,9 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     if (lastPrice.present) {
       map['last_price'] = Variable<double>(lastPrice.value);
     }
+    if (categoryCode.present) {
+      map['category_code'] = Variable<String>(categoryCode.value);
+    }
     return map;
   }
 
@@ -336,7 +395,8 @@ class ItemsCompanion extends UpdateCompanion<Item> {
           ..write('code: $code, ')
           ..write('name: $name, ')
           ..write('baseUnit: $baseUnit, ')
-          ..write('lastPrice: $lastPrice')
+          ..write('lastPrice: $lastPrice, ')
+          ..write('categoryCode: $categoryCode')
           ..write(')'))
         .toString();
   }
@@ -2610,6 +2670,7 @@ typedef $$ItemsTableCreateCompanionBuilder =
       required String name,
       Value<String?> baseUnit,
       Value<double?> lastPrice,
+      Value<String?> categoryCode,
     });
 typedef $$ItemsTableUpdateCompanionBuilder =
     ItemsCompanion Function({
@@ -2618,6 +2679,7 @@ typedef $$ItemsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String?> baseUnit,
       Value<double?> lastPrice,
+      Value<String?> categoryCode,
     });
 
 class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
@@ -2650,6 +2712,11 @@ class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
 
   ColumnFilters<double> get lastPrice => $composableBuilder(
     column: $table.lastPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryCode => $composableBuilder(
+    column: $table.categoryCode,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2687,6 +2754,11 @@ class $$ItemsTableOrderingComposer
     column: $table.lastPrice,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get categoryCode => $composableBuilder(
+    column: $table.categoryCode,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ItemsTableAnnotationComposer
@@ -2712,6 +2784,11 @@ class $$ItemsTableAnnotationComposer
 
   GeneratedColumn<double> get lastPrice =>
       $composableBuilder(column: $table.lastPrice, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryCode => $composableBuilder(
+    column: $table.categoryCode,
+    builder: (column) => column,
+  );
 }
 
 class $$ItemsTableTableManager
@@ -2747,12 +2824,14 @@ class $$ItemsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String?> baseUnit = const Value.absent(),
                 Value<double?> lastPrice = const Value.absent(),
+                Value<String?> categoryCode = const Value.absent(),
               }) => ItemsCompanion(
                 id: id,
                 code: code,
                 name: name,
                 baseUnit: baseUnit,
                 lastPrice: lastPrice,
+                categoryCode: categoryCode,
               ),
           createCompanionCallback:
               ({
@@ -2761,12 +2840,14 @@ class $$ItemsTableTableManager
                 required String name,
                 Value<String?> baseUnit = const Value.absent(),
                 Value<double?> lastPrice = const Value.absent(),
+                Value<String?> categoryCode = const Value.absent(),
               }) => ItemsCompanion.insert(
                 id: id,
                 code: code,
                 name: name,
                 baseUnit: baseUnit,
                 lastPrice: lastPrice,
+                categoryCode: categoryCode,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

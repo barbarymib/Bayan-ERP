@@ -160,6 +160,7 @@ export interface PriceStatementLine {
   allocatedHeaderDiscount: string;
   netLine: string;
   costSnapshot: string | null;
+  weightNote: string | null;
 }
 
 export interface Approval {
@@ -1107,6 +1108,33 @@ export interface AgingReport {
     b61: number;
     b91: number;
   };
+}
+
+export interface WeightNoteRow {
+  lineId: number;
+  statementId: number;
+  number: string;
+  date: string;
+  status: StatementStatus;
+  customerId: number;
+  customerCode: string;
+  customerName: string;
+  itemId: number;
+  itemCode: string;
+  itemName: string;
+  unit: string;
+  unitName: string;
+  qty: number;
+  qtyBase: number;
+  weightNote: string;
+}
+
+export interface WeightNotesReport {
+  from: string | null;
+  to: string | null;
+  status: StatementStatus | null;
+  count: number;
+  rows: WeightNoteRow[];
 }
 
 // ============================ D3: additional pages ============================

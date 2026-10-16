@@ -9,12 +9,14 @@ import '../sync/sync_controller.dart';
 class _Line {
   final int itemId;
   final String name;
+  final bool isSteel;
   final TextEditingController qty = TextEditingController();
   final TextEditingController price = TextEditingController();
   final DiscountType discountType = DiscountType.percent;
   final TextEditingController discountValue = TextEditingController();
+  final TextEditingController weightNote = TextEditingController();
 
-  _Line({required this.itemId, required this.name, String? qtyText, String? priceText}) {
+  _Line({required this.itemId, required this.name, this.isSteel = false, String? qtyText, String? priceText}) {
     qty.text = qtyText ?? '';
     price.text = priceText ?? '';
   }
@@ -23,6 +25,7 @@ class _Line {
     qty.dispose();
     price.dispose();
     discountValue.dispose();
+    weightNote.dispose();
   }
 }
 
@@ -94,7 +97,12 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
                     : store.priceForCustomer(_customerId!, it.id);
                 final price = listPrice ?? it.lastPrice ?? 0;
                 setState(() => _lines.add(
-                      _Line(itemId: it.id, name: it.name, priceText: price.toStringAsFixed(2)),
+                      _Line(
+                        itemId: it.id,
+                        name: it.name,
+                        isSteel: it.isSteel,
+                        priceText: price.toStringAsFixed(2),
+                      ),
                     ));
               },
             ),
@@ -124,6 +132,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       'net': totals.net,
       'lines': _lines.asMap().entries.map((e) {
         final t = totals.lines[e.key];
+        final note = e.value.isSteel ? e.value.weightNote.text.trim() : '';
         return {
           'itemId': e.value.itemId,
           'name': e.value.name,
@@ -132,6 +141,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
           'discountType': e.value.discountType.name,
           'discountValue': _num(e.value.discountValue),
           'netFinal': t.netFinal,
+          if (note.isNotEmpty) 'weightNote': note,
         };
       }).toList(),
       'createdAt': DateTime.now().toIso8601String(),
@@ -304,6 +314,17 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
                 ),
               ],
             ),
+            if (l.isSteel) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: l.weightNote,
+                decoration: const InputDecoration(
+                  labelText: 'ملاحظة الوزن الفعلي (الحديد)',
+                  hintText: 'مثال: النظري 1000كج — الفعلي 985كج',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
           ],
         ),
       ),

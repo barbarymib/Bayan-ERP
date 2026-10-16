@@ -20,6 +20,7 @@ import type {
   QueryStocktakeDiffDto,
   QueryStoppedCustomersDto,
   QuerySupplierDebtDto,
+  QueryWeightNotesDto,
 } from './reports.dto.js';
 
 const ACTIVE_STOCKTAKE = ['OPEN', 'COUNTING', 'REVIEW'] as const;
@@ -788,6 +789,74 @@ export class ReportsService {
     for (const c of counts) byStatus[c.status] = c._count._all;
 
     return { from: query.from ?? null, to: query.to ?? null, status: query.status ?? null, count: items.length, byStatus, rows: items };
+  }
+
+  /** ملاحظات الوزن الفعلي لأصناف الحديد (§5.2): بنود البيانات التي حملت ملاحظة وزن. */
+  async weightNotes(query: QueryWeightNotesDto, companyId: number | null = null) {
+    const statementWhere: Prisma.PriceStatementWhereInput = {
+      ...tenantWhere(companyId),
+      status: query.status ? query.status : { not: 'CANCELLED' },
+    };
+    if (query.customerId) statementWhere.customerId = query.customerId;
+    if (query.from || query.to) {
+      const date: { gte?: Date; lte?: Date } = {};
+      if (query.from) date.gte = new Date(`${query.from}T00:00:00Z`);
+      if (query.to) date.lte = new Date(`${query.to}T23:59:59.999Z`);
+      statementWhere.date = date;
+    }
+    const where: Prisma.PriceStatementLineWhereInput = {
+      statement: statementWhere,
+      weightNote: { not: null },
+    };
+    if (query.itemId) where.itemId = query.itemId;
+
+    const lines = await this.prisma.priceStatementLine.findMany({
+      where,
+      include: {
+        item: { select: { id: true, code: true, nameAr: true } },
+        unit: { select: { code: true, nameAr: true } },
+        statement: {
+          select: {
+            id: true,
+            number: true,
+            date: true,
+            status: true,
+            customer: { select: { id: true, code: true, nameAr: true } },
+          },
+        },
+      },
+      orderBy: [{ statement: { date: 'desc' } }, { id: 'desc' }],
+      take: query.limit ?? 500,
+    });
+
+    const rows = lines
+      .filter((l) => (l.weightNote ?? '').trim().length > 0)
+      .map((l) => ({
+        lineId: l.id,
+        statementId: l.statement.id,
+        number: l.statement.number,
+        date: l.statement.date,
+        status: l.statement.status,
+        customerId: l.statement.customer.id,
+        customerCode: l.statement.customer.code,
+        customerName: l.statement.customer.nameAr,
+        itemId: l.item.id,
+        itemCode: l.item.code,
+        itemName: l.item.nameAr,
+        unit: l.unit.code,
+        unitName: l.unit.nameAr,
+        qty: Number(l.qty),
+        qtyBase: Number(l.qtyBase),
+        weightNote: l.weightNote,
+      }));
+
+    return {
+      from: query.from ?? null,
+      to: query.to ?? null,
+      status: query.status ?? null,
+      count: rows.length,
+      rows,
+    };
   }
 
   /** مرتجعات حسب العميل/المندوب/السبب/الصنف ونسبة المرتجع إلى المبيعات (§5.14). */

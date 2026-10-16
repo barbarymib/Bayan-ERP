@@ -258,7 +258,7 @@ function CreateStatementModal({
   }, []);
 
   function addLine() {
-    setLines([...lines, { itemCode: '', unitCode: '', qty: '1', unitPrice: '', discType: '', discValue: '' }]);
+    setLines([...lines, { itemCode: '', unitCode: '', qty: '1', unitPrice: '', discType: '', discValue: '', weightNote: '' }]);
   }
 
   function updateLine(i: number, patch: Partial<LineRow>) {
@@ -276,13 +276,18 @@ function CreateStatementModal({
     setError(null);
     const cleaned = lines
       .filter((l) => l.itemCode && Number(l.qty) > 0)
-      .map((l) => ({
-        itemCode: l.itemCode,
-        unitCode: l.unitCode || undefined,
-        qty: Number(l.qty),
-        unitPrice: l.unitPrice !== '' ? Number(l.unitPrice) : undefined,
-        discount: l.discType ? { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) || 0 } : undefined,
-      }));
+      .map((l) => {
+        const item = items.find((x) => x.code === l.itemCode);
+        const weightNote = item?.category?.code === 'STEEL' ? l.weightNote.trim() : '';
+        return {
+          itemCode: l.itemCode,
+          unitCode: l.unitCode || undefined,
+          qty: Number(l.qty),
+          unitPrice: l.unitPrice !== '' ? Number(l.unitPrice) : undefined,
+          discount: l.discType ? { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) || 0 } : undefined,
+          weightNote: weightNote || undefined,
+        };
+      });
     const badQty = cleaned.find((l) => {
       const item = items.find((x) => x.code === l.itemCode);
       return item ? !isLineQtyAllowed(item, l.unitCode, l.qty) : false;
@@ -442,6 +447,17 @@ function CreateStatementModal({
                       </Button>
                     </div>
                   </div>
+                  {item?.category?.code === 'STEEL' ? (
+                    <div className="mt-2">
+                      <Field label="ملاحظة الوزن الفعلي (الحديد §5.2)">
+                        <TextInput
+                          value={l.weightNote}
+                          onChange={(e) => updateLine(i, { weightNote: e.target.value })}
+                          placeholder="مثال: النظري 1000كج — الفعلي 985كج"
+                        />
+                      </Field>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -529,6 +545,9 @@ function StatementDetailModal({ statement, onClose }: { statement: PriceStatemen
                   <Td>
                     <div className="font-semibold">{l.item.nameAr}</div>
                     <div className="text-xs text-gray-400">{l.item.code}</div>
+                    {l.weightNote ? (
+                      <div className="text-xs text-amber-700">وزن فعلي: {l.weightNote}</div>
+                    ) : null}
                   </Td>
                   <Td>{l.unit.nameAr ?? l.unit.code}</Td>
                   <Td>{formatMoney(l.qty)} {l.unit.code}</Td>
@@ -656,6 +675,7 @@ type LineRow = {
   unitPrice: string;
   discType: string;
   discValue: string;
+  weightNote: string;
 };
 
 function todayStr(): string {

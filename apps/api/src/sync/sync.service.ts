@@ -125,7 +125,7 @@ export class SyncService {
         ...tenantWhere(companyId),
         ...(cursor ? { updatedAt: { gt: cursor } } : {}),
       },
-      include: { baseUnit: { select: { code: true } } },
+      include: { baseUnit: { select: { code: true } }, category: { select: { code: true } } },
       orderBy: { id: 'asc' },
     });
 
@@ -231,6 +231,7 @@ export class SyncService {
         code: i.code,
         name: i.nameAr,
         baseUnit: i.baseUnit?.code ?? null,
+        categoryCode: i.category?.code ?? null,
         lastPrice: null, // يُرسل مع قائمة أسعار العميل في إصدار لاحق
       })),
       customers: withBalance,
@@ -426,10 +427,15 @@ export class SyncService {
         const unitPrice = num(rec['unitPrice']);
         const discType = rec['discountType'] === 'amount' ? 'amount' : 'percent';
         const discValue = num(rec['discountValue']);
+        const weightNote =
+          typeof rec['weightNote'] === 'string' && (rec['weightNote'] as string).trim().length > 0
+            ? (rec['weightNote'] as string).trim()
+            : undefined;
         return {
           itemCode: code,
           qty,
           ...(unitPrice !== undefined ? { unitPrice } : {}),
+          ...(weightNote !== undefined ? { weightNote } : {}),
           discount:
             discValue !== undefined && discValue > 0
               ? ({ type: discType, value: discValue } as DiscountInputDto)

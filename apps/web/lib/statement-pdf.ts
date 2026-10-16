@@ -73,7 +73,11 @@ export async function downloadStatementPdf(st: PriceStatement, outstanding: numb
         ),
         ...st.lines.map((l, i) => [
           String(i + 1),
-          { text: `${l.item.nameAr}\n${l.item.code}`, fontSize: 11 },
+          {
+            text:
+              `${l.item.nameAr}\n${l.item.code}` + (l.weightNote ? `\nوزن فعلي: ${l.weightNote}` : ''),
+            fontSize: 11,
+          },
           l.unit.code,
           qty(l.qty),
           money(l.unitPrice),

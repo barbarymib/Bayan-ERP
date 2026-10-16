@@ -39,6 +39,7 @@ interface ResolvedLine {
   discount?: Discount;
   cost: number | null;
   minPrice: number | null;
+  weightNote?: string;
 }
 
 interface DiscountFlag {
@@ -97,6 +98,7 @@ interface StatementSnapshotSource {
     lineDiscountAmount: unknown;
     allocatedHeaderDiscount: unknown;
     netLine: unknown;
+    weightNote: string | null;
   }[];
 }
 
@@ -625,10 +627,19 @@ export class PriceStatementsService {
     for (const line of dto.lines) {
       const item = await this.prisma.item.findFirst({
         where: { code: line.itemCode, ...tenantWhere(tenant) },
-        include: { baseUnit: { select: { measurement: true, nameAr: true } } },
+        include: {
+          baseUnit: { select: { measurement: true, nameAr: true } },
+          category: { select: { code: true } },
+        },
       });
       if (!item) throw new NotFoundException(`Item ${line.itemCode} not found`);
       if (!item.active) throw new BadRequestException(`Item ${line.itemCode} is inactive`);
+
+      // ملاحظة الوزن الفعلي (§5.2) — متاحة لأصناف الحديد فقط للتفريق بين النظري والفعلي.
+      const weightNote = line.weightNote?.trim() || undefined;
+      if (weightNote && item.category?.code !== 'STEEL') {
+        throw new BadRequestException(`ملاحظة الوزن الفعلي متاحة لأصناف الحديد فقط (§5.2) — ${item.code}`);
+      }
 
       let unitId = item.baseUnitId;
       let factor = 1;
@@ -694,6 +705,7 @@ export class PriceStatementsService {
         discount: line.discount,
         cost,
         minPrice,
+        weightNote,
       });
     }
     return { resolved, discountFlags, belowCostLines, belowMinPriceLines };
@@ -730,6 +742,7 @@ export class PriceStatementsService {
         allocatedHeaderDiscount: t.allocatedHeaderDiscount,
         netLine: t.netFinal,
         costSnapshot: r.cost,
+        weightNote: r.weightNote ?? null,
         periodId,
       };
     });
@@ -834,6 +847,7 @@ export class PriceStatementsService {
         lineDiscountAmount: Number(l.lineDiscountAmount),
         allocatedHeaderDiscount: Number(l.allocatedHeaderDiscount),
         netLine: Number(l.netLine),
+        weightNote: l.weightNote,
       })),
     };
   }

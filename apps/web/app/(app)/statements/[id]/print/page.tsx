@@ -128,6 +128,9 @@ export default function StatementPrintPage() {
                 <td>
                   <div className="font-semibold">{l.item.nameAr}</div>
                   <div className="text-[10px] text-gray-500">{l.item.code}</div>
+                  {l.weightNote ? (
+                    <div className="text-[10px] text-amber-700">وزن فعلي: {l.weightNote}</div>
+                  ) : null}
                 </td>
                 <td>{l.unit.code}</td>
                 <td>{formatMoney(l.qty)}</td>

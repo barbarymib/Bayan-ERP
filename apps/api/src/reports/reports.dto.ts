@@ -279,6 +279,39 @@ export class QueryRepPerformanceDto extends CsvQuery {
   limit?: number;
 }
 
+export class QueryWeightNotesDto extends CsvQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  to?: string;
+
+  @IsOptional()
+  @IsIn(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'ARCHIVED'])
+  status?: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'ARCHIVED';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  itemId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  customerId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(2000)
+  limit?: number = 500;
+}
+
 export class QuerySupplierDebtDto extends CsvQuery {
   @IsOptional()
   @IsDateString()

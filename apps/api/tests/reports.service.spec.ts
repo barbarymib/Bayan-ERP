@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -82,12 +82,22 @@ interface Lookups {
   users?: { id: number; name: string }[];
   warehouses?: { id: number; code: string; nameAr: string }[];
   approvals?: Approval[];
+  weightNoteLines?: {
+    id: number;
+    qty: number;
+    qtyBase: number;
+    weightNote: string | null;
+    item: { id: number; code: string; nameAr: string };
+    unit: { code: string; nameAr: string };
+    statement: { id: number; number: string; date: Date; status: string; customer: { id: number; code: string; nameAr: string } };
+  }[];
 }
 
 function build(statements: ReturnType<typeof statement>[], lookups: Lookups = {}) {
   const approvals = lookups.approvals ?? [];
   const prisma = {
     priceStatement: { findMany: async () => statements },
+    priceStatementLine: { findMany: async () => lookups.weightNoteLines ?? [] },
     item: { findMany: async () => lookups.items ?? [] },
     category: { findMany: async () => lookups.categories ?? [] },
     brand: { findMany: async () => lookups.brands ?? [] },
@@ -842,5 +852,48 @@ describe('ReportsService.itemCard — بطاقة الصنف (§5.7/§5.14)', () 
     expect(out.rows).toHaveLength(0);
     expect(out.totals.closingQty).toBe(0);
     expect(out.totals.closingValue).toBe(0);
+  });
+});
+
+describe('ReportsService.weightNotes — ملاحظات الوزن الفعلي (R3-A6 §5.2)', () => {
+  type WeightNoteLine = NonNullable<Lookups['weightNoteLines']>[number];
+  const wl = (over: Partial<WeightNoteLine> = {}): WeightNoteLine => ({
+    id: 11,
+    qty: 2,
+    qtyBase: 2,
+    weightNote: 'فرق 20كج',
+    item: { id: 5, code: 'IR-16-10', nameAr: 'حديد تسليح' },
+    unit: { code: 'ton', nameAr: 'طن' },
+    statement: {
+      id: 7,
+      number: 'BP-000007',
+      date: new Date('2026-10-02T00:00:00Z'),
+      status: 'APPROVED',
+      customer: { id: 2, code: 'CUST-02', nameAr: 'عميل ثانٍ' },
+    },
+    ...over,
+  });
+
+  it('يُعيد البنود ذات ملاحظة الوزن فقط مع بيانات البيان والعميل والصنف', async () => {
+    const svc = build([], {
+      weightNoteLines: [wl(), wl({ id: 12, weightNote: '   ' }), wl({ id: 13, weightNote: null })],
+    });
+    const out = await svc.weightNotes({} as QueryWeightNotesDto, 1);
+    expect(out.count).toBe(1);
+    expect(out.rows[0]).toMatchObject({
+      lineId: 11,
+      number: 'BP-000007',
+      customerCode: 'CUST-02',
+      itemCode: 'IR-16-10',
+      unit: 'ton',
+      weightNote: 'فرق 20كج',
+    });
+  });
+
+  it('يُرجع صفراً بلا بنود ذات ملاحظة', async () => {
+    const svc = build([], { weightNoteLines: [] });
+    const out = await svc.weightNotes({} as QueryWeightNotesDto, 1);
+    expect(out.count).toBe(0);
+    expect(out.rows).toEqual([]);
   });
 });

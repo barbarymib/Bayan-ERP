@@ -55,6 +55,12 @@ export class StatementLineInputDto {
   @ValidateNested()
   @Type(() => DiscountInputDto)
   discount?: DiscountInputDto;
+
+  @ApiPropertyOptional({ description: 'ملاحظة الوزن الفعلي (أصناف الحديد فقط §5.2)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  weightNote?: string;
 }
 
 export class CreateStatementDto {

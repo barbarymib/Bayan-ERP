@@ -14,6 +14,7 @@ import {
   type StockValues,
   type ValuationMethod,
   type Warehouse,
+  type WeightNotesReport,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
@@ -30,7 +31,7 @@ import {
   formatMoney,
 } from '@/components/ui';
 
-type Tab = 'movements' | 'values' | 'summary' | 'lowstock' | 'aging';
+type Tab = 'movements' | 'values' | 'summary' | 'lowstock' | 'aging' | 'weightnotes';
 
 export default function ReportsPage() {
   const { user } = useAuth();
@@ -52,6 +53,7 @@ export default function ReportsPage() {
     { id: 'summary', label: 'ملخص الأصناف' },
     { id: 'lowstock', label: 'تحت الحد الأدنى' },
     { id: 'aging', label: 'أعمار الديون' },
+    { id: 'weightnotes', label: 'ملاحظات الوزن الفعلي' },
   ];
 
   return (
@@ -75,6 +77,7 @@ export default function ReportsPage() {
       {tab === 'summary' ? <SummaryPane /> : null}
       {tab === 'lowstock' ? <LowStockPane /> : null}
       {tab === 'aging' ? <AgingPane /> : null}
+      {tab === 'weightnotes' ? <WeightNotesPane /> : null}
     </div>
   );
 }
@@ -557,6 +560,111 @@ function LowStockPane() {
                   <Td className="font-semibold text-red-600">{formatMoney(r.qtyBase)}</Td>
                   <Td>{formatMoney(r.minStock)}</Td>
                   <Td className="font-bold">{formatMoney(r.diff)}</Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function WeightNotesPane() {
+  const [data, setData] = useState<WeightNotesReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    get<WeightNotesReport>(`/reports/weight-notes${qs({ from: from, to: to, status: status })}`)
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'فشل تحميل ملاحظات الوزن');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh, from, to, status]);
+
+  return (
+    <div>
+      {error ? <ErrorBox message={error} onRetry={() => setRefresh((x) => x + 1)} /> : null}
+      <div className="mb-3 flex flex-wrap items-end gap-2">
+        <Field label="من تاريخ">
+          <TextInput value={from} onChange={(e) => setFrom(e.target.value)} type="date" />
+        </Field>
+        <Field label="إلى تاريخ">
+          <TextInput value={to} onChange={(e) => setTo(e.target.value)} type="date" />
+        </Field>
+        <Field label="الحالة">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-44">
+            <option value="">الكل عدا الملغي</option>
+            <option value="APPROVED">معتمد</option>
+            <option value="DRAFT">بانتظار الموافقة</option>
+            <option value="PENDING_REVIEW">قيد المراجعة</option>
+            <option value="ARCHIVED">مؤرشف</option>
+          </Select>
+        </Field>
+        <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
+          تحديث
+        </Button>
+        <Button variant="secondary" onClick={() => downloadCsv(`/reports/weight-notes${qs({ format: 'csv', from: from, to: to, status: status })}`, setError)}>
+          تصدير CSV
+        </Button>
+        <span className="text-sm text-gray-500">{data?.count ?? 0} بند</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <table className="w-full min-w-max border-collapse">
+          <thead className="border-b border-gray-200 bg-gray-50">
+            <tr>
+              <Th>التاريخ</Th>
+              <Th>البيان</Th>
+              <Th>العميل</Th>
+              <Th>الصنف</Th>
+              <Th>الكمية</Th>
+              <Th>ملاحظة الوزن الفعلي</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <Td className="py-6 text-center text-gray-400">جارِ التحميل…</Td>
+              </tr>
+            ) : !data || data.rows.length === 0 ? (
+              <tr>
+                <Td className="py-6 text-center text-gray-400">لا توجد ملاحظات وزن</Td>
+              </tr>
+            ) : (
+              data.rows.map((r) => (
+                <tr key={r.lineId} className="border-b border-gray-100 last:border-0">
+                  <Td>{formatDate(r.date)}</Td>
+                  <Td className="font-mono font-semibold">{r.number}</Td>
+                  <Td>
+                    <div className="font-semibold">{r.customerName}</div>
+                    <div className="text-xs text-gray-400">{r.customerCode}</div>
+                  </Td>
+                  <Td>
+                    <div className="font-semibold">{r.itemName}</div>
+                    <div className="text-xs font-mono text-gray-400">{r.itemCode}</div>
+                  </Td>
+                  <Td dir="ltr">
+                    {formatMoney(r.qty)} {r.unit}
+                  </Td>
+                  <Td className="font-semibold text-amber-700">{r.weightNote}</Td>
                 </tr>
               ))
             )}

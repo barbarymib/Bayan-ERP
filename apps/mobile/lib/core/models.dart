@@ -97,6 +97,7 @@ class ItemSummary {
   final String name;
   final String? baseUnit;
   final double? lastPrice;
+  final String? categoryCode;
 
   const ItemSummary({
     required this.id,
@@ -104,7 +105,11 @@ class ItemSummary {
     required this.name,
     this.baseUnit,
     this.lastPrice,
+    this.categoryCode,
   });
+
+  /// صنف حديد — تُفعَّل له ملاحظة الوزن الفعلي (§5.2).
+  bool get isSteel => categoryCode == 'STEEL';
 
   factory ItemSummary.fromJson(Map<String, dynamic> j) => ItemSummary(
         id: (j['id'] as num).toInt(),
@@ -112,6 +117,7 @@ class ItemSummary {
         name: j['name'] as String? ?? '',
         baseUnit: j['baseUnit'] as String?,
         lastPrice: (j['lastPrice'] as num?)?.toDouble(),
+        categoryCode: j['categoryCode'] as String?,
       );
 }
 

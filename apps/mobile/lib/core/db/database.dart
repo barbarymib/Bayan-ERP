@@ -17,6 +17,7 @@ class Items extends Table {
   TextColumn get name => text()();
   TextColumn get baseUnit => text().nullable()();
   RealColumn get lastPrice => real().nullable()();
+  TextColumn get categoryCode => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -140,5 +141,15 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // R3-A6 §5.2: تصنيف الصنف (لتمييز أصناف الحديد) — عمود اختياري.
+            await m.addColumn(items, items.categoryCode);
+          }
+        },
+      );
 }

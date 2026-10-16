@@ -19,6 +19,7 @@ import {
   QueryStocktakeDiffDto,
   QueryStoppedCustomersDto,
   QuerySupplierDebtDto,
+  QueryWeightNotesDto,
 } from './reports.dto.js';
 import { ReportsService } from './reports.service.js';
 
@@ -114,6 +115,13 @@ export class ReportsController {
   @ApiOkResponse({ description: 'المرتجعات حسب العميل/المندوب/السبب/الصنف ونسبة المرتجع إلى المبيعات' })
   returns(@Query() query: QueryReturnsDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     return this.reports.returnsBy(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/weight-notes')
+  @Permissions('report.view')
+  @ApiOkResponse({ description: 'ملاحظات الوزن الفعلي لأصناف الحديد (§5.2)' })
+  weightNotes(@Query() query: QueryWeightNotesDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.weightNotes(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
   @Get('reports/stopped-customers')

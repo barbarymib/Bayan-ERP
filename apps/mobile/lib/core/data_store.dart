@@ -50,6 +50,7 @@ class DataStore {
               name: r.name,
               baseUnit: r.baseUnit,
               lastPrice: r.lastPrice,
+              categoryCode: r.categoryCode,
             ))
         .toList();
   }
@@ -136,6 +137,7 @@ class DataStore {
               name: i.name,
               baseUnit: Value(i.baseUnit),
               lastPrice: Value(i.lastPrice),
+              categoryCode: Value(i.categoryCode),
             ));
       }
     });
