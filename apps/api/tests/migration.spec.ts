@@ -106,7 +106,9 @@ function makePrisma(seed: { items?: number; customers?: number; rep?: boolean } 
       },
     },
     itemPrice: {
-      upsert: async (a: { create: Row }) => ({ id: 1, ...a.create }) as never,
+      findFirst: async () => null,
+      create: async (a: { data: Row }) => ({ id: 1, ...a.data }) as never,
+      update: async (a: { data: Row }) => ({ id: 1, ...a.data }) as never,
     },
     stockMovement: { findFirst: async () => (seed.items ? { id: 1 } : null) },
   } as unknown as PrismaService;

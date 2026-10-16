@@ -482,7 +482,9 @@ model ItemPrice {
   validTo     DateTime?
   createdAt   DateTime  @default(now())
 
-  @@unique([itemId, unitId, priceListId])
+  // R3-A7 (§5.3): many rows per (item, unit, list) so a scheduled price can
+  // coexist with the current one; resolver picks by validFrom/validTo window.
+  @@index([itemId, unitId, priceListId, validFrom])
   @@index([companyId])
   @@index([priceListId])
 }

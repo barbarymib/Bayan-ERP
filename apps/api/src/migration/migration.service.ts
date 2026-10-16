@@ -264,28 +264,29 @@ export class MigrationService {
             if (!pl) throw new Error(`price list '${priceRow.priceListCode}' not found`);
             const priceUnit = priceRow.unitCode ? unitMap.get(priceRow.unitCode) : unit;
             if (!priceUnit) throw new Error(`price unit '${priceRow.unitCode}' not found`);
-            await tx.itemPrice.upsert({
-              where: {
-                itemId_unitId_priceListId: {
-                  itemId,
-                  unitId: priceUnit.id,
-                  priceListId: pl.id,
-                },
-              },
-              create: {
-                companyId,
-                itemId,
-                unitId: priceUnit.id,
-                priceListId: pl.id,
-                price: priceRow.price,
-                validFrom: priceRow.validFrom ? new Date(priceRow.validFrom) : new Date(),
-                validTo: priceRow.validTo ? new Date(priceRow.validTo) : null,
-              },
-              update: {
-                price: priceRow.price,
-                validTo: priceRow.validTo ? new Date(priceRow.validTo) : null,
-              },
+            // R3-A7: لا فريد على (item, unit, list) بعد الآن، فالترحيل
+            // يحدّث آخر سطر لهذا الثلاثي أو يُنشئه (سلوك upsert المعتاد).
+            const priceScope = { itemId, unitId: priceUnit.id, priceListId: pl.id };
+            const priorPrice = await tx.itemPrice.findFirst({
+              where: { ...priceScope, ...(companyId != null ? { companyId } : {}) },
+              orderBy: { id: 'desc' },
             });
+            if (priorPrice) {
+              await tx.itemPrice.update({
+                where: { id: priorPrice.id },
+                data: { price: priceRow.price, validTo: priceRow.validTo ? new Date(priceRow.validTo) : null },
+              });
+            } else {
+              await tx.itemPrice.create({
+                data: {
+                  companyId,
+                  ...priceScope,
+                  price: priceRow.price,
+                  validFrom: priceRow.validFrom ? new Date(priceRow.validFrom) : new Date(),
+                  validTo: priceRow.validTo ? new Date(priceRow.validTo) : null,
+                },
+              });
+            }
           }
 
           return { ref: it.code, action: existing ? ('UPDATED' as const) : ('CREATED' as const) };

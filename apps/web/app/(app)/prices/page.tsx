@@ -237,6 +237,8 @@ function SetPricePane({
   const [priceListCode, setPriceListCode] = useState('RETAIL');
   const [unitCode, setUnitCode] = useState('');
   const [price, setPrice] = useState('');
+  const [validFrom, setValidFrom] = useState('');
+  const [validTo, setValidTo] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const selectedItem = items.find((i) => i.code === itemCode);
@@ -250,6 +252,8 @@ function SetPricePane({
         priceListCode,
         unitCode: unitCode || undefined,
         price: Number(price),
+        validFrom: validFrom || undefined,
+        validTo: validTo || undefined,
       });
       onDone('تم تعيين السعر');
       setPrice('');
@@ -298,7 +302,16 @@ function SetPricePane({
         <Field label="السعر (ج)">
           <TextInput value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="any" />
         </Field>
+        <Field label="ساري من (اختياري)">
+          <TextInput type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+        </Field>
+        <Field label="ساري حتى (اختياري)">
+          <TextInput type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)} />
+        </Field>
       </div>
+      <p className="mb-3 text-xs text-gray-500">
+        اترك «ساري من» فارغاً ليبدأ السعر فوراً. تحديد تاريخ مستقبلي يجدول السعر دون المساس بالسعر الحالي.
+      </p>
       {error ? (
         <div className="mb-3">
           <ErrorBox message={error} />
@@ -335,6 +348,8 @@ function BulkPane({
   const [result, setResult] = useState<BulkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bulkValidFrom, setBulkValidFrom] = useState('');
+  const [bulkValidTo, setBulkValidTo] = useState('');
 
   useEffect(() => {
     get<{ categories: { code: string; nameAr: string }[] }>('/categories')
@@ -363,6 +378,8 @@ function BulkPane({
       if (supplierId) body.supplierId = Number(supplierId);
       else if (categoryCode) body.categoryCode = categoryCode;
       else if (manualCodes.trim()) body.itemCodes = manualCodes.split(',').map((s) => s.trim()).filter(Boolean);
+      if (bulkValidFrom) body.validFrom = bulkValidFrom;
+      if (bulkValidTo) body.validTo = bulkValidTo;
       const data = await post<BulkResult>('/prices/bulk', body);
       setResult(data);
       onDone(`تم تسعير ${data.applied} صنف`);
@@ -422,6 +439,12 @@ function BulkPane({
               <TextInput value={value} onChange={(e) => setValue(e.target.value)} type="number" step="any" />
             </Field>
           ) : null}
+          <Field label="ساري من (اختياري)">
+            <TextInput type="date" value={bulkValidFrom} onChange={(e) => setBulkValidFrom(e.target.value)} />
+          </Field>
+          <Field label="ساري حتى (اختياري)">
+            <TextInput type="date" value={bulkValidTo} onChange={(e) => setBulkValidTo(e.target.value)} />
+          </Field>
         </div>
 
         {mode !== 'set' ? (

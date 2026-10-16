@@ -146,9 +146,7 @@ export class PricesService {
     const skipped: { itemCode: string; reason: string }[] = [];
     for (const item of items) {
       const unitId = unitIdCache ?? item.baseUnitId;
-      const existing = await this.prisma.itemPrice.findUnique({
-        where: { itemId_unitId_priceListId: { itemId: item.id, unitId, priceListId: priceList.id } },
-      });
+      const existing = await this.currentPrice(item.id, unitId, priceList.id, companyId);
       const base = existing ? Number(existing.price) : null;
       if (base === null) {
         skipped.push({ itemCode: item.code, reason: 'No current price to adjust' });
@@ -159,7 +157,7 @@ export class PricesService {
           ? round4(base * (1 + (dto.changeByPercent ?? 0) / 100))
           : round4(base + (dto.changeByAmount ?? 0));
 
-      const r = await this.upsertPrice(item.id, unitId, priceList.id, newPrice, base, userId, { validFrom, validTo }, companyId);
+      const r = await this.setPrice(item.id, unitId, priceList.id, newPrice, base, userId, { validFrom, validTo }, companyId);
       details.push(r);
     }
 
@@ -206,17 +204,39 @@ export class PricesService {
     if (unitCode && !unit) throw new NotFoundException(`Unit ${unitCode} not found`);
     const unitId = unit?.id ?? item.baseUnitId;
 
-    const existing = await this.prisma.itemPrice.findUnique({
-      where: { itemId_unitId_priceListId: { itemId: item.id, unitId, priceListId: priceList.id } },
-    });
+    const existing = await this.currentPrice(item.id, unitId, priceList.id, companyId);
     const oldPrice = existing ? Number(existing.price) : null;
     const newPrice = round4(price);
 
-    const r = await this.upsertPrice(item.id, unitId, priceList.id, newPrice, oldPrice, userId, validity, companyId);
+    const r = await this.setPrice(item.id, unitId, priceList.id, newPrice, oldPrice, userId, validity, companyId);
     return r;
   }
 
-  private async upsertPrice(
+  /** السعر السارٍ فعلياً الآن (نافذة صلاحية تغطي لحظة الحالية) لثلاثي فريد. */
+  private async currentPrice(itemId: number, unitId: number, priceListId: number, companyId: number | null) {
+    const now = new Date();
+    return this.prisma.itemPrice.findFirst({
+      where: {
+        ...tenantWhere(companyId),
+        itemId,
+        unitId,
+        priceListId,
+        validFrom: { lte: now },
+        OR: [{ validTo: null }, { validTo: { gte: now } }],
+      },
+      orderBy: { validFrom: 'desc' },
+    });
+  }
+
+  /**
+   * يعرّف سعراً داخل نافذة صلاحية (§5.3 التسعير المجدول).
+   *
+   * بدل أن يُعيد upsert السطر الحالي إلى السعر الجديد، يُغلق النوافذ
+   * السابقة التي ما زالت مغطّية وقت البدء ثم يُنشئ سطراً جديداً — بهذا
+   * يستطيع سعرٌ مجدول بـ `validFrom` مستقبلي أن يتعاون مع السعر الفعلي
+   * دون إزالته.
+   */
+  private async setPrice(
     itemId: number,
     unitId: number,
     priceListId: number,
@@ -233,22 +253,33 @@ export class PricesService {
     const unitCode = (await this.prisma.unit.findUnique({ where: { id: unitId } }))!.code;
     const priceListCode = (await this.prisma.priceList.findUnique({ where: { id: priceListId } }))!.code;
 
-    await this.prisma.itemPrice.upsert({
-      where: { itemId_unitId_priceListId: { itemId, unitId, priceListId } },
-      create: {
-        itemId,
-        unitId,
-        priceListId,
-        price: newPrice,
-        validFrom: validity.validFrom ?? new Date(),
-        validTo: validity.validTo,
-        companyId,
-      },
-      update: {
-        price: newPrice,
-        validFrom: validity.validFrom ?? new Date(),
-        validTo: validity.validTo,
-      },
+    const validFrom = validity.validFrom ?? new Date();
+    const validTo = validity.validTo ?? null;
+    const scope = { ...tenantWhere(companyId), itemId, unitId, priceListId };
+
+    await this.prisma.$transaction(async (tx) => {
+      // كل نافذة سابقة كانت مفتوحة عبر وقت البدء الجديد تنتهي عنده
+      await tx.itemPrice.updateMany({
+        where: {
+          ...scope,
+          validFrom: { lt: validFrom },
+          OR: [{ validTo: null }, { validTo: { gte: validFrom } }],
+        },
+        data: { validTo: validFrom },
+      });
+
+      // سطر يبدأ تماماً عند نفس اللحظة يُحدَّث بدل تكراره
+      const sameStart = await tx.itemPrice.findFirst({
+        where: { ...scope, validFrom },
+        orderBy: { id: 'desc' },
+      });
+      if (sameStart) {
+        await tx.itemPrice.update({ where: { id: sameStart.id }, data: { price: newPrice, validTo } });
+      } else {
+        await tx.itemPrice.create({
+          data: { companyId, itemId, unitId, priceListId, price: newPrice, validFrom, validTo },
+        });
+      }
     });
 
     await this.prisma.priceHistory.create({
