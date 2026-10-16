@@ -157,6 +157,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-16 | **R3-A9** rep "عملاؤه" customer scoping on statements/returns | ✅ FIXED (api 292/292; 11/11 live verify) |
 | 2026-10-16 | **R3-B6/E1** audit coverage (statement.create, purchase.create, sync.push, master-data CRUD) | ✅ FIXED (api 292/292; 27/27 live verify) |
 | 2026-10-16 | **Bug (found during R3-E1 verify):** array-form `prisma.$transaction([...])` on extended delegates **hangs forever** (nested self-wrapping transactions); broke every delete-guard endpoint (branches/categories/price-lists/special-prices/units/users/warehouses) | ✅ FIXED — converted to interactive `$transaction(async tx => ...)` (commit `4749f08`; api 292/292; live delete 200 + audit row) |
+| 2026-10-16 | **R3-B11** re-check available stock at approval/finalize on `stock.sale.enforce=BLOCK`, excluding the statement's own reservation | ✅ FIXED (api 300/300; 15/15 live verify — approve blocked 400 + approval stays PENDING when balance drops; approve succeeds only once available-excluding-self ≥ qty) |
 
 ---
 
@@ -206,7 +207,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-B8 | Customer→rep transfer **history** has no UI (only current rep editable). | §5.4 | PARTIAL | `customers.service.ts:104,159-177`; no UI in `customers/page.tsx` |
 | R3-B9 | Supplier statement API exists but **no web page** calls it. | §5.5 | PARTIAL | `collections.controller.ts:87-96`; no call in web |
 | R3-B10 | No setting to **disable auto last-purchase-cost update** on approval (always updates). | §5.5 | MISSING | `purchases.service.ts:164-167`; no settings toggle |
-| R3-B11 | Negative-stock **BLOCK not rechecked at approval/finalize** → balance can go negative after the draft/reserve window. | §5.6 | PARTIAL | `sales-ops.service.ts:54-64` vs create check `price-statements.service.ts:167,394` |
+| R3-B11 | Negative-stock **BLOCK not rechecked at approval/finalize** → balance can go negative after the draft/reserve window. | §5.6 | ✅ FIXED | `stock.service.ts` `availableQty`/`assertSalePermitted` gained optional `exclude?: ReservationExclude {refType,refId}` (adds `NOT:{refType,refId}` to the reservation aggregate so a statement's own reservation isn't double-counted); re-check on `stock.sale.enforce=BLOCK` added in `sales-ops.service.ts` `finalizeStatement` (after `assertCustomerCredit`) and in `approvals.service.ts` `assertDecidable` **before** the approval status flip (so a rejection leaves the approval PENDING). Commits `f3bdb25`, `275f408`. Live-verified 2026-10-16 (15/0). |
 | R3-C2 | Valuation "no price" items are costed 0 and folded into totals — not flagged/excluded+counted. | §5.8 note | PARTIAL | `reports.service.ts:89,104-105,142` vs `packages/shared/src/stocktake.ts:39,74` |
 | R3-C3 | Return financial effect (BALANCE/CASH/CREDIT) not exposed in any UI. | §5.9 | PARTIAL | `apps/web/app/(app)/returns/page.tsx`; `new_return_screen.dart:111-117` |
 | R3-C4 | Rep-return **approval** is permission-gated, not an optional per-company **setting**. | §5.9.6 | DEVIATION | `returns.service.ts:183,221-247`; no key in `seed.ts:196-207` |
@@ -273,7 +274,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 9. **R3-A5** item batch expiry (schema + item/purchase UI).
 10. **R3-A6** steel actual-weight input + weight-difference report.
 11. **R3-A9** enforce rep customer scoping on statements/returns. — ✅ FIXED (api 292/292; 11/11 live verify)
-12. **R3-B11** re-check negative-stock/credit at approval/finalize.
+12. **R3-B11** re-check negative-stock/credit at approval/finalize. — ✅ FIXED (api 300/300; 15/15 live verify)
 13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD. — ✅ FIXED (api 292/292; 27/27 live verify)
 14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report.
 15. **R3-C8** stocktake freeze WARN mode (surface warning).
