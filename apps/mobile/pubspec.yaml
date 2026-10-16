@@ -58,6 +58,10 @@ dependencies:
   pdf: ^3.13.1
   share_plus: ^13.3.1
 
+  # §5.13: الإشعار الدائم/خدمة المقدمة لإظهار مؤشر التتبع أثناء الوردية.
+  # النسخة المحلية مُخزّنة في Pub Cache — لا يُسمح بترقية/تنزيل جديد من pub.dev.
+  flutter_local_notifications: 17.2.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -70,6 +74,12 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: 2.31.0
   build_runner: 2.15.1
+
+# §5.13: تعارض إصدار dbus العابر بين flutter_local_notifications (لينكس: ^0.7.8)
+# وconnectivity_plus (عبر nm 0.6.0: ^0.8.0). نُثبّت dbus 0.8.0 الذي يتوافق مع
+# nm، وكود لينكس غير مُستخدَم على أندرويد. كلاهما متوفر في Pub Cache المحلي.
+dependency_overrides:
+  dbus: 0.8.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

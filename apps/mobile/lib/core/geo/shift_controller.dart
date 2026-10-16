@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api_client.dart';
 import '../geo/location.dart';
+import '../geo/tracking_notification.dart';
 import '../models.dart';
 import '../providers.dart';
 import '../session_store.dart';
@@ -54,9 +55,11 @@ class ShiftState {
 }
 
 /// يدير وردية تتبع الموقع: بدء/إنهاء، إرسال نقاط دورية، وتسجيل الزيارات.
-/// «الخلفية» هنا تعني استمرار المؤقّت ما دام تطبيق المندوب حيّاً (تتبع قريب
-/// من حقيقي عبر geolocator؛ الردم على خدمة أندرويد الفعلية موثّق في README/memory).
+/// يفرض إقراراً موقّعاً على التتبع (§5.13) قبل البدء، ويُظهر مؤشراً مرئياً دائماً
+/// أثناء الوردية عبر خدمة مقدمة/إشعار دائم ([TrackingNotifier]).
 class ShiftController extends Notifier<ShiftState> {
+  static const _notifTitle = 'تتبع الموقع مُفعّل';
+
   Timer? _timer;
   bool _pushing = false;
 
@@ -70,6 +73,9 @@ class ShiftController extends Notifier<ShiftState> {
   LocationProvider get _location => ref.read(locationProvider);
   SessionStore get _session => ref.read(sessionProvider);
   Duration get _interval => ref.read(trackingIntervalProvider);
+  TrackingNotifier get _notifier => ref.read(trackingNotifierProvider);
+
+  String _notifBody(int points) => 'الوردية نشطة — أُرسلت $points نقطة موقع';
 
   /// عند فتح التطبيق: إن تُركت وردية نشطة على الخادم نستأنف التتبع.
   Future<void> syncFromServer() async {
@@ -79,6 +85,7 @@ class ShiftController extends Notifier<ShiftState> {
       if (active != null) {
         state = ShiftState(shift: active);
         _startTimer();
+        await _notifier.start(title: _notifTitle, body: _notifBody(0));
       }
     } catch (_) {
       // فشل الشبكة لا يمنع فتح التطبيق — سيُحاول مجدداً عند فتح الشاشة.
@@ -89,6 +96,10 @@ class ShiftController extends Notifier<ShiftState> {
     if (state.shift != null || state.busy) return;
     state = state.copy(busy: true, error: null);
     try {
+      if (!_session.hasCurrentGeoConsent) {
+        throw const GeoTrackingException(
+            'يجب الإقرار على تتبع الموقع أثناء الوردية قبل البدء (§5.13)');
+      }
       if (!await _location.isLocationEnabled()) {
         throw const GeoTrackingException('خدمة الموقع غير مفعّلة — فعّلها ثم أعد المحاولة');
       }
@@ -103,6 +114,7 @@ class ShiftController extends Notifier<ShiftState> {
       );
       state = ShiftState(shift: shift, lastPosition: pos);
       _startTimer();
+      await _notifier.start(title: _notifTitle, body: _notifBody(0));
       if (pos != null) await _push(pos);
     } catch (e) {
       state = state.copy(busy: false, error: _message(e, 'فشل بدء الوردية'));
@@ -126,6 +138,7 @@ class ShiftController extends Notifier<ShiftState> {
     }
     try {
       await _api.endShift(shiftId: active.id, lat: pos?.lat, lng: pos?.lng);
+      await _notifier.stop();
       state = const ShiftState();
     } catch (e) {
       state = state.copy(busy: false, error: _message(e, 'فشل إنهاء الوردية'));
@@ -188,6 +201,10 @@ class ShiftController extends Notifier<ShiftState> {
         pushedLocations: state.pushedLocations + 1,
         lastPushAt: pos.capturedAt,
         error: null,
+      );
+      await _notifier.update(
+        title: _notifTitle,
+        body: _notifBody(state.pushedLocations),
       );
     } catch (e) {
       // لا نقطع التتبع لفشل نقطة واحدة — نعرض الخطأ ونعيد المحاولة في الدورة القادمة.

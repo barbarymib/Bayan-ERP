@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bayan_rep/core/api_client.dart';
 import 'package:bayan_rep/core/geo/location.dart';
 import 'package:bayan_rep/core/geo/shift_controller.dart';
+import 'package:bayan_rep/core/geo/tracking_notification.dart';
 import 'package:bayan_rep/core/providers.dart';
 import 'package:bayan_rep/core/session_store.dart';
 
@@ -19,6 +20,32 @@ GeoPosition _pos({double lat = 31.235, double lng = 35.1, double? accuracy = 11.
       accuracy: accuracy,
       capturedAt: DateTime.utc(2026, 10, 9, 12, 0, 0),
     );
+
+/// نسخة زائفة من المؤشر المرئي للتتبع — تتحقق من دورة الحياة دون خدمة أندرويد.
+class FakeTrackingNotifier implements TrackingNotifier {
+  bool started = false;
+  bool stopped = false;
+  int updates = 0;
+  String? lastBody;
+
+  @override
+  Future<void> start({required String title, required String body}) async {
+    started = true;
+    lastBody = body;
+  }
+
+  @override
+  Future<void> update({required String title, required String body}) async {
+    updates++;
+    lastBody = body;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopped = true;
+    started = false;
+  }
+}
 
 http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
       utf8.encode(jsonEncode(body)),
@@ -57,6 +84,7 @@ void main() {
 
   late ProviderContainer container;
   late FakeLocationProvider fake;
+  late FakeTrackingNotifier notifier;
   late List<http.Request> log;
   late Map<String, bool> flags;
 
@@ -108,13 +136,20 @@ void main() {
         return _json({'message': 'not found'}, 404);
       });
 
-  Future<void> setUpContainer() async {
+  Future<void> setUpContainer({bool consent = true}) async {
     log = [];
     flags = {};
     fake = FakeLocationProvider(_pos());
+    notifier = FakeTrackingNotifier();
     SharedPreferences.setMockInitialValues({
       'device_id': 'test-device',
       'auth_token': 'tok',
+      if (consent)
+        'geo_consent': jsonEncode({
+          'version': '1.0',
+          'signatureName': 'مندوب اختبار',
+          'acceptedAt': '2026-10-09T00:00:00.000Z',
+        }),
     });
     final session = SessionStore(await SharedPreferences.getInstance());
     container = ProviderContainer(
@@ -124,6 +159,7 @@ void main() {
           ApiClient(baseUrl: 'http://test', client: buildMock()),
         ),
         locationProvider.overrideWithValue(fake),
+        trackingNotifierProvider.overrideWithValue(notifier),
         trackingIntervalProvider.overrideWithValue(const Duration(milliseconds: 20)),
       ],
     );
@@ -252,6 +288,34 @@ void main() {
 
       expect(result, isNull);
       expect(byPath('/geo/visits'), isEmpty);
+    });
+
+    test('يمنع بدء الوردية دون إقرار على تتبع الموقع (§5.13)', () async {
+      await setUpContainer(consent: false);
+      final controller = container.read(shiftControllerProvider.notifier);
+
+      await controller.startShift();
+
+      expect(container.read(shiftControllerProvider).isTracking, isFalse);
+      expect(container.read(shiftControllerProvider).error, contains('الإقرار'));
+      expect(byPath('/geo/shifts/start'), isEmpty);
+      expect(notifier.started, isFalse);
+    });
+
+    test('المؤشر المرئي يبدأ مع الوردية ويتحدّث ويُوقف عند الإنهاء', () async {
+      await setUpContainer();
+      final controller = container.read(shiftControllerProvider.notifier);
+
+      await controller.startShift();
+
+      expect(notifier.started, isTrue);
+      expect(notifier.updates, greaterThanOrEqualTo(1));
+      expect(notifier.lastBody, contains('نقطة'));
+
+      await controller.stopShift();
+
+      expect(notifier.stopped, isTrue);
+      expect(container.read(shiftControllerProvider).shift, isNull);
     });
   });
 }

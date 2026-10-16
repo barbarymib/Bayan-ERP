@@ -5,6 +5,7 @@ import 'connectivity.dart';
 import 'data_store.dart';
 import 'device_lock.dart';
 import 'geo/location.dart';
+import 'geo/tracking_notification.dart';
 import 'numbering_store.dart';
 import 'outbox.dart';
 import 'print/printer.dart';
@@ -26,6 +27,11 @@ final connectivityProvider =
 
 /// مصدر الموقع — يُستبدل بإصدار حقيقي في `main()` وبنسخة زائفة في الاختبارات.
 final locationProvider = Provider<LocationProvider>((ref) => throw UnimplementedError());
+
+/// المؤشر المرئي للتتبع (§5.13) — إشعار دائم/خدمة مقدمة على أندرويد؛
+/// يُستبدل بنسخة حقيقية في `main()` وبنسخة صامتة في الاختبارات.
+final trackingNotifierProvider =
+    Provider<TrackingNotifier>((ref) => throw UnimplementedError());
 
 /// طابعة البلوتوث الحرارية — تُستبدل بتنفيذ حقيقي في `main()` وبنسخة زائفة في
 /// الاختبارات.

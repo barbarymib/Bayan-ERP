@@ -8,6 +8,7 @@ import '../../core/geo/shift_controller.dart';
 import '../../core/models.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
+import 'consent_screen.dart';
 
 /// شاشة تتبع الموقع: بدء/إنهاء الوردية، متابعة النقاط، وتسجيل الزيارات.
 class ShiftScreen extends ConsumerStatefulWidget {
@@ -43,6 +44,27 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// يفرض الإقرار على التتبع (§5.13) قبل بدء الوردية، ثم يبدأها.
+  Future<void> _start() async {
+    final session = ref.read(sessionProvider);
+    if (!session.hasCurrentGeoConsent) {
+      final accepted = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute<bool>(builder: (_) => const GeoConsentScreen()),
+      );
+      if (accepted != true) return;
+    }
+    await ref.read(shiftControllerProvider.notifier).startShift();
+  }
+
+  Future<void> _openConsent() async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(builder: (_) => const GeoConsentScreen()),
+    );
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = ref.read(shiftControllerProvider.notifier);
@@ -55,6 +77,8 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
   }
 
   Widget _idleView(BuildContext context, ShiftState state, ShiftController controller) {
+    final consent = ref.watch(sessionProvider).geoConsent;
+    final consented = consent?.isCurrent ?? false;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -73,13 +97,15 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
                   'وتُسجَّل زياراتك للعملاء مع التحقق من القرب (150م).',
                   style: TextStyle(height: 1.5),
                 ),
+                const SizedBox(height: 12),
+                _consentBanner(consented, consent?.signatureName),
                 if (state.error != null) ...[
                   const SizedBox(height: 12),
                   Text(state.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 ],
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: state.busy ? null : () => controller.startShift(),
+                  onPressed: state.busy ? null : _start,
                   icon: state.busy
                       ? const SizedBox(
                           height: 20,
@@ -96,6 +122,29 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
       ],
     );
   }
+
+  Widget _consentBanner(bool consented, String? signatureName) => Row(
+        children: [
+          Icon(
+            consented ? Icons.verified_outlined : Icons.gpp_maybe_outlined,
+            size: 18,
+            color: consented ? BayanTheme.uploadedColor : BayanTheme.pendingReviewColor,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              consented
+                  ? 'الإقرار على التتبع مُوقّع${signatureName == null ? '' : ' — $signatureName'}'
+                  : 'مطلوب إقرار على تتبع الموقع قبل بدء الوردية (§5.13)',
+              style: TextStyle(
+                color: consented ? BayanTheme.uploadedColor : BayanTheme.pendingReviewColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(onPressed: _openConsent, child: Text(consented ? 'عرض' : 'الإقرار')),
+        ],
+      );
 
   Widget _activeView(BuildContext context, ShiftState state) {
     final shift = state.shift!;
@@ -121,6 +170,7 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
                 _kv('بدأت في', _fmt(shift.startedAt)),
                 _kv('المدة', _elapsed(elapsed)),
                 _kv('النقاط المُرسلة', state.pushedLocations.toString()),
+                _kv('مؤشر التتبع', 'ظاهر على الجهاز'),
                 if (state.lastPushAt != null) _kv('آخر إرسال', _fmt(state.lastPushAt!)),
                 if (state.lastPosition != null) ...[
                   const SizedBox(height: 8),

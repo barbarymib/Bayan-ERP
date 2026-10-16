@@ -385,4 +385,44 @@ class ApiClient {
       'فشل جلب تفاصيل الجرد',
     );
   }
+
+  /// حالة إقرار تتبع الموقع للمستخدم الحالي (§5.13).
+  Future<Map<String, dynamic>> geoConsent() async {
+    return _send(
+      () => _client.get(_uri('/geo/consent'), headers: _headers),
+      'فشل جلب حالة الإقرار',
+    );
+  }
+
+  /// تسجيل إقرار موقّع على تتبع الموقع (توقيع إلكتروني بالاسم الكامل).
+  Future<Map<String, dynamic>> acceptGeoConsent({
+    required String version,
+    required String signatureName,
+  }) async {
+    return _send(
+      () => _client.post(
+        _uri('/geo/consent'),
+        headers: _headers,
+        body: jsonEncode({
+          'type': 'GEO_TRACKING',
+          'version': version,
+          'signatureName': signatureName,
+          'deviceId': deviceId,
+        }),
+      ),
+      'فشل تسجيل الإقرار',
+    );
+  }
+
+  /// سحب الإقرار على تتبع الموقع (يُنهي الوردية النشطة على الخادم).
+  Future<Map<String, dynamic>> revokeGeoConsent() async {
+    return _send(
+      () => _client.post(
+        _uri('/geo/consent/revoke'),
+        headers: _headers,
+        body: jsonEncode(const <String, dynamic>{}),
+      ),
+      'فشل سحب الإقرار',
+    );
+  }
 }

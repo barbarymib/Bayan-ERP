@@ -10,6 +10,7 @@ import 'core/db/database.dart';
 import 'core/device_lock.dart';
 import 'core/geo/location.dart';
 import 'core/geo/location_gate.dart';
+import 'core/geo/tracking_notification.dart';
 import 'core/numbering_store.dart';
 import 'core/outbox.dart';
 import 'core/print/printer.dart';
@@ -47,6 +48,7 @@ Future<void> main() async {
         outboxProvider.overrideWithValue(outbox),
         numberingProvider.overrideWithValue(numberer),
         locationProvider.overrideWithValue(GeolocatorLocationProvider()),
+        trackingNotifierProvider.overrideWithValue(AndroidTrackingNotifier()),
         connectivityProvider.overrideWithValue(ConnectivityPlusStatus()),
         bluetoothPrinterProvider.overrideWithValue(const BluetoothPrintPlusPrinter()),
         deviceLockProvider.overrideWithValue(LocalAuthDeviceLock()),

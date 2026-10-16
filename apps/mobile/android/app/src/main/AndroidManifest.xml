@@ -11,6 +11,8 @@
     <!-- أندرويد 14+: خدمات المقدمة لا تعمل دون هذين الإذنين. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- أندرويد 13+: إظهار الإشعار الدائم/المؤشر المرئي للتتبع (§5.13). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- §9/G4: قفل الجهاز بالمصادقة البيومترية. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
@@ -44,6 +46,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- §5.13: خدمة المقدمة لإظهار مؤشر التتبع الدائم أثناء الوردية
+             (إشعار لا يمكن إخفاؤه). النوع "location" يتطلب الإذنين أعلاه
+             وأندرويد 14+ يرفض الخدمة دون إعلان النوع. -->
+        <service
+            android:name="com.dexterous.flutterlocalnotifications.ForegroundService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="location" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'geo/tracking_consent.dart';
 import 'models.dart';
 
 /// تخزين جلسة المندوب محلياً.
@@ -25,6 +26,7 @@ class SessionStore {
   static const _kLastSync = 'last_sync_at';
   static const _kPrinter = 'last_printer_address';
   static const _kDeviceLock = 'device_lock_enabled';
+  static const _kGeoConsent = 'geo_consent';
 
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
@@ -52,6 +54,16 @@ class SessionStore {
   /// هل قفل الجهاز (مصادقة بيومترية/بيانات الجهاز) مُفعّل؟ (§9/G4)
   bool get deviceLockEnabled => _prefs.getBool(_kDeviceLock) ?? false;
   Future<void> saveDeviceLockEnabled(bool enabled) => _prefs.setBool(_kDeviceLock, enabled);
+
+  /// الإقرار الموقّع على تتبع الموقع المحفوظ محلياً (§5.13)، أو null إن لم يوجد.
+  GeoConsent? get geoConsent => GeoConsent.decode(_prefs.getString(_kGeoConsent));
+
+  /// هل يوجد إقرار موقّع على النسخة الحالية من نص الإقرار؟
+  bool get hasCurrentGeoConsent => geoConsent?.isCurrent ?? false;
+
+  Future<void> saveGeoConsent(GeoConsent consent) => _prefs.setString(_kGeoConsent, consent.encode());
+
+  Future<void> clearGeoConsent() => _prefs.remove(_kGeoConsent);
 
   DateTime? get lastSyncAt {
     final raw = _prefs.getString(_kLastSync);
@@ -123,5 +135,6 @@ class SessionStore {
     await _prefs.remove(_kUser);
     await _prefs.remove(_kOutbox);
     await _prefs.remove(_kLastSync);
+    await _prefs.remove(_kGeoConsent);
   }
 }

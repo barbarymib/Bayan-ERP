@@ -212,6 +212,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (tracking)
+              Card(
+                color: BayanTheme.uploadedColor.withValues(alpha: 0.12),
+                child: ListTile(
+                  leading: Icon(Icons.gps_fixed, color: BayanTheme.uploadedColor),
+                  title: const Text('تتبع الموقع مُفعّل'),
+                  subtitle: const Text('الوردية نشطة — يُرسل موقعك كل دقيقة أثناء العمل'),
+                  trailing: TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(builder: (_) => const ShiftScreen()),
+                    ),
+                    child: const Text('عرض'),
+                  ),
+                ),
+              ),
             _syncCard(context, ref, sync, outbox.pending.length),
             if (sync.error != null)
               Padding(
