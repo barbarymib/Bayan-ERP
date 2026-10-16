@@ -190,7 +190,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-A6 | Steel **actual-weight note** field unused (no DTO/web/mobile) and no weight-difference report. | §5.2, §11 | PARTIAL | `schema.prisma:865`; absent in `price-statements/*.dto.ts`, web, mobile |
 | R3-A7 | Scheduled price `validFrom` broken: one row per (item,unit,list) upsert overwrites in place → a future-dated price removes the current price; no validFrom input in web. | §5.3 | ✅ FIXED | `ItemPrice` unique `@@unique([itemId,unitId,priceListId])` dropped, index `[itemId,unitId,priceListId,validFrom]` added (migration `20261016030000_price_scheduled_validity`); `prices.service.ts` `setPrice` closes prior overlapping windows + inserts (was `upsertPrice`); `migration.service.ts` findFirst+update/create; `price-resolver.service.ts` already date-aware; web `prices/page.tsx` validFrom/validTo inputs. Live-verified 2026-10-16 (17/0). |
 | R3-A8 | Below-cost/floor `pricingAlerts` returned by API but **never surfaced** in web/mobile. (G7 backend FIXED.) | §5.3 | PARTIAL | `price-statements.service.ts:161,251,655-660` |
-| R3-A9 | Rep "عملاؤه" scoping **not enforced** on statements/returns (only `sync.delta` filters assigned customers). | §4.2 | PARTIAL | `price-statements.service.ts:124-127`; `returns.service.ts`; `sync.service.ts:127-138` |
+| R3-A9 | Rep "عملاؤه" scoping **not enforced** on statements/returns (only `sync.delta` filters assigned customers). | §4.2 | ✅ FIXED | `common/customer-scope.ts` `isRepScoped` (role `SALES_REP`), `assignedCustomerIds`, `assertCustomerInScope` (403/404), `repCustomerFilter`; enforced in `price-statements.service.ts` create/get/update/cancel + `list` and `returns.service.ts` create/get/cancel + `list`; controllers pass `user`. Live-verified 2026-10-16 (11/0). |
 | R3-A10 | Item master editing incomplete: `UpdateItemDto` has no `itemUnits`/`attributes`; web can't set brand/origin/minSalePrice/imageUrl, unit flags/barcode, variants. (extends G12b/G19) | §5.1/§5.2 | PARTIAL | `items.dto.ts:135-191`; `apps/web/app/(app)/items/page.tsx:278-297,357-393,472-479` |
 | R3-B3 | Mobile push sends no `paymentTerm`/`paid` → all rep sales forced **CREDIT**; MIXED unusable; web statement form has no `paid` input. | §5.6 | PARTIAL | `sync.service.ts:349-354`; `new_statement_screen.dart:118-138`; `statements/page.tsx:286-296` |
 | R3-B4 | GPS issuance location never captured/sent by any client (API accepts lat/lng). | §5.6 | PARTIAL | `price-statements.dto.ts:132-137`; not sent in web/mobile payloads |
@@ -266,7 +266,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 8. **R3-A7** scheduled prices (multi-row valid_from/valid_to + resolver + web input). — ✅ FIXED (api 287/287; web build clean; 17/17 live verify)
 9. **R3-A5** item batch expiry (schema + item/purchase UI).
 10. **R3-A6** steel actual-weight input + weight-difference report.
-11. **R3-A9** enforce rep customer scoping on statements/returns.
+11. **R3-A9** enforce rep customer scoping on statements/returns. — ✅ FIXED (api 292/292; 11/11 live verify)
 12. **R3-B11** re-check negative-stock/credit at approval/finalize.
 13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD.
 14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report.
