@@ -149,6 +149,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-13 | **Item Card (G2)** `reports/item-card` = item ledger (opening + movements + running + closing + balances) with cost gating | ✅ FIXED (5 tests; 23/23 live verify, 90/90 golden) |
 | 2026-10-15 | **G29 increment 1** printable quotation on web (`/quotations/[id]/print`, A4/A5/80mm) + Arabic client PDF (`lib/quotation-pdf.ts`) | ✅ PARTIAL (web build/typecheck/lint 0; deployed; live 200/307 parity) |
 | 2026-10-16 | **Round 3 full spec re-audit** (6 parallel area reviews + direct verification) | this section |
+| 2026-10-16 | **R3-A1** tenant user provisioning/listing scoped to company (+`companyId` persisted on create, seed backfill, regression test) | ✅ FIXED (6 new tests, api 247/247; 11/11 live verify) |
 
 ---
 
@@ -172,7 +173,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 #### High
 | ID | Gap | Spec | Status | Evidence |
 | -- | --- | ---- | ------ | -------- |
-| R3-A1 | Tenant user provisioning/listing not company-scoped: `/users` create never persists `companyId` (new users get `null` → RLS-closed, see nothing); `list`/`findOne` unfiltered and `User` exempt from RLS → cross-tenant user listing. | §12.1/§12.2/§4.1 | DEVIATION | `users.service.ts:179-191,119-146`; `users.controller.ts:42`; `prisma-tenant.extension.ts:12-54` |
+| R3-A1 | Tenant user provisioning/listing not company-scoped: `/users` create never persists `companyId` (new users get `null` → RLS-closed, see nothing); `list`/`findOne` unfiltered and `User` exempt from RLS → cross-tenant user listing. | §12.1/§12.2/§4.1 | ✅ FIXED (11/11 live verify) | `users.service.ts` now scopes `list`/`findOne`/`update`/`remove` via `tenantWhere(companyId)` and `create` persists `companyId`; controller passes `user.companyId`; seed backfills `user.companyId`. |
 | R3-B1 | Credit-limit is **warn-only** — no `block` mode/setting and not re-checked at approval; spec requires "تنبيه أو منع … (بحسب الإعداد)". | §5.4 | PARTIAL | `price-statements.service.ts:164,251`; no `credit.*` setting; `sales-ops.service.ts:33-74` |
 | R3-B2 | PO line **discounts dropped on receive** → supplier statement net > PO net silently (discount accepted in DTO/UI but no columns). | §5.5 | MISSING | `purchase-orders.service.ts:195-200`; `purchase-orders.dto.ts:39-43`; `purchase-orders/page.tsx:290` |
 | R3-C1 | **Mobile stocktake entry absent** (web-only; no on-device counting/scanning; sync supports no stocktake op). | §5.8.3 | MISSING | `apps/mobile/lib/core/calc/stocktake.dart` (calc only); `apps/api/src/sync/sync.dto.ts:58-60` |
@@ -252,7 +253,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 Ordering: security/data-integrity first, then correctness, then UI parity, then infra/i18n. Each item ships independently: code → api/web/mobile gates → commit → deploy → live-verify → status log update. Docs/UI-only items need no DB seed/migration.
 
 ### Phase P1 — Security & data integrity (High)
-1. **R3-A1** tenant user provisioning/listing scope (+regression test).
+1. **R3-A1** tenant user provisioning/listing scope (+regression test). — ✅ FIXED (api 247/247; 11/11 live verify)
 2. **R3-B1** credit-limit warn/block setting + enforce at approval + notify.
 3. **R3-B2** carry PO line discounts into receive/statement (schema migration + shared calc).
 4. **R3-C1** mobile stocktake entry + sync op (web parity already exists).
