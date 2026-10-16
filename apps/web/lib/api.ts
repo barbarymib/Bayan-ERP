@@ -596,6 +596,9 @@ export interface StocktakeLine {
   diffQty: number;
   diffValue: number;
   recountCount: number;
+  counter?: string | null;
+  countedById?: number | null;
+  countedBy?: { id: number; name: string } | null;
 }
 
 export interface StocktakeSession {

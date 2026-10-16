@@ -61,6 +61,12 @@ export class StocktakeCountInputDto {
   @IsNumber()
   @Min(0)
   qty!: number;
+
+  @ApiPropertyOptional({ description: 'اسم/معرّف العداد (يدعم أكثر من عداد §5.8.3)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  counter?: string;
 }
 
 export class StocktakeCountsDto {

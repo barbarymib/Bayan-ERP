@@ -7,6 +7,12 @@ import {
   post,
   put,
   qs,
+  type BrandRow,
+  type BrandsPage,
+  type Category,
+  type CategoriesPage,
+  type Item,
+  type ItemsPage,
   type StocktakeSession,
   type StocktakesPage,
   type Warehouse,
@@ -186,15 +192,33 @@ function ListPane({ canExecute, canApprove }: { canExecute: boolean; canApprove:
 
 function OpenModal({ onClose, onDone }: { onClose: () => void; onDone: (m: string) => void }) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<BrandRow[]>([]);
+  const [allItems, setAllItems] = useState<Item[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
+  const [scopeMode, setScopeMode] = useState<'full' | 'category' | 'brand' | 'item'>('full');
+  const [categoryIds, setCategoryIds] = useState<number[]>([]);
+  const [brandIds, setBrandIds] = useState<number[]>([]);
+  const [itemIds, setItemIds] = useState<number[]>([]);
+  const [itemQuery, setItemQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    get<{ warehouses: Warehouse[] }>('/warehouses')
-      .then((d) => {
-        if (!cancelled) setWarehouses(d.warehouses.filter((w) => w.active));
+    Promise.all([
+      get<{ warehouses: Warehouse[] }>('/warehouses'),
+      get<CategoriesPage>(`/categories${qs({})}`),
+      get<BrandsPage>(`/brands${qs({})}`),
+      get<ItemsPage>(`/items${qs({ limit: 500 })}`),
+    ])
+      .then(([w, c, b, it]) => {
+        if (!cancelled) {
+          setWarehouses(w.warehouses.filter((x) => x.active));
+          setCategories(c.categories);
+          setBrands(b.brands);
+          setAllItems(it.items);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -202,17 +226,52 @@ function OpenModal({ onClose, onDone }: { onClose: () => void; onDone: (m: strin
     };
   }, []);
 
+  function toggleCategory(id: number) {
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleBrand(id: number) {
+    setBrandIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleItem(id: number) {
+    setItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  const q = itemQuery.trim().toLowerCase();
+  const filteredItems = q
+    ? allItems.filter((it) => it.code.toLowerCase().includes(q) || it.nameAr.includes(itemQuery.trim()))
+    : allItems;
+
+  const selectedCount =
+    scopeMode === 'category' ? categoryIds.length : scopeMode === 'brand' ? brandIds.length : scopeMode === 'item' ? itemIds.length : 0;
+
   async function submit() {
-    setBusy(true);
     setError(null);
+    if (scopeMode !== 'full' && selectedCount === 0) {
+      setError('اختر عنصراً واحداً على الأقل للنطاق الجزئي');
+      return;
+    }
+    const scope =
+      scopeMode === 'category'
+        ? { categoryIds }
+        : scopeMode === 'brand'
+          ? { brandIds }
+          : scopeMode === 'item'
+            ? { itemIds }
+            : undefined;
+    setBusy(true);
     try {
-      const res = await post<StocktakeSession>('/stocktakes', { warehouseId: Number(warehouseId) });
+      const res = await post<StocktakeSession>('/stocktakes', {
+        warehouseId: Number(warehouseId),
+        ...(scope ? { scope } : {}),
+      });
       onDone(`تم فتح جلسة جرد ${res.number} (${res.lines?.length ?? 0} بند)`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل فتح الجلسة');
       setBusy(false);
     }
   }
+
+  const checkbox = 'h-4 w-4 rounded border-gray-300 text-blue-600';
 
   return (
     <Modal title="جلسة جرد جديدة" onClose={onClose}>
@@ -227,6 +286,80 @@ function OpenModal({ onClose, onDone }: { onClose: () => void; onDone: (m: strin
             ))}
           </Select>
         </Field>
+        <Field label="نطاق الجرد">
+          <Select value={scopeMode} onChange={(e) => setScopeMode(e.target.value as 'full' | 'category' | 'brand' | 'item')}>
+            <option value="full">جرد كلي (كل أصناف المخزن)</option>
+            <option value="category">حسب التصنيف</option>
+            <option value="brand">حسب الماركة</option>
+            <option value="item">أصناف محددة (مجموعة أصناف)</option>
+          </Select>
+        </Field>
+
+        {scopeMode === 'category' ? (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <div className="mb-1 text-xs text-gray-500">التصنيفات ({categoryIds.length} محدد)</div>
+            <div className="max-h-48 overflow-y-auto">
+              {categories.length === 0 ? (
+                <div className="py-2 text-center text-xs text-gray-400">لا توجد تصنيفات</div>
+              ) : (
+                categories.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 px-1 py-1 text-sm">
+                    <input type="checkbox" className={checkbox} checked={categoryIds.includes(c.id)} onChange={() => toggleCategory(c.id)} />
+                    <span>
+                      {c.nameAr} <span className="text-xs text-gray-400">{c.code}</span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {scopeMode === 'brand' ? (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <div className="mb-1 text-xs text-gray-500">الماركات ({brandIds.length} محدد)</div>
+            <div className="max-h-48 overflow-y-auto">
+              {brands.length === 0 ? (
+                <div className="py-2 text-center text-xs text-gray-400">لا توجد ماركات</div>
+              ) : (
+                brands.map((b) => (
+                  <label key={b.id} className="flex items-center gap-2 px-1 py-1 text-sm">
+                    <input type="checkbox" className={checkbox} checked={brandIds.includes(b.id)} onChange={() => toggleBrand(b.id)} />
+                    <span>
+                      {b.nameAr} <span className="text-xs text-gray-400">{b.code}</span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {scopeMode === 'item' ? (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <div className="mb-1 text-xs text-gray-500">الأصناف ({itemIds.length} محدد)</div>
+            <TextInput
+              value={itemQuery}
+              onChange={(e) => setItemQuery(e.target.value)}
+              placeholder="ابحث بالكود أو الاسم…"
+              className="mb-2 w-full"
+            />
+            <div className="max-h-48 overflow-y-auto">
+              {filteredItems.length === 0 ? (
+                <div className="py-2 text-center text-xs text-gray-400">لا نتائج</div>
+              ) : (
+                filteredItems.map((it) => (
+                  <label key={it.id} className="flex items-center gap-2 px-1 py-1 text-sm">
+                    <input type="checkbox" className={checkbox} checked={itemIds.includes(it.id)} onChange={() => toggleItem(it.id)} />
+                    <span>
+                      {it.nameAr} <span className="font-mono text-xs text-gray-400">{it.code}</span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
       {error ? (
         <div className="mb-3">
@@ -264,6 +397,7 @@ function DetailModal({
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [counter, setCounter] = useState('');
   const [aborting, setAborting] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -300,7 +434,7 @@ function DetailModal({
       const counts = Object.entries(drafts)
         .map(([key, val]) => {
           const [itemId, batchId] = key.split(':');
-          return { itemId: Number(itemId), batchId, qty: Number(val) };
+          return { itemId: Number(itemId), batchId, qty: Number(val), ...(counter.trim() ? { counter: counter.trim() } : {}) };
         })
         .filter((c) => c.itemId && !Number.isNaN(c.qty));
       await put(`/stocktakes/${id}/counts`, { counts });
@@ -373,6 +507,14 @@ function DetailModal({
             ) : null}
           </div>
 
+          {editable ? (
+            <div className="mb-4 max-w-xs">
+              <Field label="العداد (اختياري — يدعم أكثر من عداد)">
+                <TextInput value={counter} onChange={(e) => setCounter(e.target.value)} placeholder="مثال: عداد أ / فريق 1" className="w-full" />
+              </Field>
+            </div>
+          ) : null}
+
           {summary ? (
             <div className="mb-4 grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -401,6 +543,8 @@ function DetailModal({
                   <Th>آخر سعر شراء</Th>
                   <Th>قيمة الفرق</Th>
                   <Th>مرات العد</Th>
+                  <Th>العداد</Th>
+                  <Th>أدخل بواسطة</Th>
                 </tr>
               </thead>
               <tbody>
@@ -434,6 +578,8 @@ function DetailModal({
                       <Td>{l.lastCost != null ? formatMoney(l.lastCost) : '—'}</Td>
                       <Td dir="ltr">{l.diffValue ? formatMoney(l.diffValue) : '—'}</Td>
                       <Td>{l.recountCount}</Td>
+                      <Td>{l.counter ?? '—'}</Td>
+                      <Td>{l.countedBy?.name ?? '—'}</Td>
                     </tr>
                   );
                 })}

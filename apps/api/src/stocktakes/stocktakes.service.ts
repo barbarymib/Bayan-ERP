@@ -138,7 +138,7 @@ export class StocktakesService {
         warehouse: true,
         openedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
-        lines: { include: { item: { select: { id: true, code: true, nameAr: true, minStock: true, lastPurchaseCost: true, trackBatch: true } } } },
+        lines: { include: { item: { select: { id: true, code: true, nameAr: true, minStock: true, lastPurchaseCost: true, trackBatch: true } }, countedBy: { select: { id: true, name: true } } } },
       },
     });
     if (!session || (session.companyId != null && session.companyId !== companyId)) {
@@ -190,11 +190,28 @@ export class StocktakesService {
           const changed = existing.countedQtyBase == null || Number(existing.countedQtyBase) !== counted;
           await tx.stocktakeLine.update({
             where: { id: existing.id },
-            data: { countedQtyBase: counted, diffQty, diffValue, recountCount: { increment: changed ? 1 : 0 } },
+            data: {
+              countedQtyBase: counted,
+              diffQty,
+              diffValue,
+              recountCount: { increment: changed ? 1 : 0 },
+              counter: c.counter?.trim() || existing.counter,
+              countedById: user.id,
+            },
           });
         } else {
           await tx.stocktakeLine.create({
-            data: { ...key, systemQtyBase: systemQty, countedQtyBase: counted, lastCost, diffQty, diffValue, recountCount: 1 },
+            data: {
+              ...key,
+              systemQtyBase: systemQty,
+              countedQtyBase: counted,
+              lastCost,
+              diffQty,
+              diffValue,
+              recountCount: 1,
+              counter: c.counter?.trim() || null,
+              countedById: user.id,
+            },
           });
         }
       }
@@ -205,7 +222,10 @@ export class StocktakesService {
       action: 'stocktake.counts',
       entity: 'StocktakeSession',
       entityId: id,
-      afterJson: { countedLines: dto.counts.length },
+      afterJson: {
+        countedLines: dto.counts.length,
+        counters: [...new Set(dto.counts.map((c) => c.counter?.trim()).filter((c): c is string => !!c))],
+      },
     });
     return { id, applied: dto.counts.length };
   }

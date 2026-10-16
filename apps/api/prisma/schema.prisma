@@ -259,6 +259,7 @@ model User {
   devices            DeviceRegistration[]
   openedStocktakes   StocktakeSession[]   @relation("StocktakeOpenedBy")
   approvedStocktakes StocktakeSession[]   @relation("StocktakeApprovedBy")
+  stocktakeCounts    StocktakeLine[]      @relation("StocktakeCountedBy")
   decidedApprovals   Approval[]           @relation("ApprovalDecidedBy")
   requestedApprovals Approval[]           @relation("ApprovalRequestedBy")
   closedPeriods      Period[]
@@ -1234,6 +1235,10 @@ model StocktakeLine {
   lastCost       Decimal?         @db.Decimal(18, 4)
   diffValue      Decimal?         @db.Decimal(18, 2)
   recountCount   Int              @default(0)
+  // دعم أكثر من عداد (§5.8.3): معرّف/اسم العداد وآخر من أدخل العد
+  counter        String?
+  countedById    Int?
+  countedBy      User?            @relation("StocktakeCountedBy", fields: [countedById], references: [id])
 
   @@unique([sessionId, itemId, batchId])
 }

@@ -1,0 +1,114 @@
+import { describe, expect, it } from 'vitest';
+import { StocktakesService } from '../src/stocktakes/stocktakes.service.js';
+import type { PrismaService } from '../src/prisma/prisma.module.js';
+import type { AuthUser } from '../src/auth/auth.decorators.js';
+
+interface Captured {
+  balanceWhere: Record<string, unknown>[];
+  lineCreate: Record<string, unknown>[];
+  lineUpdate: Record<string, unknown>[];
+  sessionCreate: Record<string, unknown>[];
+}
+
+interface Options {
+  existingLine?: { id: number; systemQtyBase: number; countedQtyBase: unknown; counter: string | null } | null;
+}
+
+function makeService(opts: Options = {}) {
+  const captured: Captured = { balanceWhere: [], lineCreate: [], lineUpdate: [], sessionCreate: [] };
+  const item = { id: 1, lastPurchaseCost: 90, companyId: 1 };
+  const tx = {
+    item: { findUnique: async () => item },
+    stocktakeLine: {
+      findUnique: async () => ('existingLine' in opts ? opts.existingLine : null),
+      create: async (args: { data: Record<string, unknown> }) => {
+        captured.lineCreate.push(args.data);
+        return { id: 100, ...args.data };
+      },
+      update: async (args: { where: { id: number }; data: Record<string, unknown> }) => {
+        captured.lineUpdate.push(args.data);
+        return { id: args.where.id };
+      },
+    },
+    stockBalance: { findUnique: async () => ({ qtyBase: 5 }) },
+  };
+  const prisma = {
+    stocktakeSession: {
+      findUnique: async () => ({
+        id: 42,
+        companyId: 1,
+        status: 'OPEN',
+        warehouseId: 1,
+        warehouse: { id: 1, code: 'MAIN', nameAr: 'الرئيسي' },
+        openedBy: { id: 1, name: 'Admin' },
+        approvedBy: null,
+        lines: [],
+      }),
+      findFirst: async () => null,
+      create: async (args: { data: Record<string, unknown> }) => {
+        captured.sessionCreate.push(args.data);
+        return { id: 42 };
+      },
+    },
+    warehouse: { findUnique: async () => ({ id: 1, code: 'MAIN', companyId: 1 }) },
+    stockBalance: {
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        captured.balanceWhere.push(args.where);
+        return [{ itemId: 1, batchId: '', qtyBase: 5 }];
+      },
+    },
+    item: { findMany: async () => [item] },
+    $transaction: async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
+  } as unknown as PrismaService;
+  const numbering = { issue: async () => 'ST-000001' } as never;
+  const periods = { open: async () => ({ id: 1 }) } as never;
+  const audits = { write: async () => undefined } as never;
+  return { service: new StocktakesService(prisma, numbering, periods, audits), captured };
+}
+
+const user = { id: 7, companyId: 1 } as AuthUser;
+
+describe('StocktakesService (§5.8)', () => {
+  it('counts() ينشئ بنداً ويثبّت العداد ومن أدخل العد (§5.8.3)', async () => {
+    const { service, captured } = makeService();
+    await service.counts(42, { counts: [{ itemId: 1, batchId: '', qty: 4, counter: '  عداد أ  ' }] }, user);
+    expect(captured.lineCreate).toHaveLength(1);
+    expect(captured.lineCreate[0]!.counter).toBe('عداد أ');
+    expect(captured.lineCreate[0]!.countedById).toBe(7);
+    expect(captured.lineCreate[0]!.countedQtyBase).toBe(4);
+  });
+
+  it('counts() يحدّث بنداً قائماً ويحفظ العداد الجديد', async () => {
+    const { service, captured } = makeService({ existingLine: { id: 100, systemQtyBase: 2, countedQtyBase: 2, counter: 'أ' } });
+    await service.counts(42, { counts: [{ itemId: 1, batchId: '', qty: 6, counter: 'ب' }] }, user);
+    expect(captured.lineCreate).toHaveLength(0);
+    expect(captured.lineUpdate).toHaveLength(1);
+    expect(captured.lineUpdate[0]!.counter).toBe('ب');
+    expect(captured.lineUpdate[0]!.countedById).toBe(7);
+  });
+
+  it('counts() يبقي العداد السابق عند غيابه في الطلب', async () => {
+    const { service, captured } = makeService({ existingLine: { id: 100, systemQtyBase: 2, countedQtyBase: 2, counter: 'أ' } });
+    await service.counts(42, { counts: [{ itemId: 1, batchId: '', qty: 6 }] }, user);
+    expect(captured.lineUpdate[0]!.counter).toBe('أ');
+  });
+
+  it('open() بجرد كلي: بلا تصفية نطاق', async () => {
+    const { service, captured } = makeService();
+    await service.open({ warehouseId: 1 }, user);
+    expect(captured.balanceWhere[0]!.itemId).toBeUndefined();
+    expect(captured.balanceWhere[0]!.item).toBeUndefined();
+  });
+
+  it('open() بجرد جزئي حسب التصنيف/الماركة (§5.8.1)', async () => {
+    const { service, captured } = makeService();
+    await service.open({ warehouseId: 1, scope: { categoryIds: [3], brandIds: [9] } }, user);
+    expect(captured.balanceWhere[0]!.item).toEqual({ categoryId: { in: [3] }, brandId: { in: [9] } });
+  });
+
+  it('open() بجرد أصناف محددة (مجموعة أصناف)', async () => {
+    const { service, captured } = makeService();
+    await service.open({ warehouseId: 1, scope: { itemIds: [4, 5] } }, user);
+    expect(captured.balanceWhere[0]!.itemId).toEqual({ in: [4, 5] });
+  });
+});
