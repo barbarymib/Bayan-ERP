@@ -112,3 +112,21 @@ export class DailyCloseDto {
   @MaxLength(255)
   notes?: string;
 }
+
+/** مطابقة عهدة المندوب (§5.10): التحصيل مقابل المُسلَّم للخزينة خلال فترة. */
+export class CustodyReconciliationQueryDto {
+  @ApiProperty({ description: 'معرّف المندوب' })
+  @Type(() => Number)
+  @IsInt()
+  repId!: number;
+
+  @ApiPropertyOptional({ description: 'من تاريخ (شامل)' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'إلى تاريخ (شامل اليوم كاملاً)' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+}

@@ -4,6 +4,7 @@ import { CurrentUser, Permissions, type AuthUser } from '../auth/auth.decorators
 import {
   CreateCashAccountDto,
   CreateHandoverDto,
+  CustodyReconciliationQueryDto,
   DailyCloseDto,
   QueryHandoversDto,
   UpdateCashAccountDto,
@@ -50,6 +51,20 @@ export class TreasuryController {
   @ApiOkResponse({ description: 'قائمة محاضر تسليم العهد' })
   listHandovers(@Query() query: QueryHandoversDto, @CurrentUser() user: AuthUser) {
     return this.treasury.listHandovers(query, user.companyId ?? null);
+  }
+
+  @Get('custody-reconciliation')
+  @Permissions('treasury.view')
+  @ApiOkResponse({ description: 'مطابقة عهدة المندوب: التحصيل مقابل المُسلَّم للخزينة' })
+  custodyReconciliation(@Query() query: CustodyReconciliationQueryDto, @CurrentUser() user: AuthUser) {
+    return this.treasury.custodyReconciliation(query, user.companyId ?? null);
+  }
+
+  @Get('handovers/:id')
+  @Permissions('treasury.view')
+  @ApiOkResponse({ description: 'محضر تسليم عهدة واحد' })
+  getHandover(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+    return this.treasury.getHandover(id, user.companyId ?? null);
   }
 
   @Post('daily-close')

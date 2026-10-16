@@ -1249,6 +1249,41 @@ export interface HandoversResponse {
   items: CustodyHandover[];
 }
 
+export interface CustodyHandoverDetail extends CustodyHandover {
+  createdAt: string;
+  rep: { id: number; name: string; repCode: string | null } | null;
+  receiver: { id: number; name: string } | null;
+  cashAccount: { id: number; code: string; nameAr: string } | null;
+}
+
+export interface CustodyReconciliation {
+  rep: { id: number; code: string | null; name: string };
+  from: string | null;
+  to: string | null;
+  collected: number;
+  delivered: number;
+  outstanding: number;
+  receiptCount: number;
+  handoverCount: number;
+  receipts: {
+    id: number;
+    number: string;
+    date: string;
+    method: string;
+    amount: number;
+    customer: { id: number; code: string; nameAr: string };
+  }[];
+  handovers: {
+    id: number;
+    number: string;
+    date: string;
+    amount: number;
+    cashAccountId: number | null;
+    status: string;
+    notes: string | null;
+  }[];
+}
+
 export interface DailyCloseRow {
   id: number;
   date: string;

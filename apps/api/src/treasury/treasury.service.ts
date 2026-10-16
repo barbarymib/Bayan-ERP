@@ -11,6 +11,7 @@ import type { QueryStatementOfAccountDto } from '../collections/collections.dto.
 import type {
   CreateCashAccountDto,
   CreateHandoverDto,
+  CustodyReconciliationQueryDto,
   DailyCloseDto,
   QueryHandoversDto,
   UpdateCashAccountDto,
@@ -145,6 +146,94 @@ export class TreasuryService {
       }),
     ]);
     return { total, items };
+  }
+
+  /** محضر تسليم عهدة واحد (§5.10) مع بيانات المندوب والمستلِم وحساب الخزينة. */
+  async getHandover(id: number, companyId: number | null = null) {
+    const h = await this.prisma.custodyHandover.findUnique({ where: { id } });
+    if (!h || (h.companyId != null && h.companyId !== companyId)) {
+      throw new NotFoundException(`CustodyHandover ${id} not found`);
+    }
+    const [rep, receiver, cashAccount] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: h.repId }, select: { id: true, name: true, repCode: true } }),
+      h.receivedById != null
+        ? this.prisma.user.findUnique({ where: { id: h.receivedById }, select: { id: true, name: true } })
+        : Promise.resolve(null),
+      h.cashAccountId != null
+        ? this.prisma.cashAccount.findUnique({ where: { id: h.cashAccountId }, select: { id: true, code: true, nameAr: true } })
+        : Promise.resolve(null),
+    ]);
+    return { ...h, rep, receiver, cashAccount };
+  }
+
+  /**
+   * مطابقة عهدة المندوب (§5.10): يُجمّع تحصيلات المندوب (سندات القبض لعملائه
+   * المُسنَدين) مقابل ما سلّمه للخزينة خلال الفترة، ويعرض الفرق (العهدة القائمة).
+   */
+  async custodyReconciliation(query: CustodyReconciliationQueryDto, companyId: number | null = null) {
+    const rep = await this.prisma.user.findUnique({
+      where: { id: query.repId },
+      select: { id: true, name: true, repCode: true, companyId: true },
+    });
+    if (!rep || (rep.companyId != null && rep.companyId !== companyId)) {
+      throw new NotFoundException(`User ${query.repId} not found`);
+    }
+
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(new Date(query.to).getTime() + 24 * 60 * 60 * 1000) : undefined;
+    const range = from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } : undefined;
+
+    const [receipts, handovers] = await Promise.all([
+      this.prisma.receipt.findMany({
+        where: {
+          ...tenantWhere(companyId),
+          customer: { repId: query.repId },
+          ...(range ? { receivedAt: range } : {}),
+        },
+        include: { customer: { select: { id: true, code: true, nameAr: true } } },
+        orderBy: { receivedAt: 'asc' },
+      }),
+      this.prisma.custodyHandover.findMany({
+        where: {
+          ...tenantWhere(companyId),
+          repId: query.repId,
+          status: { not: 'VOID' },
+          ...(range ? { date: range } : {}),
+        },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    const collected = roundMoney(receipts.reduce((s, r) => s + Number(r.amount), 0));
+    const delivered = roundMoney(handovers.reduce((s, h) => s + Number(h.amount), 0));
+
+    return {
+      rep: { id: rep.id, code: rep.repCode, name: rep.name },
+      from: query.from ?? null,
+      to: query.to ?? null,
+      collected,
+      delivered,
+      outstanding: roundMoney(collected - delivered),
+      receiptCount: receipts.length,
+      handoverCount: handovers.length,
+      receipts: receipts.map((r) => ({
+        id: r.id,
+        number: r.number,
+        date: r.receivedAt,
+        method: r.method,
+        amount: Number(r.amount),
+        customer: r.customer,
+      })),
+      handovers: handovers.map((h) => ({
+        id: h.id,
+        number: h.number,
+        date: h.date,
+        amount: Number(h.amount),
+        cashAccountId: h.cashAccountId,
+        status: h.status,
+        notes: h.notes,
+      })),
+    };
   }
 
   /** إقفال يومي: يجمّع القبض والصرف والتسليمات ويحسب الرصيد الختامي. */

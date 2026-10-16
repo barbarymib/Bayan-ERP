@@ -10,6 +10,8 @@ import {
   type CashAccountStatement,
   type CashAccountsResponse,
   type CashSummary,
+  type CustodyHandoverDetail,
+  type CustodyReconciliation,
   type DailyCloseRow,
   type HandoversResponse,
   type UsersPage,
@@ -52,6 +54,13 @@ export default function TreasuryPage() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [handoverOpen, setHandoverOpen] = useState(false);
   const [statementId, setStatementId] = useState<number | null>(null);
+  const [handoverDetailId, setHandoverDetailId] = useState<number | null>(null);
+
+  const [reconRep, setReconRep] = useState('');
+  const [reconFrom, setReconFrom] = useState('');
+  const [reconTo, setReconTo] = useState('');
+  const [recon, setRecon] = useState<CustodyReconciliation | null>(null);
+  const [reconBusy, setReconBusy] = useState(false);
 
   const [closeDate, setCloseDate] = useState(today());
   const [counted, setCounted] = useState('');
@@ -108,6 +117,22 @@ export default function TreasuryPage() {
       setClosing(false);
     }
   }, [closeDate, counted, closeNotes]);
+
+  const runRecon = useCallback(async () => {
+    if (!reconRep) return;
+    setReconBusy(true);
+    setError(null);
+    try {
+      const res = await get<CustodyReconciliation>(
+        `/treasury/custody-reconciliation${qs({ repId: Number(reconRep), from: reconFrom || undefined, to: reconTo || undefined })}`,
+      );
+      setRecon(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل المطابقة');
+    } finally {
+      setReconBusy(false);
+    }
+  }, [reconRep, reconFrom, reconTo]);
 
   if (!canView) {
     return (
@@ -195,6 +220,7 @@ export default function TreasuryPage() {
                   <Th>التاريخ</Th>
                   <Th>المندوب</Th>
                   <Th>المبلغ</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
@@ -209,6 +235,11 @@ export default function TreasuryPage() {
                       <Td>{formatDate(h.date)}</Td>
                       <Td>{reps.find((r) => r.id === h.repId)?.name ?? `#${h.repId}`}</Td>
                       <Td className="font-bold">{formatMoney(h.amount)}</Td>
+                      <Td>
+                        <Button variant="ghost" onClick={() => setHandoverDetailId(h.id)}>
+                          محضر
+                        </Button>
+                      </Td>
                     </tr>
                   ))
                 )}
@@ -274,6 +305,111 @@ export default function TreasuryPage() {
         </div>
       </div>
 
+      <h2 className="mb-2 text-sm font-bold text-gray-800">مطابقة عهدة المندوب</h2>
+      <div className="mb-3 flex flex-wrap items-end gap-2">
+        <div className="w-56">
+          <Field label="المندوب">
+            <Select value={reconRep} onChange={(e) => setReconRep(e.target.value)}>
+              <option value="">اختر مندوباً</option>
+              {reps.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.repCode} — {r.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Field label="من تاريخ">
+          <TextInput type="date" value={reconFrom} onChange={(e) => setReconFrom(e.target.value)} />
+        </Field>
+        <Field label="إلى تاريخ">
+          <TextInput type="date" value={reconTo} onChange={(e) => setReconTo(e.target.value)} />
+        </Field>
+        <Button variant="secondary" onClick={runRecon} disabled={reconBusy || !reconRep}>
+          {reconBusy ? 'جارِ المطابقة…' : 'تطابق'}
+        </Button>
+      </div>
+
+      {recon ? (
+        <div className="mb-5">
+          <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Stat label="إجمالي التحصيل" value={recon.collected} color="text-emerald-700" />
+            <Stat label="إجمالي المُسلَّم للخزينة" value={recon.delivered} color="text-blue-700" />
+            <Stat label="العهدة القائمة (الفرق)" value={recon.outstanding} color={recon.outstanding > 0 ? 'text-red-700' : 'text-gray-900'} />
+            <div className="rounded-xl border border-gray-200 bg-white p-3">
+              <div className="text-xs font-semibold text-gray-400">السندات / المحاضر</div>
+              <div className="mt-1 text-lg font-black text-gray-900">
+                {recon.receiptCount} / {recon.handoverCount}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full min-w-max border-collapse">
+                <thead className="border-b border-gray-200 bg-gray-50">
+                  <tr>
+                    <Th>سند القبض</Th>
+                    <Th>التاريخ</Th>
+                    <Th>العميل</Th>
+                    <Th>المبلغ</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recon.receipts.length === 0 ? (
+                    <tr>
+                      <Td className="py-6 text-center text-gray-400">لا توجد تحصيلات في الفترة</Td>
+                    </tr>
+                  ) : (
+                    recon.receipts.map((r) => (
+                      <tr key={r.id} className="border-b border-gray-100 last:border-0">
+                        <Td className="font-mono font-semibold">{r.number}</Td>
+                        <Td>{formatDate(r.date)}</Td>
+                        <Td>{r.customer?.nameAr ?? '—'}</Td>
+                        <Td className="font-bold text-emerald-700">{formatMoney(r.amount)}</Td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full min-w-max border-collapse">
+                <thead className="border-b border-gray-200 bg-gray-50">
+                  <tr>
+                    <Th>محضر التسليم</Th>
+                    <Th>التاريخ</Th>
+                    <Th>الحالة</Th>
+                    <Th>المبلغ</Th>
+                    <Th></Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recon.handovers.length === 0 ? (
+                    <tr>
+                      <Td className="py-6 text-center text-gray-400">لا توجد تسليمات في الفترة</Td>
+                    </tr>
+                  ) : (
+                    recon.handovers.map((h) => (
+                      <tr key={h.id} className="border-b border-gray-100 last:border-0">
+                        <Td className="font-mono font-semibold">{h.number}</Td>
+                        <Td>{formatDate(h.date)}</Td>
+                        <Td>{h.status === 'VOID' ? <Badge color="red">ملغى</Badge> : <Badge color="green">مستلَم</Badge>}</Td>
+                        <Td className="font-bold text-blue-700">{formatMoney(h.amount)}</Td>
+                        <Td>
+                          <Button variant="ghost" onClick={() => setHandoverDetailId(h.id)}>
+                            محضر
+                          </Button>
+                        </Td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {accountOpen ? (
         <CreateAccountModal
           onClose={() => setAccountOpen(false)}
@@ -299,6 +435,8 @@ export default function TreasuryPage() {
       ) : null}
 
       {statementId ? <StatementModal accountId={statementId} onClose={() => setStatementId(null)} /> : null}
+
+      {handoverDetailId ? <HandoverModal handoverId={handoverDetailId} onClose={() => setHandoverDetailId(null)} /> : null}
     </div>
   );
 }
@@ -528,5 +666,69 @@ function StatementModal({ accountId, onClose }: { accountId: number; onClose: ()
         </Button>
       </div>
     </Modal>
+  );
+}
+
+function HandoverModal({ handoverId, onClose }: { handoverId: number; onClose: () => void }) {
+  const [data, setData] = useState<CustodyHandoverDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<CustodyHandoverDetail>(`/treasury/handovers/${handoverId}`)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'فشل تحميل المحضر');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [handoverId]);
+
+  return (
+    <Modal title={data ? `محضر تسليم عهدة ${data.number}` : 'محضر تسليم عهدة'} onClose={onClose}>
+      {error ? <ErrorBox message={error} /> : null}
+      {!data ? (
+        <div className="py-6 text-center text-gray-400">جارِ التحميل…</div>
+      ) : (
+        <div>
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-3 text-center text-base font-black text-gray-900">محضر تسليم عهدة نقدية</div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <Row label="رقم المحضر" value={data.number} mono />
+              <Row label="التاريخ" value={formatDate(data.date)} />
+              <Row label="المندوب" value={data.rep ? `${data.rep.repCode ?? ''} — ${data.rep.name}` : `#${data.repId}`} />
+              <Row label="المبلغ المسلَّم" value={formatMoney(data.amount)} strong />
+              <Row label="حساب الخزينة" value={data.cashAccount ? `${data.cashAccount.code} — ${data.cashAccount.nameAr}` : '—'} />
+              <Row label="مستلِم العهدة" value={data.receiver?.name ?? '—'} />
+              <Row label="الحالة" value={data.status === 'VOID' ? 'ملغى' : 'مستلَم'} />
+              <Row label="ملاحظات" value={data.notes ?? '—'} />
+            </dl>
+          </div>
+          <p className="mb-4 text-xs text-gray-500">
+            أقرّ باستلام المبلغ المذكور أعلاه من المندوب المذكور، ويُعدّ هذا المحضر سنداً رسمياً لتسليم العهدة النقدية.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => window.print()}>
+              طباعة
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              إغلاق
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function Row({ label, value, mono, strong }: { label: string; value: string; mono?: boolean; strong?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2 border-b border-gray-200 pb-1">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className={`${mono ? 'font-mono ' : ''}${strong ? 'font-black text-blue-700' : 'font-semibold text-gray-800'}`}>{value}</dd>
+    </div>
   );
 }
