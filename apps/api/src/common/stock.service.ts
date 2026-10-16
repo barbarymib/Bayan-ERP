@@ -35,6 +35,20 @@ function freezeMessage(number: string): string {
   return `المخزن مجمّد — توجد جلسة جرد نشطة (${number}). أنهِ أو ألغِ الجلسة قبل تنفيذ حركات المخزون.`;
 }
 
+/** وضع تجميد المخزن أثناء الجرد (§5.8.2): BLOCK يمنع، WARN يُمرّر مع تحذير، OFF معطّل. */
+export type FreezeMode = 'BLOCK' | 'WARN' | 'OFF';
+
+export interface FreezeStatus {
+  mode: FreezeMode;
+  frozen: boolean;
+  sessionNumber?: string;
+}
+
+/** نص تحذير وضع WARN — يُرفَق بردود إنشاء المستندات كي تعرضه الواجهة. */
+export function freezeWarningMessage(number: string): string {
+  return `المخزن قيد جرد نشط (${number}) — وضع التجميد «تحذير»: تُقبل الحركة لكنها قد تؤثر على دقة الجرد (§5.8.2).`;
+}
+
 @Injectable()
 export class StockService {
   constructor(private readonly prisma: PrismaService) {}
@@ -81,15 +95,26 @@ export class StockService {
     await this.apply(tx, 'ADJUSTMENT', 1, p);
   }
 
-  /** فحص تجميد المخزن قبل إنشاء المستند مباشرة (بيانات/توريد). */
-  async assertMovable(warehouseId: number, companyId: number | null = null): Promise<void> {
-    const mode = await this.prisma.systemSetting.findUnique({ where: { key: 'stocktake.freeze.mode' } });
-    if ((mode?.value ?? 'BLOCK') !== 'BLOCK') return;
+  /** حالة تجميد المخزن أثناء الجرد (يقرأ الإعداد stocktake.freeze.mode). */
+  async freezeStatus(warehouseId: number, companyId: number | null = null): Promise<FreezeStatus> {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'stocktake.freeze.mode' } });
+    const raw = setting?.value ?? 'BLOCK';
+    const mode: FreezeMode = raw === 'BLOCK' ? 'BLOCK' : raw === 'WARN' ? 'WARN' : 'OFF';
+    if (mode === 'OFF') return { mode, frozen: false };
     const active = await this.prisma.stocktakeSession.findFirst({
       where: { warehouseId, ...tenantWhere(companyId), status: { in: [...ACTIVE_STOCKTAKE] } },
       select: { number: true },
     });
-    if (active) throw new BadRequestException(freezeMessage(active.number));
+    return { mode, frozen: !!active, sessionNumber: active?.number };
+  }
+
+  /** فحص تجميد المخزن قبل إنشاء المستند مباشرة (بيانات/توريد) — BLOCK يرمي، WARN يُرجع الحالة للتحذير. */
+  async assertMovable(warehouseId: number, companyId: number | null = null): Promise<FreezeStatus> {
+    const status = await this.freezeStatus(warehouseId, companyId);
+    if (status.frozen && status.mode === 'BLOCK') {
+      throw new BadRequestException(freezeMessage(status.sessionNumber ?? ''));
+    }
+    return status;
   }
 
   /** حجز مؤقت لكميات مسودة بيان. */

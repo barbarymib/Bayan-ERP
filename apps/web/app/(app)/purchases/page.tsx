@@ -260,7 +260,7 @@ function CreatePurchaseModal({
         paymentMethod: (paymentMethod as 'CASH' | 'TRANSFER' | 'CHEQUE' | 'WALLET') || 'CASH',
         notes: notes.trim() || undefined,
       });
-      onSaved(`تم إنشاء بيان توريد ${res.number}${Number(res.paid) > 0 ? ` وسند صرف ${res.paid}` : ''}`);
+      onSaved(`تم إنشاء بيان توريد ${res.number}${Number(res.paid) > 0 ? ` وسند صرف ${res.paid}` : ''}${res.freezeWarning ? ` [${res.freezeWarning}]` : ''}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل إنشاء بيان التوريد');
       setBusy(false);

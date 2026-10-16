@@ -197,7 +197,7 @@ function CreateTransferModal({ onClose, onSaved }: { onClose: () => void; onSave
         notes: notes.trim() || undefined,
         lines: cleaned,
       });
-      onSaved(res.number);
+      onSaved(res.freezeWarning ? `${res.number} — ${res.freezeWarning}` : res.number);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل إنشاء التحويل');
       setBusy(false);

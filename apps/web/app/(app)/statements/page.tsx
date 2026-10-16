@@ -312,7 +312,8 @@ function CreateStatementModal({
       const warning = res.creditWarning
         ? ` (تحذير: الرصيد المتوقع ${formatMoney(res.creditWarning.projectedBalance)} ج مقابل حد ${formatMoney(res.creditWarning.creditLimit)} ج)`
         : '';
-      onSaved(`تم إنشاء ${res.number} برقم مرجعي ${res.id}${warning}`);
+      const freeze = res.freezeWarning ? ` [${res.freezeWarning}]` : '';
+      onSaved(`تم إنشاء ${res.number} برقم مرجعي ${res.id}${warning}${freeze}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل إنشاء البيان');
       setBusy(false);

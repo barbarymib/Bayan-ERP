@@ -21,7 +21,7 @@ import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
 import { LedgerService } from '../common/ledger.service.js';
 import { SalesOpsService } from '../common/sales-ops.service.js';
-import { StockService } from '../common/stock.service.js';
+import { StockService, freezeWarningMessage } from '../common/stock.service.js';
 import { PriceResolverService } from '../common/price-resolver.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
@@ -139,10 +139,9 @@ export class PriceStatementsService {
     if (!warehouse || (warehouse.companyId != null && warehouse.companyId !== tenant)) {
       throw new NotFoundException('Warehouse not found');
     }
-    await this.stock.assertMovable(warehouse.id, tenant);
+    const freeze = await this.stock.assertMovable(warehouse.id, tenant);
 
     const number = dto.number ?? (await this.numbering.issue('BP', user.repCode ?? '', tenant));
-
     const { resolved, discountFlags, belowCostLines, belowMinPriceLines } = await this.resolveLines(
       dto,
       tenant,
@@ -275,7 +274,12 @@ export class PriceStatementsService {
     });
 
     const fresh = await this.findWithDetail(statement.id);
-    return { ...this.stripCost(fresh, user), creditWarning, pricingAlerts };
+    return {
+      ...this.stripCost(fresh, user),
+      creditWarning,
+      pricingAlerts,
+      freezeWarning: freeze.frozen && freeze.mode === 'WARN' ? freezeWarningMessage(freeze.sessionNumber ?? '') : null,
+    };
   }
 
   /**
@@ -319,7 +323,7 @@ export class PriceStatementsService {
     if (!warehouse || (warehouse.companyId != null && warehouse.companyId !== tenant)) {
       throw new NotFoundException('Warehouse not found');
     }
-    await this.stock.assertMovable(warehouse.id, tenant);
+    const freeze = await this.stock.assertMovable(warehouse.id, tenant);
 
     const { resolved, discountFlags, belowCostLines, belowMinPriceLines } = await this.resolveLines(
       dto,
@@ -485,7 +489,11 @@ export class PriceStatementsService {
     });
 
     const fresh = await this.findWithDetail(id);
-    return { ...this.stripCost(fresh, user), pricingAlerts };
+    return {
+      ...this.stripCost(fresh, user),
+      pricingAlerts,
+      freezeWarning: freeze.frozen && freeze.mode === 'WARN' ? freezeWarningMessage(freeze.sessionNumber ?? '') : null,
+    };
   }
 
   async list(query: QueryStatementsDto, user: AuthUser) {

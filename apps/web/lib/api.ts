@@ -202,6 +202,7 @@ export interface PriceStatement {
   lines: PriceStatementLine[];
   approvals?: Approval[];
   creditWarning?: { creditLimit: number; projectedBalance: number; exceeded?: boolean } | null;
+  freezeWarning?: string | null;
   _count?: { lines: number };
 }
 
@@ -274,6 +275,7 @@ export interface PurchaseStatementDoc {
   paid: string;
   notes: string | null;
   lines?: PurchaseLine[];
+  freezeWarning?: string | null;
   _count?: { lines: number };
 }
 
@@ -1287,6 +1289,7 @@ export interface StockTransfer {
   fromWarehouse: { id: number; code: string; nameAr: string };
   toWarehouse: { id: number; code: string; nameAr: string };
   lines?: TransferLine[];
+  freezeWarning?: string | null;
   _count: { lines: number };
 }
 
@@ -1354,6 +1357,7 @@ export interface SupplierReturnDoc {
   supplier: { id: number; code: string; nameAr: string };
   warehouse: { id: number; code: string; nameAr: string };
   lines?: SupplierReturnLine[];
+  freezeWarning?: string | null;
   _count: { lines: number };
 }
 

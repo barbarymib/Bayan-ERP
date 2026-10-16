@@ -7,7 +7,7 @@ import type { AuthUser } from '../auth/auth.decorators.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
-import { StockService } from '../common/stock.service.js';
+import { StockService, freezeWarningMessage } from '../common/stock.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
 import type { CreateTransferDto, QueryTransfersDto } from './transfers.dto.js';
@@ -39,8 +39,12 @@ export class TransfersService {
       throw new NotFoundException(`Warehouse ${dto.toWarehouseId} not found`);
     }
 
-    await this.stock.assertMovable(from.id, tenant);
-    await this.stock.assertMovable(to.id, tenant);
+    const [fromFreeze, toFreeze] = [
+      await this.stock.assertMovable(from.id, tenant),
+      await this.stock.assertMovable(to.id, tenant),
+    ];
+    const frozen = fromFreeze.frozen && fromFreeze.mode === 'WARN' ? fromFreeze : toFreeze.frozen && toFreeze.mode === 'WARN' ? toFreeze : null;
+    const freezeWarning = frozen ? freezeWarningMessage(frozen.sessionNumber ?? '') : null;
 
     const number = await this.numbering.issue('TR', '', tenant);
     const period = await this.periods.open(tenant);
@@ -102,7 +106,7 @@ export class TransfersService {
       },
     });
 
-    return this.get(id, tenant);
+    return { ...(await this.get(id, tenant)), freezeWarning };
   }
 
   async list(query: QueryTransfersDto, companyId: number | null = null) {

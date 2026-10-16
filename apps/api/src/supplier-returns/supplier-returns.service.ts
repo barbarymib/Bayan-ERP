@@ -4,7 +4,7 @@ import type { AuthUser } from '../auth/auth.decorators.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
-import { StockService } from '../common/stock.service.js';
+import { StockService, freezeWarningMessage } from '../common/stock.service.js';
 import { LedgerService } from '../common/ledger.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
@@ -33,7 +33,7 @@ export class SupplierReturnsService {
     if (!warehouse || (warehouse.companyId != null && warehouse.companyId !== tenant)) {
       throw new NotFoundException(`Warehouse ${dto.warehouseId} not found`);
     }
-    await this.stock.assertMovable(warehouse.id, tenant);
+    const freeze = await this.stock.assertMovable(warehouse.id, tenant);
 
     const resolved: { itemId: number; unitId: number; factor: number; qty: number; unitPrice: number; qtyBase: number; lineTotal: number }[] = [];
     for (const line of dto.lines) {
@@ -125,7 +125,8 @@ export class SupplierReturnsService {
       entityId: ret.id,
       afterJson: { number, supplierId: supplier.id, lines: dto.lines.length },
     });
-    return this.get(ret.id, tenant);
+    const doc = await this.get(ret.id, tenant);
+    return { ...doc, freezeWarning: freeze.frozen && freeze.mode === 'WARN' ? freezeWarningMessage(freeze.sessionNumber ?? '') : null };
   }
 
   async list(query: QuerySupplierReturnsDto, companyId: number | null = null) {

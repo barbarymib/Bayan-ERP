@@ -73,7 +73,7 @@ function build(lineItems: Record<string, number>, opts: { trackBatch?: boolean }
   } as unknown as PrismaService;
 
   const stock = {
-    assertMovable: vi.fn(async () => {}),
+    assertMovable: vi.fn(async () => ({ mode: 'OFF' as const, frozen: false })),
     purchaseIn: vi.fn(async (...a: unknown[]) => {
       calls.purchaseIn.push(a[1] as Record<string, unknown>);
     }),

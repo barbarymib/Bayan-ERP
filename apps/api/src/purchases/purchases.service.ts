@@ -16,7 +16,7 @@ import { tenantWhere } from '../common/tenant.js';
 import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
-import { StockService, type Tx } from '../common/stock.service.js';
+import { StockService, freezeWarningMessage, type Tx } from '../common/stock.service.js';
 import { LedgerService } from '../common/ledger.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreatePurchaseDto, QueryPurchasesDto } from './purchases.dto.js';
@@ -49,7 +49,7 @@ export class PurchasesService {
     if (!warehouse || (warehouse.companyId != null && warehouse.companyId !== tenant)) {
       throw new NotFoundException('Warehouse not found');
     }
-    await this.stock.assertMovable(warehouse.id, tenant);
+    const freeze = await this.stock.assertMovable(warehouse.id, tenant);
 
     const number = await this.numbering.issue('PR', user.repCode ?? '', tenant);
 
@@ -272,7 +272,8 @@ export class PurchasesService {
       where: { id: purchase.id },
       include: { lines: { include: { item: true, unit: true } }, supplier: true, warehouse: true },
     });
-    return fresh;
+    const freezeWarning = freeze.frozen && freeze.mode === 'WARN' ? freezeWarningMessage(freeze.sessionNumber ?? '') : null;
+    return fresh ? { ...fresh, freezeWarning } : fresh;
   }
 
   /** تسجيل/تحديث دفعة الصنف (كود + صلاحية) عند توريدها §5.1. */

@@ -6,10 +6,22 @@ function build(opts: {
   enforce?: string | null;
   balance?: number;
   reserved?: number;
+  freeze?: string | null;
+  activeSession?: { number: string } | null;
 } = {}) {
   const captured: { aggregate?: Record<string, unknown> } = {};
   const prisma = {
-    systemSetting: { findUnique: async () => (opts.enforce === null ? null : { value: opts.enforce ?? 'ALLOW' }) },
+    systemSetting: {
+      findUnique: async ({ where }: { where: { key: string } }) =>
+        where.key === 'stocktake.freeze.mode'
+          ? opts.freeze === null
+            ? null
+            : { value: opts.freeze ?? 'BLOCK' }
+          : opts.enforce === null
+            ? null
+            : { value: opts.enforce ?? 'ALLOW' },
+    },
+    stocktakeSession: { findFirst: async () => opts.activeSession ?? null },
     stockBalance: { findUnique: async () => ({ qtyBase: opts.balance ?? 10 }) },
     stockReservation: {
       aggregate: async (args: Record<string, unknown>) => {
@@ -62,5 +74,29 @@ describe('StockService.assertSalePermitted (R3-B11)', () => {
     expect(captured.aggregate).toMatchObject({
       where: { NOT: { refType: 'price_statement', refId: 5 } },
     });
+  });
+});
+
+describe('StockService.freezeStatus / assertMovable (R3-C8 §5.8.2)', () => {
+  it('OFF: لا تجميد حتى مع جلسة نشطة', async () => {
+    const { service } = build({ freeze: 'OFF', activeSession: { number: 'ST-1' } });
+    await expect(service.freezeStatus(1, 1)).resolves.toEqual({ mode: 'OFF', frozen: false });
+    await expect(service.assertMovable(1, 1)).resolves.toEqual({ mode: 'OFF', frozen: false });
+  });
+
+  it('WARN مع جلسة نشطة: لا يرمي ويُرجع تحذيراً', async () => {
+    const { service } = build({ freeze: 'WARN', activeSession: { number: 'ST-7' } });
+    const status = await service.assertMovable(1, 1);
+    expect(status).toMatchObject({ mode: 'WARN', frozen: true, sessionNumber: 'ST-7' });
+  });
+
+  it('BLOCK مع جلسة نشطة: يرمي', async () => {
+    const { service } = build({ freeze: 'BLOCK', activeSession: { number: 'ST-9' } });
+    await expect(service.assertMovable(1, 1)).rejects.toThrow(/مجمّد/);
+  });
+
+  it('WARN بلا جلسة نشطة: غير مجمّد', async () => {
+    const { service } = build({ freeze: 'WARN', activeSession: null });
+    await expect(service.freezeStatus(1, 1)).resolves.toEqual({ mode: 'WARN', frozen: false });
   });
 });

@@ -175,7 +175,7 @@ function harness(
   } as unknown as PrismaService;
 
   const stock = {
-    assertMovable: async () => {},
+    assertMovable: async () => ({ mode: 'OFF' as const, frozen: false }),
     assertSalePermitted: async () => {},
     restock: async (_tx: unknown, p: { lines: { itemId: number; qtyBase: number }[] }) => {
       calls.restock.push(p);
