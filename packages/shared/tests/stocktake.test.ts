@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffOfStocktakeLine, summarizeStocktake, roundQty, roundMoney } from '../src/index.js';
+import { diffOfStocktakeLine, summarizeStocktake, isBigDiff, roundQty, roundMoney } from '../src/index.js';
 
 describe('diffOfStocktakeLine — فرق الكمية والقيمة (الكمية × آخر سعر شراء)', () => {
   it('زيادة: نظام 100، فعلي 103، سعر 25 → فرق +3 وقيمة 75', () => {
@@ -88,6 +88,53 @@ describe('summarizeStocktake — إجماليات الجلسة', () => {
       surplusValue: 0,
       deficitValue: 0,
       noCostLines: 0,
+      bigDiffLines: 0,
+      bigDiffQty: 0,
+      bigDiffValue: 0,
     });
+  });
+
+  it('بلا حد: لا تُرصد فروقات كبيرة', () => {
+    const s = summarizeStocktake(sample);
+    expect(s.bigDiffLines).toBe(0);
+    expect(s.bigDiffQty).toBe(0);
+    expect(s.bigDiffValue).toBe(0);
+  });
+
+  it('بحدّ قيمة 15: يرصد البنود التي |قيمة فرقها| ≥ 15', () => {
+    const s = summarizeStocktake(sample, { value: 15, qty: 0 });
+    // +20 (20) و −10 (10, مستبعد) و 0 و +1 بلا سعر (0): فقط الأول
+    expect(s.bigDiffLines).toBe(1);
+    expect(s.bigDiffQty).toBe(2);
+    expect(s.bigDiffValue).toBe(20);
+  });
+
+  it('بحدّ كمية 2: يرصد البنود التي |فرق كميتها| ≥ 2', () => {
+    const s = summarizeStocktake(sample, { value: 0, qty: 2 });
+    // +2 و −2 (كليهما = 2) — البند بلا سعر +1 مستبعد
+    expect(s.bigDiffLines).toBe(2);
+    expect(s.bigDiffQty).toBe(4);
+    expect(s.bigDiffValue).toBe(30);
+  });
+});
+
+describe('isBigDiff — تجاوز الحد (قيمة/كمية)', () => {
+  it('معطّل عند الحدّين صفر', () => {
+    expect(isBigDiff(999, 9999, { value: 0, qty: 0 })).toBe(false);
+  });
+
+  it('قيمة: يساوي الحد يُرصد', () => {
+    expect(isBigDiff(1, 50, { value: 50, qty: 0 })).toBe(true);
+    expect(isBigDiff(1, 49.99, { value: 50, qty: 0 })).toBe(false);
+  });
+
+  it('كمية: يساوي الحد يُرصد (بأي من الإشارتين)', () => {
+    expect(isBigDiff(-5, 0, { value: 0, qty: 5 })).toBe(true);
+    expect(isBigDiff(4, 0, { value: 0, qty: 5 })).toBe(false);
+  });
+
+  it('أي من الحدّين المتحققين يكفي', () => {
+    expect(isBigDiff(10, 0, { value: 100, qty: 5 })).toBe(true);
+    expect(isBigDiff(1, 100, { value: 100, qty: 5 })).toBe(true);
   });
 });

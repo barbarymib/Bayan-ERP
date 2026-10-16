@@ -58,6 +58,7 @@ function makeService(opts: Options = {}) {
       },
     },
     item: { findMany: async () => [item] },
+    systemSetting: { findUnique: async () => null },
     $transaction: async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
   } as unknown as PrismaService;
   const numbering = { issue: async () => 'ST-000001' } as never;
@@ -110,5 +111,90 @@ describe('StocktakesService (§5.8)', () => {
     const { service, captured } = makeService();
     await service.open({ warehouseId: 1, scope: { itemIds: [4, 5] } }, user);
     expect(captured.balanceWhere[0]!.itemId).toEqual({ in: [4, 5] });
+  });
+});
+
+interface ApproveCaptured {
+  movements: Record<string, unknown>[];
+  upserts: unknown[];
+  updates: Record<string, unknown>[];
+}
+
+function makeApproveService(opts: {
+  mode: string;
+  threshold: string;
+  qtyThreshold?: string;
+  lines: Record<string, unknown>[];
+}) {
+  const captured: ApproveCaptured = { movements: [], upserts: [], updates: [] };
+  const session = { id: 42, companyId: 1, status: 'REVIEW', warehouseId: 1, periodId: 1, lines: opts.lines };
+  const settings: Record<string, string> = {
+    'stocktake.recount.enforce': opts.mode,
+    'stocktake.recount.threshold': opts.threshold,
+    'stocktake.recount.qtyThreshold': opts.qtyThreshold ?? '0',
+  };
+  const tx = {
+    stockMovement: {
+      create: async (a: { data: Record<string, unknown> }) => {
+        captured.movements.push(a.data);
+        return { id: 1 };
+      },
+    },
+    stockBalance: { upsert: async (a: unknown) => { captured.upserts.push(a); return {}; } },
+    stocktakeSession: {
+      update: async (a: { data: Record<string, unknown> }) => {
+        captured.updates.push(a.data);
+        return {};
+      },
+    },
+  };
+  const prisma = {
+    systemSetting: { findUnique: async (a: { where: { key: string } }) => ({ key: a.where.key, value: settings[a.where.key] }) },
+    stocktakeSession: { findUnique: async () => session },
+    $transaction: async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
+  } as unknown as PrismaService;
+  const audits = { write: async () => undefined } as never;
+  return { service: new StocktakesService(prisma, {} as never, {} as never, audits), captured };
+}
+
+const bigDiffLine = { itemId: 1, batchId: '', systemQtyBase: 10, countedQtyBase: 20, lastCost: 10 };
+
+describe('StocktakesService.approve — حاجز الفروقات الكبيرة (§5.8.5/§6.3)', () => {
+  it('BLOCK + فرق كبير دون تأكيد → يُرفض ولا تُطبَّق أي حركة', async () => {
+    const { service, captured } = makeApproveService({ mode: 'BLOCK', threshold: '50', lines: [bigDiffLine] });
+    await expect(service.approve(42, user, {})).rejects.toThrow('فرق');
+    expect(captured.movements).toHaveLength(0);
+    expect(captured.updates).toHaveLength(0);
+  });
+
+  it('BLOCK + فرق كبير مع تأكيد → يُعتمد مع تنبيه', async () => {
+    const { service, captured } = makeApproveService({ mode: 'BLOCK', threshold: '50', lines: [bigDiffLine] });
+    const res = (await service.approve(42, user, { confirm: true })) as { recountWarning?: string | null };
+    expect(captured.movements).toHaveLength(1);
+    expect(captured.movements[0]!.qtyBase).toBe(10);
+    expect(captured.updates[0]!.status).toBe('APPROVED');
+    expect(res.recountWarning).toBeTruthy();
+  });
+
+  it('WARN + فرق كبير دون تأكيد → يُعتمد مع تنبيه', async () => {
+    const { service, captured } = makeApproveService({ mode: 'WARN', threshold: '50', lines: [bigDiffLine] });
+    const res = (await service.approve(42, user, {})) as { recountWarning?: string | null };
+    expect(captured.movements).toHaveLength(1);
+    expect(res.recountWarning).toBeTruthy();
+  });
+
+  it('بلا حد (0): لا حاجز ولا تنبيه', async () => {
+    const { service, captured } = makeApproveService({ mode: 'BLOCK', threshold: '0', lines: [bigDiffLine] });
+    const res = (await service.approve(42, user, {})) as { recountWarning?: string | null };
+    expect(captured.movements).toHaveLength(1);
+    expect(res.recountWarning).toBeNull();
+  });
+
+  it('فرق دون الحد: لا حاجز', async () => {
+    const smallDiff = { itemId: 1, batchId: '', systemQtyBase: 10, countedQtyBase: 11, lastCost: 10 };
+    const { service, captured } = makeApproveService({ mode: 'BLOCK', threshold: '50', lines: [smallDiff] });
+    const res = (await service.approve(42, user, {})) as { recountWarning?: string | null };
+    expect(captured.movements).toHaveLength(1);
+    expect(res.recountWarning).toBeNull();
   });
 });

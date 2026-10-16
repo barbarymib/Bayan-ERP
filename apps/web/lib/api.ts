@@ -582,6 +582,9 @@ export interface StocktakeSummary {
   surplusValue: number;
   deficitValue: number;
   noCostLines: number;
+  bigDiffLines: number;
+  bigDiffQty: number;
+  bigDiffValue: number;
 }
 
 export interface StocktakeLine {
@@ -599,6 +602,7 @@ export interface StocktakeLine {
   counter?: string | null;
   countedById?: number | null;
   countedBy?: { id: number; name: string } | null;
+  bigDiff?: boolean;
 }
 
 export interface StocktakeSession {
@@ -615,6 +619,8 @@ export interface StocktakeSession {
   notes?: string | null;
   _count?: { lines: number };
   summary?: StocktakeSummary;
+  recount?: { mode: 'WARN' | 'BLOCK'; thresholdValue: number; thresholdQty: number } | null;
+  recountWarning?: string | null;
   lines?: StocktakeLine[];
 }
 

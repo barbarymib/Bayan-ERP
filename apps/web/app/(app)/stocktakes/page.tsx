@@ -398,6 +398,7 @@ function DetailModal({
   const [refresh, setRefresh] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [counter, setCounter] = useState('');
+  const [confirmBig, setConfirmBig] = useState(false);
   const [aborting, setAborting] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -456,9 +457,10 @@ function DetailModal({
         'back-to-counting': 'عُدنا للعد',
         approve: 'تم اعتماد الجلسة وتطبيق تسوية الفروقات',
       };
-      await post(`/stocktakes/${id}/${action}`, {});
+      const body = action === 'approve' ? { confirm: confirmBig } : {};
+      const res = await post<{ recountWarning?: string | null }>(`/stocktakes/${id}/${action}`, body);
       setRefresh((x) => x + 1);
-      onDone(labels[action]);
+      onDone(`${labels[action]}${res?.recountWarning ? ` — ${res.recountWarning}` : ''}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل تنفيذ العملية');
     } finally {
@@ -532,6 +534,16 @@ function DetailModal({
             </div>
           ) : null}
 
+          {summary && summary.bigDiffLines > 0 ? (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-bold">{summary.bigDiffLines}</span> بند بفرق يتجاوز حد إعادة العد (قيمة الفروقات{' '}
+              {formatMoney(summary.bigDiffValue)} ج) — يُستحسن المراجعة/إعادة العد قبل الاعتماد.
+              {s.recount ? (
+                <span className="mr-1"> الوضع: {s.recount.mode === 'BLOCK' ? 'منع (BLOCK)' : 'تحذير (WARN)'}.</span>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full min-w-max border-collapse">
               <thead className="border-b border-gray-200 bg-gray-50">
@@ -555,7 +567,10 @@ function DetailModal({
                     <tr key={l.id} className="border-b border-gray-100 last:border-0">
                       <Td>
                         <div className="font-semibold">{l.item.nameAr}</div>
-                        <div className="text-xs font-mono text-gray-400">{l.item.code}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-400">{l.item.code}</span>
+                          {l.bigDiff ? <Badge color="red">فرق كبير</Badge> : null}
+                        </div>
                       </Td>
                       <Td dir="ltr">{formatMoney(l.systemQtyBase)}</Td>
                       <Td>
@@ -616,9 +631,22 @@ function DetailModal({
                   العودة للعد
                 </Button>
                 {canApprove ? (
-                  <Button onClick={() => void act('approve')} disabled={busy}>
-                    اعتماد وتسوية
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {summary && summary.bigDiffLines > 0 ? (
+                      <label className="flex items-center gap-1 text-sm text-amber-800">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={confirmBig}
+                          onChange={(e) => setConfirmBig(e.target.checked)}
+                        />
+                        أؤكد الاعتماد رغم الفروقات الكبيرة
+                      </label>
+                    ) : null}
+                    <Button onClick={() => void act('approve')} disabled={busy}>
+                      اعتماد وتسوية
+                    </Button>
+                  </div>
                 ) : null}
               </>
             ) : null}

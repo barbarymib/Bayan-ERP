@@ -5,9 +5,11 @@ import {
 } from '@nestjs/common';
 import {
   diffOfStocktakeLine,
+  isBigDiff,
   roundQty,
   summarizeStocktake,
   type StocktakeLineCalc,
+  type StocktakeRecountThreshold,
 } from '@bayan/shared';
 import type { AuthUser } from '../auth/auth.decorators.js';
 import { PrismaService } from '../prisma/prisma.module.js';
@@ -17,6 +19,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
 import type {
   AbortStocktakeDto,
+  ApproveStocktakeDto,
   OpenStocktakeDto,
   QueryStocktakesDto,
   StocktakeCountsDto,
@@ -26,6 +29,10 @@ const ACTIVE_STATUSES = ['OPEN', 'COUNTING', 'REVIEW'] as const;
 
 function freezeMessage(number: string): string {
   return `المخزن مجمّد — توجد جلسة جرد نشطة (${number}). أنهِ أو ألغِ الجلسة قبل تنفيذ حركات المخزون.`;
+}
+
+function recountWarningMessage(lines: number): string {
+  return `يوجد ${lines} بند بفرق يتجاوز حد إعادة العد — يُستحسن المراجعة/إعادة العد قبل الاعتماد.`;
 }
 
 const toLineCalc = (l: { systemQtyBase: unknown; countedQtyBase: unknown; lastCost: unknown }): StocktakeLineCalc => ({
@@ -122,11 +129,12 @@ export class StocktakesService {
       take: limit,
     });
     const total = await this.prisma.stocktakeSession.count({ where });
+    const th = await this.recountThreshold();
     return {
       total,
       items: rows.map((r) => {
         const { lines, ...rest } = r;
-        return { ...rest, _count: { lines: lines.length }, summary: summarizeStocktake(lines.map(toLineCalc)) };
+        return { ...rest, _count: { lines: lines.length }, summary: summarizeStocktake(lines.map(toLineCalc), th) };
       }),
     };
   }
@@ -145,7 +153,19 @@ export class StocktakesService {
       throw new NotFoundException(`Stocktake ${id} not found`);
     }
     const { lines, ...rest } = session;
-    return { ...rest, _count: { lines: lines.length }, summary: summarizeStocktake(lines.map(toLineCalc)), lines };
+    const policy = await this.recountPolicy();
+    const th: StocktakeRecountThreshold = { value: policy.thresholdValue, qty: policy.thresholdQty };
+    const flagged = lines.map((l) => {
+      const d = diffOfStocktakeLine(toLineCalc(l));
+      return { ...l, bigDiff: isBigDiff(d.diffQty, d.diffValue, th) };
+    });
+    return {
+      ...rest,
+      _count: { lines: lines.length },
+      summary: summarizeStocktake(lines.map(toLineCalc), th),
+      recount: { mode: policy.mode, thresholdValue: policy.thresholdValue, thresholdQty: policy.thresholdQty },
+      lines: flagged,
+    };
   }
 
   /** إدخال الكميات الفعلية (يدعم أكثر من جولة عد — recount). */
@@ -239,7 +259,7 @@ export class StocktakesService {
   }
 
   /** اعتماد المالك: حركة تسوية تلقائية لكل فرق ثم إغلاق الجلسة. */
-  async approve(id: number, user: AuthUser) {
+  async approve(id: number, user: AuthUser, dto: ApproveStocktakeDto = {}) {
     const session = await this.prisma.stocktakeSession.findUnique({
       where: { id },
       include: { lines: true },
@@ -254,6 +274,20 @@ export class StocktakesService {
     const uncounted = session.lines.filter((l) => l.countedQtyBase == null).length;
     if (uncounted > 0) {
       throw new BadRequestException(`أكمل عدّات جميع الأصناف أولاً (${uncounted} بند غير مُعدّ)`);
+    }
+
+    // R3-C7 (§5.8.5/§6.3): بنود ذات فروق كبيرة تخضع لحاجز إعادة العد (تحذير/منع).
+    const policy = await this.recountPolicy();
+    const th: StocktakeRecountThreshold = { value: policy.thresholdValue, qty: policy.thresholdQty };
+    const bigDiffLines = session.lines.filter((l) => {
+      const d = diffOfStocktakeLine(toLineCalc(l));
+      return isBigDiff(d.diffQty, d.diffValue, th);
+    }).length;
+    const confirmed = dto.confirm === true;
+    if (bigDiffLines > 0 && policy.mode === 'BLOCK' && !confirmed) {
+      throw new BadRequestException(
+        `يوجد ${bigDiffLines} بند بفرق يتجاوز حد إعادة العد — راجع/أعد العد أو أكّد الاعتماد (confirm).`,
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -294,9 +328,15 @@ export class StocktakesService {
       entity: 'StocktakeSession',
       entityId: id,
       beforeJson: { status: session.status },
-      afterJson: { status: 'APPROVED', adjustedLines: session.lines.filter((l) => diffOfStocktakeLine(toLineCalc(l)).diffQty !== 0).length },
+      afterJson: {
+        status: 'APPROVED',
+        adjustedLines: session.lines.filter((l) => diffOfStocktakeLine(toLineCalc(l)).diffQty !== 0).length,
+        bigDiffLines,
+        confirmed,
+      },
     });
-    return this.get(id, user.companyId ?? null);
+    const result = await this.get(id, user.companyId ?? null);
+    return { ...result, recountWarning: bigDiffLines > 0 ? recountWarningMessage(bigDiffLines) : null };
   }
 
   /** إلغاء جلسة غير مكتملة (بدون تسوية). */
@@ -334,6 +374,25 @@ export class StocktakesService {
       select: { number: true },
     });
     if (active) throw new BadRequestException(freezeMessage(active.number));
+  }
+
+  /** حد إعادة العد الفعّال (يُستخدم لتلخيص الجلسات ووسم البنود ذات الفروق الكبيرة). */
+  private async recountThreshold(): Promise<StocktakeRecountThreshold> {
+    const policy = await this.recountPolicy();
+    return { value: policy.thresholdValue, qty: policy.thresholdQty };
+  }
+
+  /** سياسة إعادة العد من الإعدادات (§5.8.5): الوضع WARN/BLOCK وحدّا القيمة/الكمية (0 = معطّل). */
+  private async recountPolicy(): Promise<{ mode: 'WARN' | 'BLOCK'; thresholdValue: number; thresholdQty: number }> {
+    const [enforce, value, qty] = await Promise.all([
+      this.prisma.systemSetting.findUnique({ where: { key: 'stocktake.recount.enforce' } }),
+      this.prisma.systemSetting.findUnique({ where: { key: 'stocktake.recount.threshold' } }),
+      this.prisma.systemSetting.findUnique({ where: { key: 'stocktake.recount.qtyThreshold' } }),
+    ]);
+    const mode = enforce?.value === 'BLOCK' ? 'BLOCK' : 'WARN';
+    const thresholdValue = Math.max(0, Number(value?.value ?? '0') || 0);
+    const thresholdQty = Math.max(0, Number(qty?.value ?? '0') || 0);
+    return { mode, thresholdValue, thresholdQty };
   }
 
   private async transition(

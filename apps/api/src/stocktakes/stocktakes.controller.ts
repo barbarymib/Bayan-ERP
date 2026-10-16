@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Permissions, type AuthUser } from '../auth/auth.decorators.js';
 import {
   AbortStocktakeDto,
+  ApproveStocktakeDto,
   OpenStocktakeDto,
   QueryStocktakesDto,
   StocktakeCountsDto,
@@ -69,8 +70,12 @@ export class StocktakesController {
   @Post(':id/approve')
   @Permissions('stocktake.approve')
   @ApiOkResponse({ description: 'اعتماد المالك: تسوية تلقائية للفروقات ثم إغلاق الجلسة' })
-  approve(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.stocktakes.approve(id, user);
+  approve(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ApproveStocktakeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.stocktakes.approve(id, user, dto);
   }
 
   @Post(':id/abort')

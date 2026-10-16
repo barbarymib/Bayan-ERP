@@ -24,6 +24,21 @@ export function diffOfStocktakeLine(line: StocktakeLineCalc): StocktakeLineDiff 
   return { diffQty, diffValue };
 }
 
+/**
+ * حد "الفرق الكبير" لإلزام/تنبيه إعادة العد (§5.8.5/§6.3).
+ * بند يُعدّ فرقاً كبيراً إذا تجاوز حد القيمة أو حد الكمية (كلاهما معطّل عند 0).
+ */
+export interface StocktakeRecountThreshold {
+  value: number;
+  qty: number;
+}
+
+export function isBigDiff(diffQty: number, diffValue: number, threshold: StocktakeRecountThreshold): boolean {
+  const byQty = threshold.qty > 0 && Math.abs(diffQty) >= threshold.qty;
+  const byValue = threshold.value > 0 && Math.abs(diffValue) >= threshold.value;
+  return byQty || byValue;
+}
+
 export interface StocktakeSummary {
   lines: number;
   countedLines: number;
@@ -37,10 +52,14 @@ export interface StocktakeSummary {
   surplusValue: number;
   deficitValue: number;
   noCostLines: number;
+  bigDiffLines: number;
+  bigDiffQty: number;
+  bigDiffValue: number;
 }
 
-/** ملخّص جلسة جرد: أعداد، فروقات كمية وقيمة (عجز/زيادة)، بنود بلا سعر. */
-export function summarizeStocktake(lines: StocktakeLineCalc[]): StocktakeSummary {
+/** ملخص الجلسة جرد: إجماليات الكميات والقيم (زيادة/عجز)، بند بلا سعر، والبنود ذات الفروقات الكبيرة. */
+export function summarizeStocktake(lines: StocktakeLineCalc[], threshold?: StocktakeRecountThreshold): StocktakeSummary {
+  const th: StocktakeRecountThreshold = threshold ?? { value: 0, qty: 0 };
   let countedLines = 0;
   let uncountedLines = 0;
   let totalDiffQty = 0;
@@ -52,6 +71,9 @@ export function summarizeStocktake(lines: StocktakeLineCalc[]): StocktakeSummary
   let surplusValue = 0;
   let deficitValue = 0;
   let noCostLines = 0;
+  let bigDiffLines = 0;
+  let bigDiffQty = 0;
+  let bigDiffValue = 0;
 
   for (const line of lines) {
     if (line.countedQtyBase == null) {
@@ -72,6 +94,11 @@ export function summarizeStocktake(lines: StocktakeLineCalc[]): StocktakeSummary
       deficitValue = roundMoney(deficitValue + Math.abs(diffValue));
     }
     if (line.lastCost == null) noCostLines++;
+    if (isBigDiff(diffQty, diffValue, th)) {
+      bigDiffLines++;
+      bigDiffQty = roundQty(bigDiffQty + Math.abs(diffQty));
+      bigDiffValue = roundMoney(bigDiffValue + Math.abs(diffValue));
+    }
   }
 
   return {
@@ -87,5 +114,8 @@ export function summarizeStocktake(lines: StocktakeLineCalc[]): StocktakeSummary
     surplusValue,
     deficitValue,
     noCostLines,
+    bigDiffLines,
+    bigDiffQty,
+    bigDiffValue,
   };
 }

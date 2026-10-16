@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -83,6 +84,13 @@ export class AbortStocktakeDto {
   @IsString()
   @MaxLength(255)
   reason!: string;
+}
+
+export class ApproveStocktakeDto {
+  @ApiPropertyOptional({ description: 'تأكيد اعتماد الفروقات الكبيرة رغم تجاوز حد إعادة العد (§5.8.5)' })
+  @IsOptional()
+  @IsBoolean()
+  confirm?: boolean;
 }
 
 export class QueryStocktakesDto {

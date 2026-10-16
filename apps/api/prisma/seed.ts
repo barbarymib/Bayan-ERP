@@ -205,6 +205,23 @@ async function main(): Promise<void> {
     create: { key: 'stocktake.freeze.mode', value: 'BLOCK' },
   });
 
+  // R3-C7 (§5.8.5): حاجز الفروقات الكبيرة — الوضع (WARN أو BLOCK) وحدّا القيمة/الكمية (0 = معطّل)
+  await prisma.systemSetting.upsert({
+    where: { key: 'stocktake.recount.enforce' },
+    update: { value: 'WARN' },
+    create: { key: 'stocktake.recount.enforce', value: 'WARN' },
+  });
+  await prisma.systemSetting.upsert({
+    where: { key: 'stocktake.recount.threshold' },
+    update: { value: '0' },
+    create: { key: 'stocktake.recount.threshold', value: '0' },
+  });
+  await prisma.systemSetting.upsert({
+    where: { key: 'stocktake.recount.qtyThreshold' },
+    update: { value: '0' },
+    create: { key: 'stocktake.recount.qtyThreshold', value: '0' },
+  });
+
   // منع تجاوز المتاح عند البيع (ALLOW رصيد سالب | BLOCK احترام الحجوزات)
   await prisma.systemSetting.upsert({
     where: { key: 'stock.sale.enforce' },
