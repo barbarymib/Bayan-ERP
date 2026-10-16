@@ -151,6 +151,12 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-16 | **Round 3 full spec re-audit** (6 parallel area reviews + direct verification) | this section |
 | 2026-10-16 | **R3-A1** tenant user provisioning/listing scoped to company (+`companyId` persisted on create, seed backfill, regression test) | ✅ FIXED (6 new tests, api 247/247; 11/11 live verify) |
 | 2026-10-16 | **R3-B1** credit-limit **warn/block** setting (`credit.limit.enforce`) enforced at create + approval + finalize | ✅ FIXED (9 new tests, api 256/256; 8/8 live verify) |
+| 2026-10-16 | **R3-A2** per-role discount limits (fallback to user) | ✅ FIXED (api 280/280; 22/22 live verify) |
+| 2026-10-16 | **R3-A4** decimal/integer measurement enforcement at line entry (shared + api + clients) | ✅ FIXED (api 283/283; mobile 223/223; 11/11 live verify) |
+| 2026-10-16 | **R3-A7** scheduled prices (multi-row valid_from/valid_to + resolver + web input) | ✅ FIXED (api 287/287; 17/17 live verify) |
+| 2026-10-16 | **R3-A9** rep "عملاؤه" customer scoping on statements/returns | ✅ FIXED (api 292/292; 11/11 live verify) |
+| 2026-10-16 | **R3-B6/E1** audit coverage (statement.create, purchase.create, sync.push, master-data CRUD) | ✅ FIXED (api 292/292; 27/27 live verify) |
+| 2026-10-16 | **Bug (found during R3-E1 verify):** array-form `prisma.$transaction([...])` on extended delegates **hangs forever** (nested self-wrapping transactions); broke every delete-guard endpoint (branches/categories/price-lists/special-prices/units/users/warehouses) | ✅ FIXED — converted to interactive `$transaction(async tx => ...)` (commit `4749f08`; api 292/292; live delete 200 + audit row) |
 
 ---
 
@@ -195,7 +201,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-B3 | Mobile push sends no `paymentTerm`/`paid` → all rep sales forced **CREDIT**; MIXED unusable; web statement form has no `paid` input. | §5.6 | PARTIAL | `sync.service.ts:349-354`; `new_statement_screen.dart:118-138`; `statements/page.tsx:286-296` |
 | R3-B4 | GPS issuance location never captured/sent by any client (API accepts lat/lng). | §5.6 | PARTIAL | `price-statements.dto.ts:132-137`; not sent in web/mobile payloads |
 | R3-B5 | Discount %↔value auto-conversion is server-only; equivalent value not shown during entry (web+mobile). | §5.6 | PARTIAL | `price-statements.service.ts:625-651`; `statements/page.tsx:340-351,414-428` |
-| R3-B6 | Discount audit incomplete: no audit on statement create; edit logs net-only (no discount delta). | §5.6 | PARTIAL | no `audits.write` in create `price-statements.service.ts:118-260`; `:434-445` |
+| R3-B6 | Discount audit incomplete: no audit on statement create; edit logs net-only (no discount delta). | §5.6 | ✅ FIXED | `statement.create` audit added after finalize/approval (`price-statements.service.ts`); edit audit now logs discount delta before/after `{status,net,subtotal,discountType,discountValue,discountAmount}` + reason. Live-verified 2026-10-16 (with R3-E1, 27/0); commit `4f49855`. |
 | R3-B7 | `paymentRating`/`paymentNotes` stored but never editable/displayed; `customer.rating` perm unused. | §5.4 | MISSING | `schema.prisma:529`; `role-permissions.ts:45`; absent in `customers.dto.ts` |
 | R3-B8 | Customer→rep transfer **history** has no UI (only current rep editable). | §5.4 | PARTIAL | `customers.service.ts:104,159-177`; no UI in `customers/page.tsx` |
 | R3-B9 | Supplier statement API exists but **no web page** calls it. | §5.5 | PARTIAL | `collections.controller.ts:87-96`; no call in web |
@@ -212,7 +218,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-D2 | No signed **consent/notice** for geotracking (§5.13/§9, Egypt 151/2020). | §5.13 | ✅ FIXED (50/50 live verify; api 271/271; mobile 220/220) | API: `ConsentRecord` model + migration `20261016010000_geo_consent` (**schema-qualified `public.`** — see note), `geo.service.ts` `consentStatus/acceptConsent/revokeConsent/assertGeoConsent` (setting `geo.consent.required`, default true; `ForbiddenException` 403 on `startShift` without current-version consent; revoke ends active shift), routes `GET/POST /geo/consent` + `POST /geo/consent/revoke`; mobile: `core/geo/tracking_consent.dart`, `features/geo/consent_screen.dart` gating shift start. |
 | R3-D3 | Tracking interval hardcoded 60s Provider — not user-configurable. | §5.13 | PARTIAL | `providers.dart:39`; `shift_controller.dart:72` |
 | R3-D4 | No idle **battery throttling** of location pushes. | §5.13 | MISSING | `shift_controller.dart:163-173` (fixed timer) |
-| R3-E1 | Audit rows not on **every** sensitive op: no audit on statement.create / purchase.create / sync push / master-data CRUD (items/customers/suppliers/warehouses). | §9 | PARTIAL | absent in `price-statements.service.ts:173`, `purchases.service.ts:110`, `sync.service.ts:299-483`; contrast `audit-logs.service.ts:36-54` |
+| R3-E1 | Audit rows not on **every** sensitive op: no audit on statement.create / purchase.create / sync push / master-data CRUD (items/customers/suppliers/warehouses). | §9 | ✅ FIXED | `purchase.create` (entity `PurchaseStatement`) in `purchases.service.ts`; `sync.push` (entity `SyncPush`, only when `serverId` present) in `sync.service.ts`; `item.create/update` (+delete via 2nd `item.update`), `customer/supplier/warehouse.create/update/delete` — services take `AuditLogsService` + optional `userId`, controllers pass `user.id`. Live-verified 2026-10-16 (27/0); commit `4f49855`. |
 | R3-E2 | **No backup before data migration** (`migration.import` runs without a dump; only archive run backs up). | §9 | PARTIAL | `migration/migration.service.ts:388`; `archives.service.ts:306` |
 | R3-E3 | Server-side **sensitive-data encryption** absent (only backup AES + mobile SQLCipher). | §9 | PARTIAL | `backups/crypto.util.ts:33`; not in schema/env |
 | R3-E4 | No **stale-draft warning** for old price statements. | §11 | MISSING | no stale/draft-age logic anywhere in web/mobile |
@@ -268,7 +274,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 10. **R3-A6** steel actual-weight input + weight-difference report.
 11. **R3-A9** enforce rep customer scoping on statements/returns. — ✅ FIXED (api 292/292; 11/11 live verify)
 12. **R3-B11** re-check negative-stock/credit at approval/finalize.
-13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD.
+13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD. — ✅ FIXED (api 292/292; 27/27 live verify)
 14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report.
 15. **R3-C8** stocktake freeze WARN mode (surface warning).
 16. **R3-C6/C5** stocktake scope (category/brand/group) + counters; web open-scope UI.
