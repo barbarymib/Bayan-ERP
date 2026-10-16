@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class StartShiftDto {
@@ -129,4 +129,27 @@ export class QueryGeoDto {
   @Type(() => Number)
   @IsInt()
   repId?: number;
+}
+
+export class ConsentDto {
+  @ApiProperty({ enum: ['GEO_TRACKING'], example: 'GEO_TRACKING' })
+  @IsIn(['GEO_TRACKING'])
+  type!: 'GEO_TRACKING';
+
+  @ApiProperty({ example: '1.0', description: 'نسخة نص الإقرار المُوقّع عليها' })
+  @IsString()
+  @MaxLength(20)
+  version!: string;
+
+  @ApiProperty({ example: 'أحمد محمد علي', description: 'الاسم الكامل للمُوقِّع كما كتبه (توقيع إلكتروني)' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(150)
+  signatureName!: string;
+
+  @ApiPropertyOptional({ example: 'dev-abc123' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  deviceId?: string;
 }

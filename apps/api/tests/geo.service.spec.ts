@@ -18,6 +18,12 @@ function mockPrisma(overrides: Record<string, unknown> = {}): PrismaService {
     user: { findMany: async () => [] },
     customerRepAssignment: { findMany: async () => [] },
     deviceRegistration: { findFirst: async () => null, create: async () => ({}), update: async () => ({}) },
+    systemSetting: { findUnique: async () => null },
+    consentRecord: {
+      findFirst: async () => null,
+      create: async (args: { data?: Record<string, unknown> }) => ({ id: 11, ...(args?.data ?? {}) }),
+      updateMany: async () => ({ count: 0 }),
+    },
     ...overrides,
   } as unknown as PrismaService;
 }
@@ -103,5 +109,113 @@ describe('GeoService', () => {
     const res = await service.cleanupOldLocations();
     expect(res.deleted).toBe(5);
     expect(cutoff).toBeDefined();
+  });
+
+  it('يمنع بدء وردية التتبع دون إقرار ساري (§5.13)', async () => {
+    const prisma = mockPrisma({
+      repShift: { findFirst: async () => null, create: async () => ({ id: 1 }) },
+      consentRecord: { findFirst: async () => null },
+    });
+    const service = new GeoService(prisma);
+    await expect(service.startShift(2, {})).rejects.toThrow('الإقرار على تتبع الموقع');
+  });
+
+  it('يسمح ببدء الوردية عند وجود إقرار ساري بالنسخة الحالية', async () => {
+    const created: { data?: Record<string, unknown> }[] = [];
+    const prisma = mockPrisma({
+      consentRecord: {
+        findFirst: async () => ({
+          id: 3,
+          version: '1.0',
+          revokedAt: null,
+          signatureName: 'أحمد محمد',
+          deviceId: null,
+          acceptedAt: new Date(),
+        }),
+      },
+      repShift: {
+        findFirst: async () => null,
+        create: async (args: { data?: Record<string, unknown> }) => {
+          created.push(args);
+          return { id: 9, ...(args.data ?? {}) };
+        },
+      },
+    });
+    const service = new GeoService(prisma);
+    const shift = await service.startShift(2, { lat: 30, lng: 31 });
+    expect(shift.id).toBe(9);
+    expect(created).toHaveLength(1);
+  });
+
+  it('يسمح ببدء الوردية دون إقرار عندما يكون الإعداد معطّلاً (geo.consent.required=false)', async () => {
+    const prisma = mockPrisma({
+      systemSetting: { findUnique: async () => ({ key: 'geo.consent.required', value: 'false' }) },
+      consentRecord: { findFirst: async () => null },
+      repShift: { findFirst: async () => null, create: async () => ({ id: 4 }) },
+    });
+    const service = new GeoService(prisma);
+    await expect(service.startShift(2, {})).resolves.toMatchObject({ id: 4 });
+  });
+
+  it('يخزّن الإقرار الموقّع بالاسم الكامل والنسخة', async () => {
+    const created: { data?: Record<string, unknown> }[] = [];
+    const prisma = mockPrisma({
+      consentRecord: {
+        create: async (args: { data?: Record<string, unknown> }) => {
+          created.push(args);
+          return { id: 7, ...(args.data ?? {}) };
+        },
+        findFirst: async () => ({
+          id: 7,
+          version: '1.0',
+          revokedAt: null,
+          signatureName: 'أحمد محمد',
+          deviceId: null,
+          acceptedAt: new Date(),
+        }),
+      },
+    });
+    const service = new GeoService(prisma);
+    const status = await service.acceptConsent(2, {
+      type: 'GEO_TRACKING',
+      version: '1.0',
+      signatureName: '  أحمد محمد  ',
+      deviceId: 'dev-1',
+    });
+    expect(created[0]?.data).toMatchObject({
+      userId: 2,
+      type: 'GEO_TRACKING',
+      version: '1.0',
+      signatureName: 'أحمد محمد',
+      deviceId: 'dev-1',
+    });
+    expect(status.accepted).toBe(true);
+    expect(status.satisfied).toBe(true);
+  });
+
+  it('سحب الإقرار يُلغي الإقرارات السارية وينهي الوردية النشطة', async () => {
+    let revokedWhere: unknown;
+    let endedShift: unknown;
+    const prisma = mockPrisma({
+      consentRecord: {
+        updateMany: async (args: unknown) => {
+          revokedWhere = args;
+          return { count: 1 };
+        },
+        findFirst: async () => null,
+      },
+      repShift: {
+        findFirst: async () => ({ id: 5, repId: 2, startedAt: new Date(), endedAt: null }),
+        update: async (args: unknown) => {
+          endedShift = args;
+          return { id: 5, endedAt: new Date() };
+        },
+      },
+    });
+    const service = new GeoService(prisma);
+    const status = await service.revokeConsent(2);
+    expect((revokedWhere as { where: { revokedAt: null } }).where.revokedAt).toBeNull();
+    expect((endedShift as { data: { endedAt: Date } }).data.endedAt).toBeInstanceOf(Date);
+    expect(status.accepted).toBe(false);
   });
 });

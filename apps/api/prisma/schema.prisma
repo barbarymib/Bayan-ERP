@@ -261,6 +261,7 @@ model User {
   closedPeriods      Period[]
   shifts             RepShift[]
   featureOverrides   UserFeature[]
+  consentRecords     ConsentRecord[]
   createdArchives    ArchiveRun[]         @relation("ArchiveCreatedBy")
   confirmedArchives  ArchiveRun[]         @relation("ArchiveConfirmedBy")
   createdQuotations  Quotation[]          @relation("QuotationCreatedBy")
@@ -1284,6 +1285,26 @@ model RepVisit {
 
   @@index([companyId])
   @@index([repId, at])
+}
+
+// ============================ إقرارات الموافقة ============================
+
+// §5.13 إقرار/موافقة موقّعة على تتبع الموقع أثناء الوردية (قانون حماية
+// البيانات المصري 151/2020). يُحفظ نص النسخة واسم المُوقِّع للتدقيق.
+model ConsentRecord {
+  companyId     Int?
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  type          String // GEO_TRACKING
+  version       String // نسخة نص الإقرار (مثل 1.0)
+  signatureName String // الاسم الكامل المُوقِّع كما كتبه
+  deviceId      String?
+  acceptedAt    DateTime @default(now())
+  revokedAt     DateTime?
+
+  @@index([companyId])
+  @@index([userId, type, acceptedAt])
 }
 
 // ============================ التدقيق ============================

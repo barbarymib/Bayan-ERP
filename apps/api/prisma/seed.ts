@@ -214,6 +214,13 @@ async function main(): Promise<void> {
     create: { key: 'credit.limit.enforce', value: 'WARN' },
   });
 
+  // اشتراط إقرار موقّع على تتبع الموقع قبل بدء الوردية — §5.13 (قانون 151/2020)
+  await prisma.systemSetting.upsert({
+    where: { key: 'geo.consent.required' },
+    update: { value: 'true' },
+    create: { key: 'geo.consent.required', value: 'true' },
+  });
+
   // فترة مفتوحة حالية (ADR-1)
   const openPeriod = await prisma.period.findFirst({ where: { status: 'OPEN' } });
   if (!openPeriod) {

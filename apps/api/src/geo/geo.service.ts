@@ -1,13 +1,23 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
-import type { EndShiftDto, LocationDto, StartShiftDto, VisitDto } from './geo.dto.js';
+import type { ConsentDto, EndShiftDto, LocationDto, StartShiftDto, VisitDto } from './geo.dto.js';
 
 /** حد النطاق الجغرافي للعميل بالمتر (§5.13: مثلاً 150م) */
 export const PROXIMITY_METERS = 150;
 
 /** مدة الاحتفاظ بسجلات الموقع (90 يوم ثم تُحذف تلقائياً — §5.13 الخصوصية) */
 export const LOCATION_RETENTION_DAYS = 90;
+
+/** نوع الإقرار على تتبع الموقع (§5.13 / قانون 151/2020) */
+export const CONSENT_TYPE = 'GEO_TRACKING';
+
+/** النسخة الحالية من نص الإقرار — تُرفع عند تغيّر النص فيُطلب إقرار جديد */
+export const CONSENT_VERSION = '1.0';
+
+/** إعداد اشتراط الإقرار قبل بدء وردية التتبع (افتراضياً مطلوب) */
+export const CONSENT_REQUIRED_KEY = 'geo.consent.required';
 
 const EARTH_RADIUS_M = 6371000;
 
@@ -25,7 +35,10 @@ const asNum = (v: unknown): number | null => (v === null || v === undefined ? nu
 
 @Injectable()
 export class GeoService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit?: AuditLogsService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     // تنظيف سجلات الموقع بعد مدة الاحتفاظ (يومياً) — لا يسقط الخادم عند غياب قاعدة البيانات
@@ -44,6 +57,105 @@ export class GeoService implements OnModuleInit {
     return { deleted: res.count };
   }
 
+  // ==================== إقرار تتبع الموقع (§5.13) ====================
+
+  /** هل الإقرار مطلوب قبل بدء الوردية؟ (افتراضياً نعم — يمكن تعطيله بإعداد) */
+  private async consentRequired(): Promise<boolean> {
+    const row = await this.prisma.systemSetting.findUnique({ where: { key: CONSENT_REQUIRED_KEY } });
+    if (!row) return true;
+    return String(row.value).trim().toLowerCase() !== 'false';
+  }
+
+  /** حالة الإقرار الحالية للمستخدم: هل الإقرار مطلوب، وهل يوجد إقرار ساري بالنسخة الحالية */
+  async consentStatus(userId: number) {
+    const required = await this.consentRequired();
+    const record = await this.prisma.consentRecord.findFirst({
+      where: { userId, type: CONSENT_TYPE, revokedAt: null },
+      orderBy: { acceptedAt: 'desc' },
+    });
+    const accepted = !!record && record.version === CONSENT_VERSION;
+    return {
+      type: CONSENT_TYPE,
+      required,
+      version: CONSENT_VERSION,
+      accepted,
+      satisfied: !required || accepted,
+      record: record
+        ? {
+            id: record.id,
+            version: record.version,
+            signatureName: record.signatureName,
+            deviceId: record.deviceId,
+            acceptedAt: record.acceptedAt,
+          }
+        : null,
+    };
+  }
+
+  /** تسجيل إقرار موقّع (توقيع إلكتروني بالاسم الكامل) */
+  async acceptConsent(userId: number, dto: ConsentDto, companyId: number | null = null) {
+    const record = await this.prisma.consentRecord.create({
+      data: {
+        userId,
+        companyId,
+        type: CONSENT_TYPE,
+        version: dto.version,
+        signatureName: dto.signatureName.trim(),
+        deviceId: dto.deviceId ?? null,
+      },
+    });
+    await this.safeAudit(userId, 'consent.accept', 'ConsentRecord', record.id, {
+      type: CONSENT_TYPE,
+      version: record.version,
+      signatureName: record.signatureName,
+    });
+    return this.consentStatus(userId);
+  }
+
+  /**
+   * سحب الإقرار — يُلغي كل الإقرارات السارية وينهي أي وردية نشطة
+   * (لا تتبع بلا إقرار ساري §5.13).
+   */
+  async revokeConsent(userId: number, companyId: number | null = null) {
+    const now = new Date();
+    await this.prisma.consentRecord.updateMany({
+      where: { userId, type: CONSENT_TYPE, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    const active = await this.currentShift(userId, companyId);
+    if (active) {
+      await this.prisma.repShift.update({ where: { id: active.id }, data: { endedAt: now } });
+    }
+    await this.safeAudit(userId, 'consent.revoke', 'User', userId);
+    return this.consentStatus(userId);
+  }
+
+  /** يفرض وجود إقرار ساري بالنسخة الحالية قبل بدء الوردية (عند اشتراطه) */
+  async assertGeoConsent(userId: number): Promise<void> {
+    if (!(await this.consentRequired())) return;
+    const record = await this.prisma.consentRecord.findFirst({
+      where: { userId, type: CONSENT_TYPE, version: CONSENT_VERSION, revokedAt: null },
+      orderBy: { acceptedAt: 'desc' },
+    });
+    if (!record) {
+      throw new ForbiddenException('يجب الإقرار على تتبع الموقع أثناء الوردية قبل البدء (§5.13)');
+    }
+  }
+
+  private async safeAudit(
+    userId: number,
+    action: string,
+    entity: string,
+    entityId: number,
+    afterJson?: unknown,
+  ): Promise<void> {
+    try {
+      await this.audit?.write({ userId, action, entity, entityId, afterJson });
+    } catch {
+      // فشل التدقيق لا يُسقط العملية الأساسية
+    }
+  }
+
   /** الوردية النشطة الحالية للمندوب */
   async currentShift(repId: number, companyId: number | null = null) {
     return this.prisma.repShift.findFirst({
@@ -54,6 +166,7 @@ export class GeoService implements OnModuleInit {
   }
 
   async startShift(repId: number, dto: StartShiftDto, companyId: number | null = null) {
+    await this.assertGeoConsent(repId);
     const existing = await this.currentShift(repId, companyId);
     if (existing) {
       if (dto.deviceId) await this.touchDevice(repId, dto.deviceId, companyId);

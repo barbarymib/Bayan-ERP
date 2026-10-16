@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Features, Permissions, type AuthUser } from '../auth/auth.decorators.js';
-import { EndShiftDto, LocationDto, QueryGeoDto, StartShiftDto, VisitDto } from './geo.dto.js';
+import { ConsentDto, EndShiftDto, LocationDto, QueryGeoDto, StartShiftDto, VisitDto } from './geo.dto.js';
 import { GeoService } from './geo.service.js';
 
 @ApiTags('geo')
@@ -15,6 +15,27 @@ export class GeoController {
   @ApiOkResponse({ description: 'بدء وردية المندوب (يعيد الوردية النشطة إن وجدت)' })
   startShift(@CurrentUser() user: AuthUser, @Body() dto: StartShiftDto) {
     return this.geo.startShift(user.sub, dto, user.companyId ?? null);
+  }
+
+  @Get('consent')
+  @Permissions('geo.report')
+  @ApiOkResponse({ description: 'حالة إقرار تتبع الموقع للمستخدم الحالي (§5.13)' })
+  consentStatus(@CurrentUser() user: AuthUser) {
+    return this.geo.consentStatus(user.sub);
+  }
+
+  @Post('consent')
+  @Permissions('geo.report')
+  @ApiOkResponse({ description: 'تسجيل إقرار موقّع على تتبع الموقع' })
+  acceptConsent(@CurrentUser() user: AuthUser, @Body() dto: ConsentDto) {
+    return this.geo.acceptConsent(user.sub, dto, user.companyId ?? null);
+  }
+
+  @Post('consent/revoke')
+  @Permissions('geo.report')
+  @ApiOkResponse({ description: 'سحب الإقرار على التتبع وإنهاء الوردية النشطة' })
+  revokeConsent(@CurrentUser() user: AuthUser) {
+    return this.geo.revokeConsent(user.sub, user.companyId ?? null);
   }
 
   @Post('shifts/end')
