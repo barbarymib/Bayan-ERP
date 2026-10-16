@@ -150,6 +150,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-15 | **G29 increment 1** printable quotation on web (`/quotations/[id]/print`, A4/A5/80mm) + Arabic client PDF (`lib/quotation-pdf.ts`) | ✅ PARTIAL (web build/typecheck/lint 0; deployed; live 200/307 parity) |
 | 2026-10-16 | **Round 3 full spec re-audit** (6 parallel area reviews + direct verification) | this section |
 | 2026-10-16 | **R3-A1** tenant user provisioning/listing scoped to company (+`companyId` persisted on create, seed backfill, regression test) | ✅ FIXED (6 new tests, api 247/247; 11/11 live verify) |
+| 2026-10-16 | **R3-B1** credit-limit **warn/block** setting (`credit.limit.enforce`) enforced at create + approval + finalize | ✅ FIXED (9 new tests, api 256/256; 8/8 live verify) |
 
 ---
 
@@ -174,7 +175,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | ID | Gap | Spec | Status | Evidence |
 | -- | --- | ---- | ------ | -------- |
 | R3-A1 | Tenant user provisioning/listing not company-scoped: `/users` create never persists `companyId` (new users get `null` → RLS-closed, see nothing); `list`/`findOne` unfiltered and `User` exempt from RLS → cross-tenant user listing. | §12.1/§12.2/§4.1 | ✅ FIXED (11/11 live verify) | `users.service.ts` now scopes `list`/`findOne`/`update`/`remove` via `tenantWhere(companyId)` and `create` persists `companyId`; controller passes `user.companyId`; seed backfills `user.companyId`. |
-| R3-B1 | Credit-limit is **warn-only** — no `block` mode/setting and not re-checked at approval; spec requires "تنبيه أو منع … (بحسب الإعداد)". | §5.4 | PARTIAL | `price-statements.service.ts:164,251`; no `credit.*` setting; `sales-ops.service.ts:33-74` |
+| R3-B1 | Credit-limit is **warn-only** — no `block` mode/setting and not re-checked at approval; spec requires "تنبيه أو منع … (بحسب الإعداد)". | §5.4 | ✅ FIXED (8/8 live verify) | `sales-ops.service.ts` new `assertCustomerCredit` reads `credit.limit.enforce` (`WARN` default / `BLOCK`) and throws `BadRequestException('تجاوز الحد الائتماني…')` when projected > limit; called from `finalizeStatement` + `approvals.assertDecidable` + `price-statements.create`; `checkCreditLimit` now returns `exceeded`; seed adds `credit.limit.enforce`; web `CreditWarning.exceeded` typed. |
 | R3-B2 | PO line **discounts dropped on receive** → supplier statement net > PO net silently (discount accepted in DTO/UI but no columns). | §5.5 | MISSING | `purchase-orders.service.ts:195-200`; `purchase-orders.dto.ts:39-43`; `purchase-orders/page.tsx:290` |
 | R3-C1 | **Mobile stocktake entry absent** (web-only; no on-device counting/scanning; sync supports no stocktake op). | §5.8.3 | MISSING | `apps/mobile/lib/core/calc/stocktake.dart` (calc only); `apps/api/src/sync/sync.dto.ts:58-60` |
 | R3-D1 | Mobile **no persistent foreground tracking indicator** (spec: "إشعار دائم لأندرويد") and no signed-consent/notice. | §5.13 | MISSING | no `ForegroundService`/notification/consent in `apps/mobile/lib/**`; `core/geo/shift_controller.dart` |
@@ -254,7 +255,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 
 ### Phase P1 — Security & data integrity (High)
 1. **R3-A1** tenant user provisioning/listing scope (+regression test). — ✅ FIXED (api 247/247; 11/11 live verify)
-2. **R3-B1** credit-limit warn/block setting + enforce at approval + notify.
+2. **R3-B1** credit-limit warn/block setting + enforce at approval + notify. — ✅ FIXED (api 256/256; 8/8 live verify)
 3. **R3-B2** carry PO line discounts into receive/statement (schema migration + shared calc).
 4. **R3-C1** mobile stocktake entry + sync op (web parity already exists).
 5. **R3-D1/D2** mobile foreground tracking notification + signed consent notice.
