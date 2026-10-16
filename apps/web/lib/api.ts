@@ -629,6 +629,7 @@ export interface StockValueRow {
   qtyBase: number;
   unitCost: number;
   value: number;
+  noPrice: boolean;
 }
 
 export interface StockValues {
@@ -637,7 +638,33 @@ export interface StockValues {
   rows: StockValueRow[];
   byItem: { itemId: number; item: { code: string; nameAr: string }; qtyBase: number; value: number }[];
   byWarehouse: { warehouseId: number; warehouse: { code: string; nameAr: string }; qtyBase: number; value: number }[];
-  totals: { items: number; qtyBase: number; value: number };
+  noPriceItems: { itemId: number; code: string; nameAr: string; qtyBase: number }[];
+  totals: {
+    items: number;
+    qtyBase: number;
+    value: number;
+    noPriceItems: number;
+    noPriceLines: number;
+    noPriceQtyBase: number;
+    noPriceValue: number;
+  };
+}
+
+export interface ItemWithoutPriceRow {
+  itemId: number;
+  code: string;
+  nameAr: string;
+  category: string;
+  categoryName: string;
+  unit: string;
+  unitName: string;
+  qtyBase: number;
+  methodLabel: string;
+}
+
+export interface ItemsWithoutPrice {
+  count: number;
+  rows: ItemWithoutPriceRow[];
 }
 
 export interface MovementRow {

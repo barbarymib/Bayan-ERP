@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryItemsWithoutPriceDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStockValuesDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -893,6 +893,141 @@ describe('ReportsService.weightNotes — ملاحظات الوزن الفعلي 
   it('يُرجع صفراً بلا بنود ذات ملاحظة', async () => {
     const svc = build([], { weightNoteLines: [] });
     const out = await svc.weightNotes({} as QueryWeightNotesDto, 1);
+    expect(out.count).toBe(0);
+    expect(out.rows).toEqual([]);
+  });
+});
+
+interface ValuationBalance {
+  itemId: number;
+  warehouseId: number;
+  batchId: string;
+  qtyBase: number;
+  item: { id: number; code: string; nameAr: string; baseUnitId: number; lastPurchaseCost: number | null };
+}
+
+interface ValuationLookups {
+  balances?: ValuationBalance[];
+  buys?: { itemId: number; qtyBase: number; cost: number }[];
+  prices?: { itemId: number; price: number }[];
+  warehouses?: { id: number; code: string; nameAr: string }[];
+  noPriceItems?: {
+    id: number;
+    code: string;
+    nameAr: string;
+    baseUnit: { code: string; nameAr: string };
+    category: { code: string; nameAr: string };
+  }[];
+  balancesGroup?: { itemId: number; _sum: { qtyBase: number } }[];
+}
+
+function buildValuation(l: ValuationLookups = {}) {
+  const prisma = {
+    stockBalance: {
+      findMany: async () => l.balances ?? [],
+      groupBy: async () => l.balancesGroup ?? [],
+    },
+    stockMovement: { findMany: async () => l.buys ?? [] },
+    itemPrice: { findMany: async () => l.prices ?? [] },
+    item: { findMany: async () => l.noPriceItems ?? [] },
+    warehouse: { findMany: async () => l.warehouses ?? [] },
+  } as unknown as PrismaService;
+  return new ReportsService(prisma);
+}
+
+const vBal = (over: Partial<ValuationBalance> = {}): ValuationBalance => ({
+  itemId: 1,
+  warehouseId: 1,
+  batchId: '',
+  qtyBase: 10,
+  item: { id: 1, code: 'IR-16-10', nameAr: 'حديد', baseUnitId: 1, lastPurchaseCost: 90 },
+  ...over,
+});
+
+describe('ReportsService.stockValues — تقييم بلا سعر (R3-C2 §5.8)', () => {
+  it('LAST: يوسم بلا سعر ويستبعده من الإجمالي مع إظهار العدد', async () => {
+    const svc = buildValuation({
+      balances: [
+        vBal(),
+        vBal({
+          itemId: 2,
+          qtyBase: 5,
+          item: { id: 2, code: 'PT-20-02', nameAr: 'دهان', baseUnitId: 4, lastPurchaseCost: null },
+        }),
+      ],
+      warehouses: [{ id: 1, code: 'MAIN', nameAr: 'رئيسي' }],
+    });
+    const out = await svc.stockValues({ method: 'LAST' } as QueryStockValuesDto);
+    expect(out.rows[0]).toMatchObject({ unitCost: 90, value: 900, noPrice: false });
+    expect(out.rows[1]).toMatchObject({ unitCost: 0, value: 0, noPrice: true });
+    expect(out.totals).toMatchObject({
+      items: 2,
+      qtyBase: 10,
+      value: 900,
+      noPriceItems: 1,
+      noPriceLines: 1,
+      noPriceQtyBase: 5,
+      noPriceValue: 0,
+    });
+    expect(out.noPriceItems).toEqual([{ itemId: 2, code: 'PT-20-02', nameAr: 'دهان', qtyBase: 5 }]);
+  });
+
+  it('WEIGHTED: الصنف بلا مشتريات يُعد بلا سعر', async () => {
+    const svc = buildValuation({
+      balances: [
+        vBal(),
+        vBal({
+          itemId: 2,
+          qtyBase: 5,
+          item: { id: 2, code: 'PT-20-02', nameAr: 'دهان', baseUnitId: 4, lastPurchaseCost: 10 },
+        }),
+      ],
+      buys: [{ itemId: 1, qtyBase: 10, cost: 88 }],
+      warehouses: [{ id: 1, code: 'MAIN', nameAr: 'رئيسي' }],
+    });
+    const out = await svc.stockValues({ method: 'WEIGHTED' } as QueryStockValuesDto);
+    expect(out.rows[0]).toMatchObject({ unitCost: 88, value: 880, noPrice: false });
+    expect(out.rows[1]).toMatchObject({ noPrice: true, value: 0 });
+    expect(out.totals).toMatchObject({ value: 880, noPriceItems: 1 });
+  });
+
+  it('SALES: الصنف بلا سعر بيع يُعد بلا سعر', async () => {
+    const svc = buildValuation({
+      balances: [vBal(), vBal({ itemId: 2, qtyBase: 5, item: { id: 2, code: 'X', nameAr: 'س', baseUnitId: 4, lastPurchaseCost: 10 } })],
+      prices: [{ itemId: 1, price: 120 }],
+      warehouses: [{ id: 1, code: 'MAIN', nameAr: 'رئيسي' }],
+    });
+    const out = await svc.stockValues({ method: 'SALES' } as QueryStockValuesDto);
+    expect(out.rows[0]).toMatchObject({ unitCost: 120, value: 1200, noPrice: false });
+    expect(out.rows[1]).toMatchObject({ noPrice: true, value: 0 });
+    expect(out.totals).toMatchObject({ value: 1200, noPriceItems: 1 });
+  });
+});
+
+describe('ReportsService.itemsWithoutPrice — أصناف بلا آخر سعر شراء (R3-E5 §11)', () => {
+  const npItem = (over: Partial<NonNullable<ValuationLookups['noPriceItems']>[number]> = {}) => ({
+    id: 1,
+    code: 'IR-16-10',
+    nameAr: 'حديد',
+    baseUnit: { code: 'kg', nameAr: 'كجم' },
+    category: { code: 'STEEL', nameAr: 'حديد' },
+    ...over,
+  });
+
+  it('يُدرج الأصناف مع الرصيد المتاح والتصنيف والوحدة', async () => {
+    const svc = buildValuation({
+      noPriceItems: [npItem(), npItem({ id: 2, code: 'PT-20-02', nameAr: 'دهان', category: { code: 'PAINT', nameAr: 'دهانات' } })],
+      balancesGroup: [{ itemId: 1, _sum: { qtyBase: 7 } }],
+    });
+    const out = await svc.itemsWithoutPrice({} as QueryItemsWithoutPriceDto, 1);
+    expect(out.count).toBe(2);
+    expect(out.rows[0]).toMatchObject({ itemId: 1, code: 'IR-16-10', category: 'STEEL', unit: 'kg', qtyBase: 7 });
+    expect(out.rows[1]).toMatchObject({ itemId: 2, category: 'PAINT', qtyBase: 0 });
+  });
+
+  it('يُرجع صفراً بلا أصناف', async () => {
+    const svc = buildValuation({ noPriceItems: [] });
+    const out = await svc.itemsWithoutPrice({} as QueryItemsWithoutPriceDto, 1);
     expect(out.count).toBe(0);
     expect(out.rows).toEqual([]);
   });

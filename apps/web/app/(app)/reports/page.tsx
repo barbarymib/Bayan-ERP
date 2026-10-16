@@ -8,6 +8,7 @@ import {
   getToken,
   qs,
   type AgingReport,
+  type ItemsWithoutPrice,
   type LowStock,
   type Movements,
   type StockSummaryRep,
@@ -31,7 +32,7 @@ import {
   formatMoney,
 } from '@/components/ui';
 
-type Tab = 'movements' | 'values' | 'summary' | 'lowstock' | 'aging' | 'weightnotes';
+type Tab = 'movements' | 'values' | 'noprice' | 'summary' | 'lowstock' | 'aging' | 'weightnotes';
 
 export default function ReportsPage() {
   const { user } = useAuth();
@@ -50,6 +51,7 @@ export default function ReportsPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'movements', label: 'حركة المخزون' },
     { id: 'values', label: 'تقييم المخازن' },
+    { id: 'noprice', label: 'أصناف بدون سعر' },
     { id: 'summary', label: 'ملخص الأصناف' },
     { id: 'lowstock', label: 'تحت الحد الأدنى' },
     { id: 'aging', label: 'أعمار الديون' },
@@ -74,6 +76,7 @@ export default function ReportsPage() {
       </div>
       {tab === 'movements' ? <MovementsPane /> : null}
       {tab === 'values' ? <ValuesPane /> : null}
+      {tab === 'noprice' ? <NoPricePane /> : null}
       {tab === 'summary' ? <SummaryPane /> : null}
       {tab === 'lowstock' ? <LowStockPane /> : null}
       {tab === 'aging' ? <AgingPane /> : null}
@@ -320,6 +323,15 @@ function ValuesPane() {
 
       {data ? (
         <>
+          {data.totals.noPriceItems > 0 ? (
+            <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              <div className="font-bold">تحذير: أصناف بدون سعر ({data.totals.noPriceItems})</div>
+              <div className="mt-1">
+                {data.totals.noPriceLines} بند بكمية {formatMoney(data.totals.noPriceQtyBase)} بلا سعر — مستبعدة من الإجمالي.
+                اضبط آخر سعر شراء من تبويب «أصناف بدون سعر».
+              </div>
+            </div>
+          ) : null}
           {data.byWarehouse.length > 0 ? (
             <div className="mb-3 grid grid-cols-2 gap-3">
               {data.byWarehouse.map((w) => (
@@ -361,15 +373,128 @@ function ValuesPane() {
                   </tr>
                 ) : (
                   data.rows.map((r) => (
-                    <tr key={`${r.itemId}:${r.warehouseId}:${r.batchId}`} className="border-b border-gray-100 last:border-0">
+                    <tr
+                      key={`${r.itemId}:${r.warehouseId}:${r.batchId}`}
+                      className={`border-b border-gray-100 last:border-0 ${r.noPrice ? 'bg-amber-50' : ''}`}
+                    >
                       <Td>
                         <div className="font-semibold">{r.nameAr}</div>
                         <div className="text-xs font-mono text-gray-400">{r.code}</div>
                       </Td>
                       <Td>{data.byWarehouse.find((w) => w.warehouseId === r.warehouseId)?.warehouse.nameAr ?? `#${r.warehouseId}`}</Td>
                       <Td dir="ltr">{formatMoney(r.qtyBase)}</Td>
-                      <Td>{formatMoney(r.unitCost)}</Td>
+                      <Td>{r.noPrice ? <Badge color="amber">بدون سعر</Badge> : formatMoney(r.unitCost)}</Td>
                       <Td className="font-bold">{formatMoney(r.value)}</Td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function NoPricePane() {
+  const [data, setData] = useState<ItemsWithoutPrice | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [categoryId, setCategoryId] = useState('');
+  const [categories, setCategories] = useState<{ id: number; code: string; nameAr: string }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<{ categories: { id: number; code: string; nameAr: string }[] }>('/categories')
+      .then((d) => {
+        if (!cancelled) setCategories(d.categories ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<ItemsWithoutPrice>(`/reports/items-without-price${qs({ categoryId: categoryId })}`)
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'فشل تحميل القائمة');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh, categoryId]);
+
+  return (
+    <div>
+      {error ? <ErrorBox message={error} onRetry={() => setRefresh((x) => x + 1)} /> : null}
+      <div className="mb-3 flex flex-wrap items-end gap-2">
+        <div className="w-52">
+          <Field label="التصنيف">
+            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              <option value="">كل التصنيفات</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} — {c.nameAr}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
+          تحديث
+        </Button>
+        <Button variant="secondary" onClick={() => downloadCsv(`/reports/items-without-price${qs({ format: 'csv', categoryId: categoryId })}`, setError)}>
+          تصدير CSV
+        </Button>
+      </div>
+
+      {data ? (
+        <>
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            أصناف نشطة بلا آخر سعر شراء: <span className="font-bold">{data.count}</span> — تُقيَّم بصفر وتُستبعد من إجمالي تقييم المخزون (§5.8).
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full min-w-max border-collapse">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  <Th>الصنف</Th>
+                  <Th>التصنيف</Th>
+                  <Th>الوحدة</Th>
+                  <Th>الرصيد المتاح</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <Td className="py-6 text-center text-gray-400">جارِ التحميل…</Td>
+                  </tr>
+                ) : data.rows.length === 0 ? (
+                  <tr>
+                    <Td className="py-6 text-center text-gray-400">لا توجد أصناف بدون سعر</Td>
+                  </tr>
+                ) : (
+                  data.rows.map((r) => (
+                    <tr key={r.itemId} className="border-b border-gray-100 last:border-0">
+                      <Td>
+                        <div className="font-semibold">{r.nameAr}</div>
+                        <div className="text-xs font-mono text-gray-400">{r.code}</div>
+                      </Td>
+                      <Td>{r.categoryName}</Td>
+                      <Td>{r.unitName}</Td>
+                      <Td dir="ltr">{formatMoney(r.qtyBase)}</Td>
                     </tr>
                   ))
                 )}

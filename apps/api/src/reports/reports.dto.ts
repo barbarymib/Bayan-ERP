@@ -28,6 +28,20 @@ export class QueryStockValuesDto extends CsvQuery {
   method?: 'LAST' | 'WEIGHTED' | 'SALES' = 'LAST';
 }
 
+export class QueryItemsWithoutPriceDto extends CsvQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  categoryId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number = 1000;
+}
+
 export class QueryMovementsDto extends CsvQuery {
   @IsOptional()
   @IsString()

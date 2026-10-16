@@ -15,6 +15,7 @@ import type {
   QueryReturnsDto,
   QuerySalesByDto,
   QuerySalesSummaryDto,
+  QueryItemsWithoutPriceDto,
   QueryStockSummaryDto,
   QueryStockValuesDto,
   QueryStocktakeDiffDto,
@@ -83,27 +84,51 @@ export class ReportsService {
     const byItem = new Map<number, { qtyBase: number; value: number }>();
     let totalQty = 0;
     let totalValue = 0;
+    // R3-C2 (§5.8 note): بنود بلا سعر تُوسم ويُستبعد أثرها من الإجمالي مع إظهار عددها.
+    let noPriceLines = 0;
+    let noPriceQty = 0;
+    let noPriceValue = 0;
+    const noPriceItemIds = new Set<number>();
+    const noPriceByItem = new Map<number, { code: string; nameAr: string; qtyBase: number }>();
 
     const rows = balances.map((b) => {
       const qtyBase = roundQty(Number(b.qtyBase));
       let unitCost = 0;
-      if (method === 'LAST') unitCost = b.item.lastPurchaseCost != null ? Number(b.item.lastPurchaseCost) : 0;
-      else if (method === 'WEIGHTED') unitCost = weighted.get(b.itemId) ?? 0;
-      else unitCost = sales.get(b.itemId) ?? 0;
+      let noPrice = false;
+      if (method === 'LAST') {
+        noPrice = b.item.lastPurchaseCost == null;
+        unitCost = noPrice ? 0 : Number(b.item.lastPurchaseCost);
+      } else if (method === 'WEIGHTED') {
+        noPrice = !weighted.has(b.itemId);
+        unitCost = weighted.get(b.itemId) ?? 0;
+      } else {
+        noPrice = !sales.has(b.itemId);
+        unitCost = sales.get(b.itemId) ?? 0;
+      }
       const value = roundMoney(qtyBase * unitCost);
 
-      const wh = perWh.get(b.warehouseId) ?? { qtyBase: 0, value: 0 };
-      wh.qtyBase = roundQty(wh.qtyBase + qtyBase);
-      wh.value = roundMoney(wh.value + value);
-      perWh.set(b.warehouseId, wh);
+      if (noPrice) {
+        noPriceLines++;
+        noPriceQty = roundQty(noPriceQty + qtyBase);
+        noPriceValue = roundMoney(noPriceValue + value);
+        noPriceItemIds.add(b.itemId);
+        const np = noPriceByItem.get(b.itemId) ?? { code: b.item.code, nameAr: b.item.nameAr, qtyBase: 0 };
+        np.qtyBase = roundQty(np.qtyBase + qtyBase);
+        noPriceByItem.set(b.itemId, np);
+      } else {
+        const wh = perWh.get(b.warehouseId) ?? { qtyBase: 0, value: 0 };
+        wh.qtyBase = roundQty(wh.qtyBase + qtyBase);
+        wh.value = roundMoney(wh.value + value);
+        perWh.set(b.warehouseId, wh);
 
-      const it = byItem.get(b.itemId) ?? { qtyBase: 0, value: 0 };
-      it.qtyBase = roundQty(it.qtyBase + qtyBase);
-      it.value = roundMoney(it.value + value);
-      byItem.set(b.itemId, it);
+        const it = byItem.get(b.itemId) ?? { qtyBase: 0, value: 0 };
+        it.qtyBase = roundQty(it.qtyBase + qtyBase);
+        it.value = roundMoney(it.value + value);
+        byItem.set(b.itemId, it);
 
-      totalQty = roundQty(totalQty + qtyBase);
-      totalValue = roundMoney(totalValue + value);
+        totalQty = roundQty(totalQty + qtyBase);
+        totalValue = roundMoney(totalValue + value);
+      }
 
       return {
         itemId: b.itemId,
@@ -114,6 +139,7 @@ export class ReportsService {
         qtyBase,
         unitCost,
         value,
+        noPrice,
       };
     });
 
@@ -140,8 +166,68 @@ export class ReportsService {
         qtyBase: v.qtyBase,
         value: v.value,
       })),
-      totals: { items: items.length, qtyBase: totalQty, value: totalValue },
+      noPriceItems: [...noPriceByItem.entries()].map(([itemId, v]) => ({
+        itemId,
+        code: v.code,
+        nameAr: v.nameAr,
+        qtyBase: v.qtyBase,
+      })),
+      totals: {
+        items: items.length,
+        qtyBase: totalQty,
+        value: totalValue,
+        noPriceItems: noPriceItemIds.size,
+        noPriceLines,
+        noPriceQtyBase: noPriceQty,
+        noPriceValue,
+      },
     };
+  }
+
+  /** أصناف بلا آخر سعر شراء (تقييم صفري) — قائمة الإصلاح (§11 «اختلاف تقييم المخزون»). */
+  async itemsWithoutPrice(query: QueryItemsWithoutPriceDto, companyId: number | null = null) {
+    const items = await this.prisma.item.findMany({
+      where: {
+        ...tenantWhere(companyId),
+        active: true,
+        lastPurchaseCost: null,
+        ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      },
+      select: {
+        id: true,
+        code: true,
+        nameAr: true,
+        baseUnit: { select: { code: true, nameAr: true } },
+        category: { select: { code: true, nameAr: true } },
+      },
+      orderBy: { code: 'asc' },
+      take: query.limit ?? 1000,
+    });
+
+    const onHand = new Map<number, number>();
+    const ids = items.map((i) => i.id);
+    if (ids.length) {
+      const balances = await this.prisma.stockBalance.groupBy({
+        by: ['itemId'],
+        where: { ...tenantWhere(companyId), itemId: { in: ids } },
+        _sum: { qtyBase: true },
+      });
+      for (const b of balances) onHand.set(b.itemId, roundQty(Number(b._sum.qtyBase ?? 0)));
+    }
+
+    const rows = items.map((i) => ({
+      itemId: i.id,
+      code: i.code,
+      nameAr: i.nameAr,
+      category: i.category.code,
+      categoryName: i.category.nameAr,
+      unit: i.baseUnit.code,
+      unitName: i.baseUnit.nameAr,
+      qtyBase: onHand.get(i.id) ?? 0,
+      methodLabel: 'آخر سعر شراء',
+    }));
+
+    return { count: rows.length, rows };
   }
 
   /** دفتر حركات المخزون: عرض لكل حركة مع جارٍ (running balance) لكل صنف/تشغيلة/مخزن. */

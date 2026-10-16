@@ -8,6 +8,7 @@ import {
   QueryDiscountApprovalsDto,
   QueryDiscountsDto,
   QueryItemCardDto,
+  QueryItemsWithoutPriceDto,
   QueryMovementsDto,
   QueryReportSummaryDto,
   QueryRepPerformanceDto,
@@ -122,6 +123,14 @@ export class ReportsController {
   @ApiOkResponse({ description: 'ملاحظات الوزن الفعلي لأصناف الحديد (§5.2)' })
   weightNotes(@Query() query: QueryWeightNotesDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     return this.reports.weightNotes(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
+  }
+
+  @Get('reports/items-without-price')
+  @Permissions('report.view')
+  @Features('reports.valuation')
+  @ApiOkResponse({ description: 'أصناف بلا آخر سعر شراء (تقييم صفري) (§5.8)' })
+  itemsWithoutPrice(@Query() query: QueryItemsWithoutPriceDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.itemsWithoutPrice(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 
   @Get('reports/stopped-customers')
