@@ -90,14 +90,14 @@ describe('PricesService.set — التسعير المجدول R3-A7 (§5.3)', ()
     // سطر جديد فعلاً، لا update للسعر الحالي
     expect(calls.create).toHaveLength(1);
     expect(calls.update).toHaveLength(0);
-    const data = calls.create[0].data as Record<string, unknown>;
+    const data = calls.create[0]!.data as Record<string, unknown>;
     expect(data.price).toBe(250);
     expect(data.companyId).toBe(1);
     expect((data.validFrom as Date).toISOString()).toBe(future);
 
     // تُغلق النافذة السابقة عند بدء السعر الجديد
     expect(calls.updateMany).toHaveLength(1);
-    const close = calls.updateMany[0];
+    const close = calls.updateMany[0]!;
     expect((close.data as Record<string, unknown>).validTo).toEqual(new Date(future));
     const where = close.where as Record<string, unknown>;
     expect(where.itemId).toBe(5);
@@ -109,7 +109,7 @@ describe('PricesService.set — التسعير المجدول R3-A7 (§5.3)', ()
     expect(r.newPrice).toBe(250);
     // سجل التغيير والتدقيق
     expect(calls.history).toHaveLength(1);
-    expect(calls.audit[0].action).toBe('price.change');
+    expect(calls.audit[0]!.action).toBe('price.change');
   });
 
   it('سطر يبدأ بنفس اللحظة يُحدَّث بدل تكراره', async () => {
@@ -129,9 +129,9 @@ describe('PricesService.set — التسعير المجدول R3-A7 (§5.3)', ()
     const r = await service.set({ itemCode: 'IR-12-10', priceListCode: 'RETAIL', price: 120 }, 7, 1);
 
     expect(calls.create).toHaveLength(1);
-    const validFrom = (calls.create[0].data as Record<string, unknown>).validFrom as Date;
+    const validFrom = (calls.create[0]!.data as Record<string, unknown>).validFrom as Date;
     expect(validFrom.getTime()).toBeGreaterThanOrEqual(before - 1000);
-    const closeTo = (calls.updateMany[0].data as Record<string, unknown>).validTo as Date;
+    const closeTo = (calls.updateMany[0]!.data as Record<string, unknown>).validTo as Date;
     expect(closeTo.getTime()).toBe(validFrom.getTime());
     expect(r.oldPrice).toBe(100);
   });

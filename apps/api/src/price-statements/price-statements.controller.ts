@@ -36,7 +36,7 @@ export class PriceStatementsController {
   @Permissions('statement.create', 'report.view')
   @ApiOkResponse({ description: 'قائمة البيانات مع فلاتر' })
   list(@Query() query: QueryStatementsDto, @CurrentUser() user: AuthUser) {
-    return this.statements.list(query, user.companyId ?? null);
+    return this.statements.list(query, user);
   }
 
   @Get(':id')

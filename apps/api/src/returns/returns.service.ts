@@ -21,6 +21,7 @@ import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/unit
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
+import { assertCustomerInScope, repCustomerFilter } from '../common/customer-scope.js';
 import type { CreateReturnDto, QueryReturnsDto } from './returns.dto.js';
 
 @Injectable()
@@ -45,6 +46,8 @@ export class ReturnsService {
     if (!customer || (customer.companyId != null && customer.companyId !== tenant)) {
       throw new NotFoundException(`Customer ${dto.customerId} not found`);
     }
+    // نطاق المندوب (§4.2 «عملاؤه»)
+    await assertCustomerInScope(this.prisma, customer.id, user, tenant);
     if (dto.mode === 'BY_REP' && !user.repCode) {
       throw new BadRequestException('BY_REP mode requires a sales rep user');
     }
@@ -275,12 +278,14 @@ export class ReturnsService {
     return this.get(rtn.id, tenant);
   }
 
-  async list(query: QueryReturnsDto, companyId: number | null = null) {
+  async list(query: QueryReturnsDto, user: AuthUser) {
+    const companyId = user.companyId ?? null;
     const limit = query.limit ?? 20;
+    const customerFilter = await repCustomerFilter(this.prisma, user, companyId, query.customerId);
     const rows = await this.prisma.returnStatement.findMany({
       where: {
         ...tenantWhere(companyId),
-        ...(query.customerId ? { customerId: query.customerId } : {}),
+        ...customerFilter,
         ...(query.repId ? { repId: query.repId } : {}),
         ...(query.status ? { status: query.status } : {}),
       },
@@ -296,7 +301,7 @@ export class ReturnsService {
     const total = await this.prisma.returnStatement.count({
       where: {
         ...tenantWhere(companyId),
-        ...(query.customerId ? { customerId: query.customerId } : {}),
+        ...customerFilter,
         ...(query.repId ? { repId: query.repId } : {}),
         ...(query.status ? { status: query.status } : {}),
       },
@@ -304,7 +309,7 @@ export class ReturnsService {
     return { total, items: rows };
   }
 
-  async get(id: number, companyId: number | null = null) {
+  async get(id: number, companyId: number | null = null, user?: AuthUser) {
     const rtn = await this.prisma.returnStatement.findUnique({
       where: { id },
       include: {
@@ -324,6 +329,7 @@ export class ReturnsService {
     if (!rtn || (rtn.companyId != null && rtn.companyId !== companyId)) {
       throw new NotFoundException(`Return ${id} not found`);
     }
+    if (user) await assertCustomerInScope(this.prisma, rtn.customerId, user, companyId, true);
     return rtn;
   }
 
@@ -333,6 +339,7 @@ export class ReturnsService {
     if (!rtn || (rtn.companyId != null && rtn.companyId !== (user.companyId ?? null))) {
       throw new NotFoundException(`Return ${id} not found`);
     }
+    await assertCustomerInScope(this.prisma, rtn.customerId, user, user.companyId ?? null, true);
     if (rtn.status === 'CANCELLED') throw new BadRequestException('Return already cancelled');
     if (rtn.status === 'APPROVED') throw new BadRequestException('Approved returns cannot be cancelled here');
     await this.prisma.$transaction(async (tx) => {

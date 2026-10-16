@@ -15,6 +15,7 @@ import {
 import type { AuthUser } from '../auth/auth.decorators.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { assertCustomerInScope, repCustomerFilter } from '../common/customer-scope.js';
 import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
@@ -126,6 +127,8 @@ export class PriceStatementsService {
     if (!customer || (customer.companyId != null && customer.companyId !== tenant)) {
       throw new NotFoundException(`Customer ${dto.customerId} not found`);
     }
+    // نطاق المندوب (§4.2 «عملاؤه»)
+    await assertCustomerInScope(this.prisma, customer.id, user, tenant);
 
     const warehouse =
       dto.warehouseId != null
@@ -266,6 +269,7 @@ export class PriceStatementsService {
     if (!existing || (existing.companyId != null && existing.companyId !== tenant)) {
       throw new NotFoundException(`Statement ${id} not found`);
     }
+    await assertCustomerInScope(this.prisma, existing.customerId, user, tenant, true);
     if (existing.status === 'CANCELLED') throw new BadRequestException('لا يمكن تعديل بيان ملغي');
     if (existing.status === 'ARCHIVED') throw new BadRequestException('لا يمكن تعديل بيان مؤرشف');
 
@@ -286,6 +290,7 @@ export class PriceStatementsService {
     if (!customer || (customer.companyId != null && customer.companyId !== tenant)) {
       throw new NotFoundException(`Customer ${dto.customerId} not found`);
     }
+    await assertCustomerInScope(this.prisma, customer.id, user, tenant);
     const warehouse =
       dto.warehouseId != null
         ? await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } })
@@ -451,12 +456,14 @@ export class PriceStatementsService {
     return { ...this.stripCost(fresh, user), pricingAlerts };
   }
 
-  async list(query: QueryStatementsDto, companyId: number | null = null) {
+  async list(query: QueryStatementsDto, user: AuthUser) {
+    const companyId = user.companyId ?? null;
     const limit = query.limit ?? 20;
+    const customerFilter = await repCustomerFilter(this.prisma, user, companyId, query.customerId);
     const rows = await this.prisma.priceStatement.findMany({
       where: {
         ...tenantWhere(companyId),
-        ...(query.customerId ? { customerId: query.customerId } : {}),
+        ...customerFilter,
         ...(query.repId ? { repId: query.repId } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.from || query.to
@@ -480,7 +487,7 @@ export class PriceStatementsService {
     const total = await this.prisma.priceStatement.count({
       where: {
         ...tenantWhere(companyId),
-        ...(query.customerId ? { customerId: query.customerId } : {}),
+        ...customerFilter,
         ...(query.repId ? { repId: query.repId } : {}),
         ...(query.status ? { status: query.status } : {}),
       },
@@ -493,6 +500,7 @@ export class PriceStatementsService {
     if (!st || (st.companyId != null && st.companyId !== (user.companyId ?? null))) {
       throw new NotFoundException(`Statement ${id} not found`);
     }
+        await assertCustomerInScope(this.prisma, st.customerId, user, user.companyId ?? null, true);
     const approvals = await this.prisma.approval.findMany({
       where: { refType: 'price_statement', refId: id, ...tenantWhere(user.companyId ?? null) },
       include: {
@@ -510,10 +518,14 @@ export class PriceStatementsService {
   }
 
   async cancel(id: number, dto: CancelStatementDto, user: AuthUser) {
-    const st = await this.prisma.priceStatement.findUnique({ where: { id }, select: { status: true, companyId: true } });
+    const st = await this.prisma.priceStatement.findUnique({
+      where: { id },
+      select: { status: true, companyId: true, customerId: true },
+    });
     if (!st || (st.companyId != null && st.companyId !== (user.companyId ?? null))) {
       throw new NotFoundException(`Statement ${id} not found`);
     }
+    await assertCustomerInScope(this.prisma, st.customerId, user, user.companyId ?? null, true);
     if (!dto.reason.trim()) throw new BadRequestException('Cancellation reason is required');
     if (st.status === 'CANCELLED') throw new BadRequestException('Statement already cancelled');
 

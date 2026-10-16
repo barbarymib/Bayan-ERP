@@ -30,14 +30,14 @@ export class ReturnsController {
   @Permissions('return.create', 'report.view')
   @ApiOkResponse({ description: 'قائمة المرتجعات' })
   list(@Query() query: QueryReturnsDto, @CurrentUser() user: AuthUser) {
-    return this.returns.list(query, user.companyId ?? null);
+    return this.returns.list(query, user);
   }
 
   @Get(':id')
   @Permissions('return.create', 'report.view')
   @ApiOkResponse({ description: 'تفاصيل مرتجع بخطوطه' })
   get(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.returns.get(id, user.companyId ?? null);
+    return this.returns.get(id, user.companyId ?? null, user);
   }
 
   @Delete(':id/cancel')

@@ -31,6 +31,7 @@ type Harness = {
     finalized: boolean;
     notified: number;
     creditChecks: { customerId: number; newNet: number }[];
+    statementFindMany: { where: Record<string, unknown> }[];
   };
   st: Record<string, unknown>;
 };
@@ -82,7 +83,7 @@ function harness(
   stOverrides: Record<string, unknown> = {},
   maxRevision: number | null = null,
   itemOverrides: Record<string, unknown> = {},
-  opts: { customer?: Record<string, unknown>; blockCredit?: boolean } = {},
+  opts: { customer?: Record<string, unknown>; blockCredit?: boolean; assignments?: number[] } = {},
 ): Harness {
   const st = makeStatement(stOverrides);
   const calls: Harness['calls'] = {
@@ -98,6 +99,7 @@ function harness(
     finalized: false,
     notified: 0,
     creditChecks: [],
+    statementFindMany: [],
   };
 
   const tx = {
@@ -133,6 +135,11 @@ function harness(
   const prisma = {
     priceStatement: {
       findUnique: async () => st,
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        calls.statementFindMany.push(args);
+        return [];
+      },
+      count: async () => 0,
       create: async () => ({ ...st, id: 99, lines: [] }),
     },
     customer: {
@@ -156,6 +163,11 @@ function harness(
     unit: { findUnique: async () => ({ id: 6, code: 'PCS' }) },
     itemUnit: { findUnique: async () => null },
     approval: { findMany: async () => [] },
+    customerRepAssignment: {
+      findMany: async () => (opts.assignments ?? []).map((customerId) => ({ customerId })),
+      findFirst: async (args: { where?: { customerId?: number } } = {}) =>
+        (opts.assignments ?? []).includes(args.where?.customerId ?? -1) ? { id: 1 } : null,
+    },
     statementRevision: {
       findMany: async () => calls.revisions.map((r, i) => ({ id: i + 1, ...r.data, createdAt: new Date() })),
     },
@@ -472,5 +484,49 @@ describe('PriceStatementsService unit precision (R3-A4 §5.2)', () => {
       approver,
     );
     expect(res).toBeTruthy();
+  });
+});
+
+const rep = {
+  id: 9,
+  name: 'مندوب',
+  roleCode: 'SALES_REP',
+  repCode: 'M03',
+  permissions: ['statement.create', 'statement.edit', 'cost.view'],
+  maxItemDiscountPct: 0,
+  maxInvoiceDiscountPct: 0,
+  companyId: 1,
+} as unknown as AuthUser;
+
+const createDto = { customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }] };
+
+describe('PriceStatementsService rep scoping (R3-A9 §4.2)', () => {
+  it('يرفض إنشاء بيان لعميل غير مسنَد للمندوب (403)', async () => {
+    const { service } = harness({}, null, {}, { assignments: [99] });
+    await expect(service.create(createDto, rep)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('يسمح للمندوب بإنشاء بيان لعميله المسنَد', async () => {
+    const { service } = harness({}, null, {}, { assignments: [2] });
+    const res = await service.create(createDto, rep);
+    expect(res).toBeTruthy();
+  });
+
+  it('لا يقيّد مدير بلا دور مندوب (ينشئ لأي عميل)', async () => {
+    const { service } = harness({}, null, {}, { assignments: [] });
+    const res = await service.create(createDto, approver);
+    expect(res).toBeTruthy();
+  });
+
+  it('يحصر قائمة البيانات على عملاء المندوب المسنَدين فقط', async () => {
+    const { service, calls } = harness({}, null, {}, { assignments: [2, 5] });
+    await service.list({}, rep);
+    expect(calls.statementFindMany[0]!.where.customerId).toEqual({ in: [2, 5] });
+  });
+
+  it('يستبعد عميلاً خارج نطاق المندوب في فلتر القائمة', async () => {
+    const { service, calls } = harness({}, null, {}, { assignments: [2, 5] });
+    await service.list({ customerId: 9 }, rep);
+    expect(calls.statementFindMany[0]!.where.customerId).toBe(-1);
   });
 });
