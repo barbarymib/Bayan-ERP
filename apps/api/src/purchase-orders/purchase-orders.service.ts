@@ -14,6 +14,12 @@ import type {
   ReceivePurchaseOrderDto,
 } from './purchase-orders.dto.js';
 
+const toDbDiscountType = (t?: 'percent' | 'amount'): 'PERCENT' | 'AMOUNT' | null =>
+  t === 'percent' ? 'PERCENT' : t === 'amount' ? 'AMOUNT' : null;
+
+const fromDbDiscountType = (t: 'PERCENT' | 'AMOUNT' | null): 'percent' | 'amount' | undefined =>
+  t === 'PERCENT' ? 'percent' : t === 'AMOUNT' ? 'amount' : undefined;
+
 @Injectable()
 export class PurchaseOrdersService {
   constructor(
@@ -87,6 +93,9 @@ export class PurchaseOrdersService {
               qty: r.qty,
               qtyBase: roundQty(r.qty * r.factor),
               unitPrice: r.unitPrice,
+              lineDiscountType: toDbDiscountType(r.discount?.type),
+              lineDiscountValue: r.discount?.value ?? null,
+              lineDiscountAmount: t.lineDiscountAmount,
               netLine: t.netFinal,
             };
           }),
@@ -197,6 +206,9 @@ export class PurchaseOrdersService {
           unitCode: l.unit.code,
           qty: Number(l.qty),
           unitPrice: Number(l.unitPrice),
+          discount: l.lineDiscountType
+            ? { type: fromDbDiscountType(l.lineDiscountType)!, value: Number(l.lineDiscountValue ?? 0) }
+            : undefined,
         })),
         shipping: dto.shipping,
         landedCostBasis: dto.landedCostBasis,

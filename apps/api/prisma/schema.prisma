@@ -1580,6 +1580,9 @@ model PurchaseOrderLine {
   qty             Decimal       @db.Decimal(18, 3)
   qtyBase         Decimal       @db.Decimal(18, 3)
   unitPrice       Decimal       @db.Decimal(18, 4)
+  lineDiscountType   DiscountType?
+  lineDiscountValue  Decimal?      @db.Decimal(18, 2)
+  lineDiscountAmount Decimal       @default(0) @db.Decimal(18, 2)
   netLine         Decimal       @db.Decimal(18, 2)
   receivedQtyBase Decimal       @default(0) @db.Decimal(18, 3)
 
