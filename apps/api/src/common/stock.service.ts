@@ -25,6 +25,12 @@ export interface StockOpInput {
 
 const ACTIVE_STOCKTAKE = ['OPEN', 'COUNTING', 'REVIEW'] as const;
 
+/** استثناء حجز مستند بعينه من حساب المتاح (مثلاً حجز البيان نفسه عند الاعتماد). */
+export interface ReservationExclude {
+  refType: string;
+  refId: number;
+}
+
 function freezeMessage(number: string): string {
   return `المخزن مجمّد — توجد جلسة جرد نشطة (${number}). أنهِ أو ألغِ الجلسة قبل تنفيذ حركات المخزون.`;
 }
@@ -117,15 +123,29 @@ export class StockService {
     });
   }
 
-  /** الكمية المتاحة = الرصيد − الحجوزات النشطة. */
-  async availableQty(warehouseId: number, itemId: number, batchId = '', companyId: number | null = null): Promise<number> {
+  /** الكمية المتاحة = الرصيد − الحجوزات النشطة (يمكن استثناء حجز مستند بعينه). */
+  async availableQty(
+    warehouseId: number,
+    itemId: number,
+    batchId = '',
+    companyId: number | null = null,
+    exclude?: ReservationExclude,
+  ): Promise<number> {
+    const reservedWhere: Prisma.StockReservationWhereInput = {
+      warehouseId,
+      itemId,
+      batchId,
+      status: 'ACTIVE',
+      ...tenantWhere(companyId),
+    };
+    if (exclude) reservedWhere.NOT = { refType: exclude.refType, refId: exclude.refId };
     const [balance, reserved] = await Promise.all([
       this.prisma.stockBalance.findUnique({
         where: { warehouseId_itemId_batchId: { warehouseId, itemId, batchId } },
         select: { qtyBase: true },
       }),
       this.prisma.stockReservation.aggregate({
-        where: { warehouseId, itemId, batchId, status: 'ACTIVE', ...tenantWhere(companyId) },
+        where: reservedWhere,
         _sum: { qtyBase: true },
       }),
     ]);
@@ -139,14 +159,15 @@ export class StockService {
     warehouseId: number,
     required: { itemId: number; qtyBase: number }[],
     companyId: number | null = null,
+    exclude?: ReservationExclude,
   ): Promise<void> {
     const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'stock.sale.enforce' } });
     if ((setting?.value ?? 'ALLOW') !== 'BLOCK') return;
     for (const line of required) {
-      const available = await this.availableQty(warehouseId, line.itemId, '', companyId);
+      const available = await this.availableQty(warehouseId, line.itemId, '', companyId, exclude);
       if (line.qtyBase > available) {
         throw new BadRequestException(
-          `الكمية المطلوبة (${line.qtyBase}) تتجاوز المتاح (${available}). الحجوزات النشطة: ${line.qtyBase - available}.`,
+          `الكمية المطلوبة (${line.qtyBase}) تتجاوز المتاح (${available}).`,
         );
       }
     }

@@ -44,6 +44,14 @@ export class SalesOpsService {
     const tenant = by.companyId ?? null;
     // منع تجاوز الحد الائتماني عند الاعتماد حسب الإعداد (§5.4)
     await this.assertCustomerCredit(st.customerId, Number(st.net), tenant);
+    // R3-B11: إعادة فحص الرصيد المتاح عند الاعتماد/الترحيل حسب الإعداد stock.sale.enforce = BLOCK
+    // (قد يتغيّر الرصيد بين الإنشاء والاعتماد). يُستثنى حجز هذا البيان نفسه لأنه سيُحرَّر داخل المعاملة.
+    await this.stock.assertSalePermitted(
+      st.warehouseId,
+      st.lines.map((l) => ({ itemId: l.itemId, qtyBase: Number(l.qtyBase) })),
+      tenant,
+      { refType: 'price_statement', refId: st.id },
+    );
     const period = await this.periods.open(tenant);
     const rcNumber = Number(st.paid) > 0 ? await this.numbering.issue('RC', by.repCode ?? '', tenant) : null;
 

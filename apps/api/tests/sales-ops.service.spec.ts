@@ -224,6 +224,7 @@ function buildCredit(opts: {
   debit?: number;
   credit?: number;
   net?: number;
+  stockBlocked?: boolean;
 }) {
   const st = {
     id: 5,
@@ -237,6 +238,9 @@ function buildCredit(opts: {
     lines: [{ itemId: 11, qtyBase: 2 }],
   };
   const saleOut = vi.fn(async () => {});
+  const assertSalePermitted = vi.fn(async () => {
+    if (opts.stockBlocked) throw new Error('الكمية المطلوبة (2) تتجاوز المتاح (0).');
+  });
   const prisma = {
     systemSetting: { findUnique: async () => (opts.mode === null ? null : { value: opts.mode ?? 'WARN' }) },
     customer: {
@@ -249,12 +253,12 @@ function buildCredit(opts: {
   } as unknown as PrismaService;
   const service = new SalesOpsService(
     prisma,
-    { saleOut, releaseReservations: vi.fn() } as never,
+    { saleOut, releaseReservations: vi.fn(), assertSalePermitted } as never,
     { entry: vi.fn(), balanceOf: async () => ({ debit: opts.debit ?? 0, credit: opts.credit ?? 0 }) } as never,
     { issue: async () => 'RC-1' } as never,
     { open: async () => ({ id: 1 }) } as never,
   );
-  return { service, saleOut };
+  return { service, saleOut, assertSalePermitted };
 }
 
 describe('SalesOpsService.assertCustomerCredit (R3-B1 §5.4)', () => {
@@ -291,6 +295,25 @@ describe('SalesOpsService.assertCustomerCredit (R3-B1 §5.4)', () => {
   it('finalizeStatement بـ BLOCK عند التجاوز: يرفض ولا يصرف من المخزن', async () => {
     const { service, saleOut } = buildCredit({ mode: 'BLOCK', creditLimit: 50, net: 100 });
     await expect(service.finalizeStatement(5, user)).rejects.toThrow(/الحد الائتماني/);
+    expect(saleOut).not.toHaveBeenCalled();
+  });
+
+  it('finalizeStatement: يعيد فحص الرصيد المتاح عند الاعتماد مستثنياً حجز البيان نفسه (R3-B11)', async () => {
+    const { service, saleOut, assertSalePermitted } = buildCredit({ mode: 'WARN' });
+    await service.finalizeStatement(5, user);
+    expect(assertSalePermitted).toHaveBeenCalledWith(
+      3,
+      [{ itemId: 11, qtyBase: 2 }],
+      1,
+      { refType: 'price_statement', refId: 5 },
+    );
+    expect(saleOut).toHaveBeenCalled();
+  });
+
+  it('finalizeStatement: يرفض ولا يصرف عند نقص المتاح (stock.sale.enforce=BLOCK) (R3-B11)', async () => {
+    const { service, saleOut, assertSalePermitted } = buildCredit({ mode: 'WARN', stockBlocked: true });
+    await expect(service.finalizeStatement(5, user)).rejects.toThrow(/تتجاوز المتاح/);
+    expect(assertSalePermitted).toHaveBeenCalledTimes(1);
     expect(saleOut).not.toHaveBeenCalled();
   });
 });
