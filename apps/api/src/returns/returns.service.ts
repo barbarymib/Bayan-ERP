@@ -210,6 +210,9 @@ export class ReturnsService {
     }
 
     const selfApproved = user.permissions.includes('return.approve');
+    // §5.9.6: مرتجعات المندوب تحتاج اعتماد المشرف/المحاسب قبل التأثير النهائي (اختياري بالإعداد).
+    const fromRep = !!user.repCode;
+    const needsApproval = fromRep ? !selfApproved && (await this.repApprovalRequired()) : !selfApproved;
     const rtn = await this.prisma.returnStatement.create({
       data: {
         number,
@@ -247,7 +250,7 @@ export class ReturnsService {
       },
     });
 
-    if (!selfApproved) {
+    if (needsApproval) {
       await this.prisma.approval.create({
         data: {
           type: 'RETURN',
@@ -276,6 +279,12 @@ export class ReturnsService {
     }
 
     return this.get(rtn.id, tenant);
+  }
+
+  /** §5.9.6: هل تتطلب مرتجعات المندوب اعتماد المشرف/المحاسب؟ (الإعداد `return.rep.approval.required`؛ غائب = مطلوب). */
+  private async repApprovalRequired(): Promise<boolean> {
+    const row = await this.prisma.systemSetting.findUnique({ where: { key: 'return.rep.approval.required' } });
+    return (row?.value ?? 'true') !== 'false';
   }
 
   async list(query: QueryReturnsDto, user: AuthUser) {

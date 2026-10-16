@@ -243,6 +243,13 @@ async function main(): Promise<void> {
     create: { key: 'geo.consent.required', value: 'true' },
   });
 
+  // اشتراط اعتماد المشرف/المحاسب لمرتجعات المندوب قبل التأثير النهائي — §5.9.6 (اختياري)
+  await prisma.systemSetting.upsert({
+    where: { key: 'return.rep.approval.required' },
+    update: { value: 'true' },
+    create: { key: 'return.rep.approval.required', value: 'true' },
+  });
+
   // فترة مفتوحة حالية (ADR-1)
   const openPeriod = await prisma.period.findFirst({ where: { status: 'OPEN' } });
   if (!openPeriod) {
