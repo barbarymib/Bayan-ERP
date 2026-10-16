@@ -36,20 +36,20 @@ export class SuppliersController {
   @Permissions('supplier.manage')
   @ApiOkResponse({ description: 'إنشاء مورد' })
   create(@Body() dto: CreateSupplierDto, @CurrentUser() user: AuthUser) {
-    return this.suppliers.create(dto, user.companyId ?? null);
+    return this.suppliers.create(dto, user.companyId ?? null, user.id);
   }
 
   @Patch(':id')
   @Permissions('supplier.manage')
   @ApiOkResponse({ description: 'تعديل مورد' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplierDto, @CurrentUser() user: AuthUser) {
-    return this.suppliers.update(id, dto, user.companyId ?? null);
+    return this.suppliers.update(id, dto, user.companyId ?? null, user.id);
   }
 
   @Delete(':id')
   @Permissions('supplier.manage')
   @ApiOkResponse({ description: 'إيقاف مورد (soft delete)' })
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.suppliers.remove(id, user.companyId ?? null);
+    return this.suppliers.remove(id, user.companyId ?? null, user.id);
   }
 }

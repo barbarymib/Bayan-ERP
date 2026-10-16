@@ -36,20 +36,20 @@ export class WarehousesController {
   @Permissions('warehouse.manage')
   @ApiOkResponse({ description: 'إنشاء مخزن' })
   create(@Body() dto: CreateWarehouseDto, @CurrentUser() user: AuthUser) {
-    return this.warehouses.create(dto, user.companyId ?? null);
+    return this.warehouses.create(dto, user.companyId ?? null, user.id);
   }
 
   @Patch(':id')
   @Permissions('warehouse.manage')
   @ApiOkResponse({ description: 'تعديل مخزن' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateWarehouseDto, @CurrentUser() user: AuthUser) {
-    return this.warehouses.update(id, dto, user.companyId ?? null);
+    return this.warehouses.update(id, dto, user.companyId ?? null, user.id);
   }
 
   @Delete(':id')
   @Permissions('warehouse.manage')
   @ApiOkResponse({ description: 'إيقاف مخزن (بدون حركات)' })
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.warehouses.remove(id, user.companyId ?? null);
+    return this.warehouses.remove(id, user.companyId ?? null, user.id);
   }
 }

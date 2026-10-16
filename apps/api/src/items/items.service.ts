@@ -5,13 +5,17 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreateItemDto, QueryItemsDto, UpdateItemDto } from './items.dto.js';
 
 @Injectable()
 export class ItemsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audits: AuditLogsService,
+  ) {}
 
-  async create(dto: CreateItemDto, companyId: number | null = null) {
+  async create(dto: CreateItemDto, companyId: number | null = null, userId?: number) {
     const existing = await this.prisma.item.findFirst({ where: { code: dto.code, ...tenantWhere(companyId) } });
     if (existing) throw new ConflictException(`Item code ${dto.code} already exists`);
 
@@ -32,7 +36,7 @@ export class ItemsService {
       throw new NotFoundException(`Brand ${dto.brandCode} not found`);
     }
 
-    return this.prisma.item.create({
+    const created = await this.prisma.item.create({
       data: {
         code: dto.code,
         barcode: dto.barcode,
@@ -76,6 +80,15 @@ export class ItemsService {
       },
       include: { category: true, baseUnit: true, brand: true, itemUnits: true, attributes: true },
     });
+
+    await this.audits.write({
+      userId,
+      action: 'item.create',
+      entity: 'Item',
+      entityId: created.id,
+      afterJson: { code: created.code, nameAr: created.nameAr, baseUnitId: baseUnit.id, categoryId: category.id },
+    });
+    return created;
   }
 
   async list(query: QueryItemsDto, companyId: number | null = null) {
@@ -136,8 +149,8 @@ export class ItemsService {
     return item;
   }
 
-  async update(id: number, dto: UpdateItemDto, companyId: number | null = null) {
-    await this.findOne(id, companyId);
+  async update(id: number, dto: UpdateItemDto, companyId: number | null = null, userId?: number) {
+    const before = await this.findOne(id, companyId);
 
     const category = dto.categoryCode
       ? await this.prisma.category.findFirst({ where: { code: dto.categoryCode, ...tenantWhere(companyId) } })
@@ -153,7 +166,7 @@ export class ItemsService {
       throw new NotFoundException(`Brand ${dto.brandCode} not found`);
     }
 
-    return this.prisma.item.update({
+    const updated = await this.prisma.item.update({
       where: { id },
       data: {
         nameAr: dto.nameAr,
@@ -171,6 +184,16 @@ export class ItemsService {
       },
       include: { category: true, baseUnit: true, brand: true },
     });
+
+    await this.audits.write({
+      userId,
+      action: 'item.update',
+      entity: 'Item',
+      entityId: id,
+      beforeJson: { nameAr: before.nameAr, nameEn: before.nameEn, active: before.active, categoryId: before.categoryId },
+      afterJson: { nameAr: updated.nameAr, nameEn: updated.nameEn, active: updated.active, categoryId: updated.categoryId },
+    });
+    return updated;
   }
 
   /** تنويعات صنف أساسي (الألوان/العبوات المرتبطة). */

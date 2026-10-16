@@ -36,20 +36,20 @@ export class CustomersController {
   @Permissions('customer.manage')
   @ApiOkResponse({ description: 'إنشاء عميل (بحد ائتماني/مندوب)' })
   create(@Body() dto: CreateCustomerDto, @CurrentUser() user: AuthUser) {
-    return this.customers.create(dto, user.companyId ?? null);
+    return this.customers.create(dto, user.companyId ?? null, user.id);
   }
 
   @Patch(':id')
   @Permissions('customer.manage')
   @ApiOkResponse({ description: 'تعديل عميل' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto, @CurrentUser() user: AuthUser) {
-    return this.customers.update(id, dto, user.companyId ?? null);
+    return this.customers.update(id, dto, user.companyId ?? null, user.id);
   }
 
   @Delete(':id')
   @Permissions('customer.manage')
   @ApiOkResponse({ description: 'إيقاف عميل (soft delete)' })
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.customers.remove(id, user.companyId ?? null);
+    return this.customers.remove(id, user.companyId ?? null, user.id);
   }
 }

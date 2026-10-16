@@ -1,6 +1,9 @@
 ﻿import { describe, expect, it } from 'vitest';
 import { CustomersService } from '../src/customers/customers.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
+import type { AuditLogsService } from '../src/audit-logs/audit-logs.service.js';
+
+const makeAudits = () => ({ write: async () => {} }) as unknown as AuditLogsService;
 
 type Row = Record<string, unknown>;
 
@@ -45,7 +48,7 @@ function makePrisma(options: { openAssignments?: Row[] } = {}) {
 describe('CustomersService — مزامنة تعيين المندوب (CustomerRepAssignment)', () => {
   it('ينشئ تعييناً مفتوحاً عند إنشاء عميل بمندوب، مربوطاً بالمستأجر', async () => {
     const { prisma, state } = makePrisma();
-    const svc = new CustomersService(prisma);
+    const svc = new CustomersService(prisma, makeAudits());
     await svc.create({ nameAr: 'عميل', repCode: 'M03' }, 1);
     expect(state.createdAssignments).toEqual([
       { customerId: 1, repId: 42, companyId: 1 },
@@ -54,14 +57,14 @@ describe('CustomersService — مزامنة تعيين المندوب (CustomerR
 
   it('لا ينشئ تعييناً عند إنشاء عميل بدون مندوب', async () => {
     const { prisma, state } = makePrisma();
-    const svc = new CustomersService(prisma);
+    const svc = new CustomersService(prisma, makeAudits());
     await svc.create({ nameAr: 'عميل' }, 1);
     expect(state.createdAssignments).toEqual([]);
   });
 
   it('عند إعادة تعيين عميل: يغلق التعيين المفتوح السابق ويفتح تعييناً للمندوب الجديد', async () => {
     const { prisma, state } = makePrisma({ openAssignments: [{ id: 5, repId: 99 }] });
-    const svc = new CustomersService(prisma);
+    const svc = new CustomersService(prisma, makeAudits());
     await svc.update(1, { repCode: 'M03' }, 1);
     expect(state.closed).toEqual([5]);
     expect(state.createdAssignments).toEqual([
@@ -71,7 +74,7 @@ describe('CustomersService — مزامنة تعيين المندوب (CustomerR
 
   it('لا يعيد فتح تعيين إن كان التعيين المفتوح مطابقاً للمندوب نفسه', async () => {
     const { prisma, state } = makePrisma({ openAssignments: [{ id: 5, repId: 42 }] });
-    const svc = new CustomersService(prisma);
+    const svc = new CustomersService(prisma, makeAudits());
     await svc.update(1, { repCode: 'M03' }, 1);
     expect(state.closed).toEqual([]);
     expect(state.createdAssignments).toEqual([]);

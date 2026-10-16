@@ -32,6 +32,7 @@ function harness() {
     { notify: async () => {} } as never,
     {} as never,
     stocktakes as never,
+    { write: async () => {} } as never,
   );
   return { service, calls, stocktakes };
 }

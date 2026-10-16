@@ -1,13 +1,17 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreateWarehouseDto, QueryWarehousesDto, UpdateWarehouseDto } from './warehouses.dto.js';
 
 @Injectable()
 export class WarehousesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audits: AuditLogsService,
+  ) {}
 
-  async create(dto: CreateWarehouseDto, companyId: number | null = null) {
+  async create(dto: CreateWarehouseDto, companyId: number | null = null, userId?: number) {
     const existing = await this.prisma.warehouse.findFirst({ where: { code: dto.code, ...tenantWhere(companyId) } });
     if (existing) throw new ConflictException(`Warehouse code ${dto.code} already exists`);
 
@@ -17,7 +21,7 @@ export class WarehousesService {
     if (dto.keeperId && !keeper) throw new NotFoundException(`User #${dto.keeperId} not found`);
     const branchId = await this.resolveBranch(dto.branchId, companyId);
 
-    return this.prisma.warehouse.create({
+    const created = await this.prisma.warehouse.create({
       data: {
         code: dto.code,
         nameAr: dto.nameAr,
@@ -28,6 +32,14 @@ export class WarehousesService {
       },
       include: { keeper: { select: { id: true, name: true, repCode: true } } },
     });
+    await this.audits.write({
+      userId,
+      action: 'warehouse.create',
+      entity: 'Warehouse',
+      entityId: created.id,
+      afterJson: { code: created.code, nameAr: created.nameAr, type: created.type },
+    });
+    return created;
   }
 
   async list(query: QueryWarehousesDto, companyId: number | null = null) {
@@ -64,8 +76,8 @@ export class WarehousesService {
     return warehouse;
   }
 
-  async update(id: number, dto: UpdateWarehouseDto, companyId: number | null = null) {
-    await this.findOne(id, companyId);
+  async update(id: number, dto: UpdateWarehouseDto, companyId: number | null = null, userId?: number) {
+    const before = await this.findOne(id, companyId);
     const keeper = dto.keeperId
       ? await this.prisma.user.findUnique({ where: { id: dto.keeperId } })
       : null;
@@ -79,15 +91,24 @@ export class WarehousesService {
     };
     if (dto.branchId !== undefined) data.branchId = await this.resolveBranch(dto.branchId, companyId);
 
-    return this.prisma.warehouse.update({
+    const updated = await this.prisma.warehouse.update({
       where: { id },
       data,
       include: { keeper: { select: { id: true, name: true, repCode: true } } },
     });
+    await this.audits.write({
+      userId,
+      action: 'warehouse.update',
+      entity: 'Warehouse',
+      entityId: id,
+      beforeJson: { nameAr: before.nameAr, type: before.type, active: before.active, keeperId: before.keeperId },
+      afterJson: { nameAr: updated.nameAr, type: updated.type, active: updated.active, keeperId: updated.keeperId },
+    });
+    return updated;
   }
 
   /** إيقاف مخزن (soft delete) — متاح فقط إن لم تكن له حركات. */
-  async remove(id: number, companyId: number | null = null) {
+  async remove(id: number, companyId: number | null = null, userId?: number) {
     const usage = await this.prisma.$transaction([
       this.prisma.stockBalance.count({ where: { warehouseId: id, ...tenantWhere(companyId) } }),
       this.prisma.stockMovement.count({ where: { warehouseId: id, ...tenantWhere(companyId) } }),
@@ -97,6 +118,13 @@ export class WarehousesService {
     }
     await this.findOne(id, companyId);
     await this.prisma.warehouse.update({ where: { id }, data: { active: false } });
+    await this.audits.write({
+      userId,
+      action: 'warehouse.delete',
+      entity: 'Warehouse',
+      entityId: id,
+      afterJson: { active: false },
+    });
     return { ok: true };
   }
 

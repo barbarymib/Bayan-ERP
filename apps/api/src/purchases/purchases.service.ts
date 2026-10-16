@@ -18,6 +18,7 @@ import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
 import { StockService } from '../common/stock.service.js';
 import { LedgerService } from '../common/ledger.service.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreatePurchaseDto, QueryPurchasesDto } from './purchases.dto.js';
 
 const toDbDiscountType = (t?: 'percent' | 'amount'): 'PERCENT' | 'AMOUNT' | null =>
@@ -31,6 +32,7 @@ export class PurchasesService {
     private readonly periods: PeriodsService,
     private readonly stock: StockService,
     private readonly ledger: LedgerService,
+    private readonly audits: AuditLogsService,
   ) {}
 
   async create(dto: CreatePurchaseDto, user: AuthUser) {
@@ -222,6 +224,24 @@ export class PurchasesService {
         });
       }
       return p;
+    });
+
+    // تدقيق إنشاء بيان التوريد (§9)
+    await this.audits.write({
+      userId: user.id,
+      action: 'purchase.create',
+      entity: 'PurchaseStatement',
+      entityId: purchase.id,
+      afterJson: {
+        number,
+        supplierId: supplier.id,
+        warehouseId: warehouse.id,
+        subtotal: totals.subtotal,
+        discountAmount: totals.headerDiscountAmount,
+        shipping: totals.shipping,
+        net: totals.net,
+        paid: dto.paid ?? 0,
+      },
     });
 
     const fresh = await this.prisma.purchaseStatement.findUnique({

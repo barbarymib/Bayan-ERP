@@ -68,6 +68,7 @@ function build(lineItems: Record<string, number>) {
     { open: async () => ({ id: 1 }) } as never,
     stock as never,
     { entry: async () => {}, resolveCashAccountId: async () => 1, cashEntry: async () => {} } as never,
+    { write: async () => {} } as never,
   );
 
   return { service, calls };

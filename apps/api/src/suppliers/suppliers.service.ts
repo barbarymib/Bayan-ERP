@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreateSupplierDto, QuerySuppliersDto, UpdateSupplierDto } from './suppliers.dto.js';
 
 const isUniqueError = (e: unknown): boolean =>
@@ -9,14 +10,17 @@ const isUniqueError = (e: unknown): boolean =>
 
 @Injectable()
 export class SuppliersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audits: AuditLogsService,
+  ) {}
 
-  async create(dto: CreateSupplierDto, companyId: number | null = null) {
+  async create(dto: CreateSupplierDto, companyId: number | null = null, userId?: number) {
     let code = dto.code;
     for (let attempt = 0; attempt < 5; attempt++) {
       if (!code) code = await this.nextCode(companyId, attempt);
       try {
-        return await this.prisma.supplier.create({
+        const created = await this.prisma.supplier.create({
           data: {
             code,
             nameAr: dto.nameAr,
@@ -26,6 +30,14 @@ export class SuppliersService {
             ...tenantWhere(companyId),
           },
         });
+        await this.audits.write({
+          userId,
+          action: 'supplier.create',
+          entity: 'Supplier',
+          entityId: created.id,
+          afterJson: { code: created.code, nameAr: created.nameAr },
+        });
+        return created;
       } catch (e) {
         if (isUniqueError(e) && !dto.code) {
           code = undefined;
@@ -79,9 +91,9 @@ export class SuppliersService {
     return supplier;
   }
 
-  async update(id: number, dto: UpdateSupplierDto, companyId: number | null = null) {
-    await this.findOne(id, companyId);
-    return this.prisma.supplier.update({
+  async update(id: number, dto: UpdateSupplierDto, companyId: number | null = null, userId?: number) {
+    const before = await this.findOne(id, companyId);
+    const updated = await this.prisma.supplier.update({
       where: { id },
       data: {
         nameAr: dto.nameAr,
@@ -91,12 +103,28 @@ export class SuppliersService {
         active: dto.active,
       },
     });
+    await this.audits.write({
+      userId,
+      action: 'supplier.update',
+      entity: 'Supplier',
+      entityId: id,
+      beforeJson: { nameAr: before.nameAr, phone: before.phone, active: before.active },
+      afterJson: { nameAr: updated.nameAr, phone: updated.phone, active: updated.active },
+    });
+    return updated;
   }
 
   /** إيقاف مورد (soft delete). */
-  async remove(id: number, companyId: number | null = null) {
+  async remove(id: number, companyId: number | null = null, userId?: number) {
     await this.findOne(id, companyId);
     await this.prisma.supplier.update({ where: { id }, data: { active: false } });
+    await this.audits.write({
+      userId,
+      action: 'supplier.delete',
+      entity: 'Supplier',
+      entityId: id,
+      afterJson: { active: false },
+    });
     return { ok: true };
   }
 

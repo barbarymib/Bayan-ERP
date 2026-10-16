@@ -14,6 +14,7 @@ import { CollectionsService } from '../collections/collections.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { SalesOpsService } from '../common/sales-ops.service.js';
 import { StocktakesService } from '../stocktakes/stocktakes.service.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { StocktakeCountsDto } from '../stocktakes/stocktakes.dto.js';
 import type { CreateStatementDto, StatementLineInputDto, DiscountInputDto } from '../price-statements/price-statements.dto.js';
 import type { DeviceRegisterDto, PushItemDto, PushDto, ReserveBlockDto } from './sync.dto.js';
@@ -48,6 +49,7 @@ export class SyncService {
     private readonly notifications: NotificationsService,
     private readonly ops: SalesOpsService,
     private readonly stocktakes: StocktakesService,
+    private readonly audits: AuditLogsService,
   ) {}
 
   /** ربط جهاز واحد لكل مستخدم (§5.12). */
@@ -293,6 +295,23 @@ export class SyncService {
           title: 'رفع مستند بانتظار المراجعة',
           body: `المستند ${r.clientUuid} — ${(r as { error?: string }).error ?? 'تم رفض المستند'}`,
           refType: 'sync_push',
+        });
+      }
+    }
+    // تدقيق رفع المستندات (لكل مستند تم قبوله على الخادم) (§9)
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i] as { clientUuid: string; status: string; serverId?: number };
+      if (typeof r.serverId === 'number') {
+        await this.audits.write({
+          userId: user.id,
+          action: 'sync.push',
+          entity: 'SyncPush',
+          entityId: r.serverId,
+          afterJson: {
+            type: dto.items[i]?.type ?? null,
+            clientUuid: r.clientUuid,
+            status: r.status,
+          },
         });
       }
     }

@@ -253,6 +253,25 @@ export class PriceStatementsService {
       await this.ops.finalizeStatement(statement.id, user);
     }
 
+    // تدقيق إنشاء البيان مع الخصومات (§5.6/§9)
+    await this.audits.write({
+      userId: user.id,
+      action: 'statement.create',
+      entity: 'PriceStatement',
+      entityId: statement.id,
+      afterJson: {
+        number: statement.number,
+        customerId: customer.id,
+        status: requiresApproval ? 'DRAFT' : 'APPROVED',
+        subtotal: totals.subtotal,
+        discountType: dto.discount?.type ?? null,
+        discountValue: dto.discount?.value ?? null,
+        discountAmount: totals.headerDiscountAmount,
+        net: totals.net,
+        requiresApproval,
+      },
+    });
+
     const fresh = await this.findWithDetail(statement.id);
     return { ...this.stripCost(fresh, user), creditWarning, pricingAlerts };
   }
@@ -444,10 +463,21 @@ export class PriceStatementsService {
       action: approved ? 'statement.edit_approved' : 'statement.edit',
       entity: 'PriceStatement',
       entityId: id,
-      beforeJson: { status: existing.status, net: Number(existing.net) },
+      beforeJson: {
+        status: existing.status,
+        net: Number(existing.net),
+        subtotal: Number(existing.subtotal),
+        discountType: existing.discountType,
+        discountValue: existing.discountValue != null ? Number(existing.discountValue) : null,
+        discountAmount: Number(existing.discountAmount),
+      },
       afterJson: {
         status: approved || !requiresApproval ? 'APPROVED' : 'DRAFT',
         net: totals.net,
+        subtotal: totals.subtotal,
+        discountType: dto.discount?.type ?? null,
+        discountValue: dto.discount?.value ?? null,
+        discountAmount: totals.headerDiscountAmount,
         reason: dto.reason ?? null,
       },
     });

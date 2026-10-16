@@ -58,21 +58,21 @@ export class ItemsController {
   @Permissions('item.manage')
   @ApiCreatedResponse({ description: 'إنشاء صنف' })
   create(@Body() dto: CreateItemDto, @CurrentUser() user: AuthUser) {
-    return this.items.create(dto, user.companyId ?? null);
+    return this.items.create(dto, user.companyId ?? null, user.id);
   }
 
   @Patch(':id')
   @Permissions('item.manage')
   @ApiOkResponse({ description: 'تحديث صنف' })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateItemDto, @CurrentUser() user: AuthUser) {
-    return this.items.update(id, dto, user.companyId ?? null);
+    return this.items.update(id, dto, user.companyId ?? null, user.id);
   }
 
   @Delete(':id')
   @Permissions('item.manage')
   @ApiOkResponse({ description: 'تعطيل صنف (إيقاف)' })
   async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    await this.items.update(id, { active: false }, user.companyId ?? null);
+    await this.items.update(id, { active: false }, user.companyId ?? null, user.id);
     return { ok: true };
   }
 }

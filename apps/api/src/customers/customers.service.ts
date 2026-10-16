@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreateCustomerDto, QueryCustomersDto, UpdateCustomerDto } from './customers.dto.js';
 
 const isUniqueError = (e: unknown): boolean =>
@@ -9,9 +10,12 @@ const isUniqueError = (e: unknown): boolean =>
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audits: AuditLogsService,
+  ) {}
 
-  async create(dto: CreateCustomerDto, companyId: number | null = null) {
+  async create(dto: CreateCustomerDto, companyId: number | null = null, userId?: number) {
     const priceList = await this.resolvePriceList(dto.priceListCode ?? 'RETAIL', companyId);
     const rep = dto.repCode ? await this.resolveRep(dto.repCode) : null;
 
@@ -20,7 +24,7 @@ export class CustomersService {
       if (!code) code = await this.nextCode(companyId, attempt);
       const customerCode = code;
       try {
-        return await this.prisma.$transaction(async (tx) => {
+        const created = await this.prisma.$transaction(async (tx) => {
           const customer = await tx.customer.create({
             data: {
               code: customerCode,
@@ -46,6 +50,19 @@ export class CustomersService {
           await this.syncAssignment(tx, customer.id, customer.repId, companyId);
           return customer;
         });
+        await this.audits.write({
+          userId,
+          action: 'customer.create',
+          entity: 'Customer',
+          entityId: created.id,
+          afterJson: {
+            code: created.code,
+            nameAr: created.nameAr,
+            repId: created.repId,
+            creditLimit: Number(created.creditLimit),
+          },
+        });
+        return created;
       } catch (e) {
         if (isUniqueError(e) && !dto.code) {
           code = undefined;
@@ -111,13 +128,13 @@ export class CustomersService {
     return customer;
   }
 
-  async update(id: number, dto: UpdateCustomerDto, companyId: number | null = null) {
-    await this.findOne(id, companyId);
+  async update(id: number, dto: UpdateCustomerDto, companyId: number | null = null, userId?: number) {
+    const before = await this.findOne(id, companyId);
 
     const priceList = dto.priceListCode ? await this.resolvePriceList(dto.priceListCode, companyId) : null;
     const rep = dto.repCode ? await this.resolveRep(dto.repCode) : null;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.update({
         where: { id },
         data: {
@@ -145,12 +162,39 @@ export class CustomersService {
       }
       return customer;
     });
+
+    await this.audits.write({
+      userId,
+      action: 'customer.update',
+      entity: 'Customer',
+      entityId: id,
+      beforeJson: {
+        nameAr: before.nameAr,
+        repId: before.repId,
+        creditLimit: Number(before.creditLimit),
+        active: before.active,
+      },
+      afterJson: {
+        nameAr: updated.nameAr,
+        repId: updated.repId,
+        creditLimit: Number(updated.creditLimit),
+        active: updated.active,
+      },
+    });
+    return updated;
   }
 
   /** إيقاف عميل (soft delete). */
-  async remove(id: number, companyId: number | null = null) {
+  async remove(id: number, companyId: number | null = null, userId?: number) {
     await this.findOne(id, companyId);
     await this.prisma.customer.update({ where: { id }, data: { active: false } });
+    await this.audits.write({
+      userId,
+      action: 'customer.delete',
+      entity: 'Customer',
+      entityId: id,
+      afterJson: { active: false },
+    });
     return { ok: true };
   }
 
