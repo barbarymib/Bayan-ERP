@@ -17,6 +17,22 @@ export function toBaseQty(qty: number, unit: UnitDef): number {
   return roundQty(qty * unit.factorToBase);
 }
 
+/** نوع القياس: عددي (COUNT) يقبل أعداداً صحيحة فقط، وزني (WEIGHT) يقبل كسوراً (§5.2). */
+export function allowsDecimalByMeasurement(measurement: string): boolean {
+  return measurement !== 'COUNT';
+}
+
+/**
+ * يتحقق أن الكمية مقبولة بحسب نوع قياس الوحدة (§5.2).
+ * يرمي خطأً إذا كانت الوحدة عددية والكمية كسرية.
+ */
+export function assertQtyAllowed(qty: number, allowDecimal: boolean, unitName: string): void {
+  if (!Number.isFinite(qty)) throw new Error('qty must be a finite number');
+  if (!allowDecimal && !Number.isInteger(qty)) {
+    throw new Error(`Unit ${unitName} is integer-only (COUNT) and does not accept fractional quantities`);
+  }
+}
+
 export function fromBaseQty(qtyBase: number, unit: UnitDef): number {
   if (qtyBase < 0) throw new Error('qtyBase cannot be negative');
   if (unit.factorToBase <= 0) throw new Error('factorToBase must be positive');

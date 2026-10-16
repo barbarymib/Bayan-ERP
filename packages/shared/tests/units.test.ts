@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { convertQty, decomposeQty, fromBaseQty, toBaseQty, type UnitDef } from '../src/index.js';
+import {
+  allowsDecimalByMeasurement,
+  assertQtyAllowed,
+  convertQty,
+  decomposeQty,
+  fromBaseQty,
+  toBaseQty,
+  type UnitDef,
+} from '../src/index.js';
 
 const kg: UnitDef = { id: 'kg', name: 'كجم', factorToBase: 1, allowDecimal: true };
 const bar: UnitDef = { id: 'bar', name: 'سيخ', factorToBase: 10.656, allowDecimal: false };
@@ -36,6 +44,24 @@ describe('تحويل الوحدات', () => {
   it('يرفض معامل تحويل غير موجب', () => {
     expect(() => fromBaseQty(1000, { ...ton, factorToBase: 0 })).toThrow(/positive/);
     expect(() => fromBaseQty(1000, { ...ton, factorToBase: -1 })).toThrow(/positive/);
+  });
+});
+
+describe('assertQtyAllowed — نوع القياس (§5.2)', () => {
+  it('COUNT يرفض الكسور ويقبل الأعداد الصحيحة', () => {
+    expect(allowsDecimalByMeasurement('COUNT')).toBe(false);
+    expect(() => assertQtyAllowed(1.5, false, 'قطعة')).toThrow(/integer-only/);
+    expect(() => assertQtyAllowed(3, false, 'قطعة')).not.toThrow();
+  });
+
+  it('WEIGHT يقبل الكسور', () => {
+    expect(allowsDecimalByMeasurement('WEIGHT')).toBe(true);
+    expect(() => assertQtyAllowed(2.125, true, 'كجم')).not.toThrow();
+  });
+
+  it('يرفض الكميات غير المنتهية', () => {
+    expect(() => assertQtyAllowed(Number.NaN, true, 'كجم')).toThrow(/finite/);
+    expect(() => assertQtyAllowed(Number.POSITIVE_INFINITY, true, 'كجم')).toThrow(/finite/);
   });
 });
 

@@ -34,6 +34,20 @@ double fromBaseQty(double qtyBase, UnitDef unit) {
 double convertQty(double qty, UnitDef from, UnitDef to) =>
     fromBaseQty(toBaseQty(qty, from), to);
 
+/// نوع القياس: عددي (COUNT) يقبل أعداداً صحيحة فقط، وزني (WEIGHT) يقبل كسوراً (§5.2).
+bool allowsDecimalByMeasurement(String measurement) => measurement != 'COUNT';
+
+/// يتحقق أن الكمية مقبولة بحسب نوع قياس الوحدة (§5.2).
+void assertQtyAllowed(double qty, bool allowDecimal, String unitName) {
+  if (qty.isNaN || qty.isInfinite) {
+    throw ArgumentError('qty must be a finite number');
+  }
+  if (!allowDecimal && qty != qty.roundToDouble()) {
+    throw ArgumentError(
+        'Unit $unitName is integer-only (COUNT) and does not accept fractional quantities');
+  }
+}
+
 class UnitQty {
   final UnitDef unit;
   final double qty;

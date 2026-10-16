@@ -13,6 +13,7 @@ import {
 import type { AuthUser } from '../auth/auth.decorators.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
 import { StockService } from '../common/stock.service.js';
@@ -60,11 +61,16 @@ export class PurchasesService {
     }[] = [];
 
     for (const line of dto.lines) {
-      const item = await this.prisma.item.findFirst({ where: { code: line.itemCode, ...tenantWhere(tenant) } });
+      const item = await this.prisma.item.findFirst({
+        where: { code: line.itemCode, ...tenantWhere(tenant) },
+        include: { baseUnit: { select: { measurement: true, nameAr: true } } },
+      });
       if (!item) throw new NotFoundException(`Item ${line.itemCode} not found`);
 
       let unitId = item.baseUnitId;
       let factor = 1;
+      let allowDecimal = allowsDecimalByMeasurement(item.baseUnit.measurement);
+      let unitName = item.baseUnit.nameAr;
       if (line.unitCode) {
         const unit = await this.prisma.unit.findUnique({ where: { code: line.unitCode } });
         if (!unit) throw new NotFoundException(`Unit ${line.unitCode} not found`);
@@ -76,8 +82,11 @@ export class PurchasesService {
           if (!iu.isPurchase) throw new BadRequestException(`Unit ${line.unitCode} is not a purchase unit`);
           unitId = unit.id;
           factor = Number(iu.factorToBase);
+          allowDecimal = iu.allowDecimal;
         }
+        unitName = unit.nameAr;
       }
+      assertLineQtyAllowed(line.qty, allowDecimal, unitName);
 
       resolved.push({ itemId: item.id, unitId, factor, qty: line.qty, unitPrice: line.unitPrice, discount: line.discount });
     }

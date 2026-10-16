@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.module.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
 import { SalesOpsService } from '../common/sales-ops.service.js';
+import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
@@ -88,12 +89,17 @@ export class ReturnsService {
       if (withoutStatement) {
         if (line.itemId == null) throw new BadRequestException('itemId مطلوب في المرتجع بدون بيان');
         if (line.unitPrice == null) throw new BadRequestException('unitPrice مطلوب في المرتجع بدون بيان');
-        const item = await this.prisma.item.findUnique({ where: { id: line.itemId } });
+        const item = await this.prisma.item.findUnique({
+          where: { id: line.itemId },
+          include: { baseUnit: { select: { measurement: true, nameAr: true } } },
+        });
         if (!item || (item.companyId != null && item.companyId !== tenant)) {
           throw new NotFoundException(`Item ${line.itemId} not found`);
         }
         let unitId = item.baseUnitId;
         let factor = 1;
+        let allowDecimal = allowsDecimalByMeasurement(item.baseUnit.measurement);
+        let unitName = item.baseUnit.nameAr;
         if (line.unitCode) {
           const unit = await this.prisma.unit.findUnique({ where: { code: line.unitCode } });
           if (!unit) throw new NotFoundException(`Unit ${line.unitCode} not found`);
@@ -104,8 +110,11 @@ export class ReturnsService {
             if (!iu) throw new BadRequestException(`Unit ${line.unitCode} is not linked to item ${item.code}`);
             unitId = unit.id;
             factor = Number(iu.factorToBase);
+            allowDecimal = iu.allowDecimal;
           }
+          unitName = unit.nameAr;
         }
+        assertLineQtyAllowed(line.qty, allowDecimal, unitName);
         const qtyBase = roundQty(line.qty * factor);
         const lineTotal = roundMoney(line.qty * line.unitPrice);
         total = roundMoney(total + lineTotal);
@@ -124,7 +133,11 @@ export class ReturnsService {
 
       const src = await this.prisma.priceStatementLine.findUnique({
         where: { id: line.sourceLineId! },
-        include: { item: true, unit: true, statement: { select: { status: true, customerId: true, number: true } } },
+        include: {
+          item: { include: { baseUnit: { select: { measurement: true, nameAr: true } } } },
+          unit: true,
+          statement: { select: { status: true, customerId: true, number: true } },
+        },
       });
       if (!src) throw new NotFoundException(`Source line ${line.sourceLineId} not found`);
       if (src.statement.customerId !== customer.id) {
@@ -136,6 +149,16 @@ export class ReturnsService {
 
       let unitId = src.unitId;
       let factor = Number(src.factor);
+      let allowDecimal: boolean;
+      if (src.unitId === src.item.baseUnitId) {
+        allowDecimal = allowsDecimalByMeasurement(src.item.baseUnit.measurement);
+      } else {
+        const siu = await this.prisma.itemUnit.findUnique({
+          where: { itemId_unitId: { itemId: src.itemId, unitId: src.unitId } },
+        });
+        allowDecimal = siu?.allowDecimal ?? true;
+      }
+      let unitName = src.unit.nameAr;
       if (line.unitCode) {
         const unit = await this.prisma.unit.findUnique({ where: { code: line.unitCode } });
         if (!unit) throw new NotFoundException(`Unit ${line.unitCode} not found`);
@@ -146,8 +169,11 @@ export class ReturnsService {
           if (!iu) throw new BadRequestException(`Unit ${line.unitCode} is not linked to item ${src.item.code}`);
           unitId = unit.id;
           factor = Number(iu.factorToBase);
+          allowDecimal = iu.allowDecimal;
         }
+        unitName = unit.nameAr;
       }
+      assertLineQtyAllowed(line.qty, allowDecimal, unitName);
 
       const qtyBase = roundQty(line.qty * factor);
       const done = await this.prisma.returnLine.aggregate({

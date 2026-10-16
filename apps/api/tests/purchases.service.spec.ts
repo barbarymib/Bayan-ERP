@@ -42,7 +42,13 @@ function build(lineItems: Record<string, number>) {
   const prisma = {
     supplier: { findUnique: async () => ({ id: 1, companyId: 1 }) },
     warehouse: { findUnique: async () => ({ id: 3, code: 'MAIN', companyId: 1 }) },
-    item: { findFirst: async (args: { where: { code: string } }) => ({ id: lineItems[args.where.code] ?? 0, baseUnitId: 1 }) },
+    item: {
+      findFirst: async (args: { where: { code: string } }) => ({
+        id: lineItems[args.where.code] ?? 0,
+        baseUnitId: 1,
+        baseUnit: { measurement: 'WEIGHT', nameAr: 'كجم' },
+      }),
+    },
     purchaseStatement: {
       findUnique: async () => ({ id: 99, landedCostTotal: null, lines: [] }),
     },

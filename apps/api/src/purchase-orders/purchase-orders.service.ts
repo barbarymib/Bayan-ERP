@@ -7,6 +7,7 @@ import { PeriodsService } from '../common/periods.service.js';
 import { PurchasesService } from '../purchases/purchases.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
+import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import type {
   CancelPurchaseOrderDto,
   CreatePurchaseOrderDto,
@@ -47,18 +48,29 @@ export class PurchaseOrdersService {
 
     const resolved: { itemId: number; unitId: number; factor: number; qty: number; unitPrice: number; discount?: Discount }[] = [];
     for (const line of dto.lines) {
-      const item = await this.prisma.item.findUnique({ where: { id: line.itemId } });
+      const item = await this.prisma.item.findUnique({
+        where: { id: line.itemId },
+        include: { baseUnit: { select: { measurement: true, nameAr: true } } },
+      });
       if (!item || (item.companyId != null && item.companyId !== tenant)) {
         throw new NotFoundException(`Item ${line.itemId} not found`);
       }
       let unitId = item.baseUnitId;
       let factor = 1;
+      let allowDecimal = allowsDecimalByMeasurement(item.baseUnit.measurement);
+      let unitName = item.baseUnit.nameAr;
       if (line.unitId != null && line.unitId !== item.baseUnitId) {
-        const iu = await this.prisma.itemUnit.findUnique({ where: { itemId_unitId: { itemId: item.id, unitId: line.unitId } } });
+        const iu = await this.prisma.itemUnit.findUnique({
+          where: { itemId_unitId: { itemId: item.id, unitId: line.unitId } },
+          include: { unit: { select: { nameAr: true } } },
+        });
         if (!iu) throw new BadRequestException(`Unit ${line.unitId} is not linked to item ${item.id}`);
         unitId = line.unitId;
         factor = Number(iu.factorToBase);
+        allowDecimal = iu.allowDecimal;
+        unitName = iu.unit.nameAr;
       }
+      assertLineQtyAllowed(line.qty, allowDecimal, unitName);
       resolved.push({ itemId: item.id, unitId, factor, qty: line.qty, unitPrice: line.unitPrice, discount: line.discount });
     }
 

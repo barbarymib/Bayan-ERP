@@ -16,6 +16,7 @@ import {
   type StatementsPage,
   type Warehouse,
 } from '@/lib/api';
+import { isLineQtyAllowed } from '@/lib/units';
 import { useAuth } from '@/lib/auth';
 import {
   Badge,
@@ -282,6 +283,15 @@ function CreateStatementModal({
         unitPrice: l.unitPrice !== '' ? Number(l.unitPrice) : undefined,
         discount: l.discType ? { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) || 0 } : undefined,
       }));
+    const badQty = cleaned.find((l) => {
+      const item = items.find((x) => x.code === l.itemCode);
+      return item ? !isLineQtyAllowed(item, l.unitCode, l.qty) : false;
+    });
+    if (badQty) {
+      setError(`الكمية ${badQty.qty} غير مقبولة للوحدة المختارة للصنف ${badQty.itemCode} (وحدة عددية لا تقبل كسوراً)`);
+      setBusy(false);
+      return;
+    }
     try {
       const res = await post<PriceStatement & { creditWarning: PriceStatement['creditWarning'] }>('/price-statements', {
         customerId: Number(customerId),

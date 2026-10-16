@@ -149,6 +149,7 @@ function harness(
         baseUnitId: 6,
         lastPurchaseCost: 40,
         active: true,
+        baseUnit: { measurement: 'COUNT', nameAr: 'قطعة' },
         ...itemOverrides,
       }),
     },
@@ -444,5 +445,32 @@ describe('PriceStatementsService.create credit limit (R3-B1 §5.4)', () => {
     const { service, calls } = harness({}, null, {}, { customer: { creditLimit: 50 }, blockCredit: true });
     await expect(service.create(createDto, approver)).rejects.toThrow(/الحد الائتماني/);
     expect(calls.finalized).toBe(false);
+  });
+});
+
+describe('PriceStatementsService unit precision (R3-A4 §5.2)', () => {
+  it('يرفض كمية كسرية على وحدة أساسية عددية (COUNT)', async () => {
+    const { service } = harness({}, null, { baseUnit: { measurement: 'COUNT', nameAr: 'قطعة' } });
+    await expect(
+      service.create({ customerId: 2, lines: [{ itemCode: 'IR', qty: 2.5, unitPrice: 50 }] }, approver),
+    ).rejects.toThrow(/integer-only/);
+  });
+
+  it('يقبل الكمية الكسرية على وحدة أساسية وزنية (WEIGHT)', async () => {
+    const { service } = harness({}, null, { baseUnit: { measurement: 'WEIGHT', nameAr: 'كجم' } });
+    const res = await service.create(
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 2.5, unitPrice: 50 }] },
+      approver,
+    );
+    expect(res).toBeTruthy();
+  });
+
+  it('يقبل الكمية الصحيحة على وحدة أساسية عددية (COUNT)', async () => {
+    const { service } = harness({}, null, { baseUnit: { measurement: 'COUNT', nameAr: 'قطعة' } });
+    const res = await service.create(
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 3, unitPrice: 50 }] },
+      approver,
+    );
+    expect(res).toBeTruthy();
   });
 });

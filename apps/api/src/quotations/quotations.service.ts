@@ -12,6 +12,7 @@ import { PriceResolverService } from '../common/price-resolver.service.js';
 import { PriceStatementsService } from '../price-statements/price-statements.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
+import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import type { CreateStatementDto } from '../price-statements/price-statements.dto.js';
 import type {
   CreateQuotationDto,
@@ -64,12 +65,17 @@ export class QuotationsService {
     }[] = [];
 
     for (const line of dto.lines) {
-      const item = await this.prisma.item.findFirst({ where: { code: line.itemCode, ...tenantWhere(tenant) } });
+      const item = await this.prisma.item.findFirst({
+        where: { code: line.itemCode, ...tenantWhere(tenant) },
+        include: { baseUnit: { select: { measurement: true, nameAr: true } } },
+      });
       if (!item) throw new NotFoundException(`Item ${line.itemCode} not found`);
       if (!item.active) throw new BadRequestException(`Item ${line.itemCode} is inactive`);
 
       let unitId = item.baseUnitId;
       let factor = 1;
+      let allowDecimal = allowsDecimalByMeasurement(item.baseUnit.measurement);
+      let unitName = item.baseUnit.nameAr;
       if (line.unitCode) {
         const unit = await this.prisma.unit.findUnique({ where: { code: line.unitCode } });
         if (!unit) throw new NotFoundException(`Unit ${line.unitCode} not found`);
@@ -81,8 +87,11 @@ export class QuotationsService {
           if (!iu.isSale) throw new BadRequestException(`Unit ${line.unitCode} is not a sale unit`);
           unitId = unit.id;
           factor = Number(iu.factorToBase);
+          allowDecimal = iu.allowDecimal;
         }
+        unitName = unit.nameAr;
       }
+      assertLineQtyAllowed(line.qty, allowDecimal, unitName);
 
       let unitPrice = line.unitPrice;
       if (unitPrice === undefined) {

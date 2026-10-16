@@ -38,7 +38,14 @@ function harness(opts: Opts = {}) {
       findUnique: async () => ({ id: 3, code: 'MAIN', companyId: 1 }),
       findFirst: async () => ({ id: 3, code: 'MAIN', companyId: 1 }),
     },
-    item: { findUnique: async () => ({ id: 11, baseUnitId: 1, companyId: 1 }) },
+    item: {
+      findUnique: async () => ({
+        id: 11,
+        baseUnitId: 1,
+        companyId: 1,
+        baseUnit: { measurement: 'COUNT', nameAr: 'قطعة' },
+      }),
+    },
     purchaseOrder: {
       create: async (args: Record<string, unknown>) => {
         calls.orderCreate.push(args);

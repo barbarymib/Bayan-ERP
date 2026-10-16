@@ -37,6 +37,24 @@ void main() {
     });
   });
 
+  group('assertQtyAllowed — نوع القياس (§5.2)', () {
+    test('COUNT يرفض الكسور ويقبل الأعداد', () {
+      expect(allowsDecimalByMeasurement('COUNT'), isFalse);
+      expect(() => assertQtyAllowed(1.5, false, 'قطعة'), throwsArgumentError);
+      expect(() => assertQtyAllowed(3, false, 'قطعة'), returnsNormally);
+    });
+
+    test('WEIGHT يقبل الكسور', () {
+      expect(allowsDecimalByMeasurement('WEIGHT'), isTrue);
+      expect(() => assertQtyAllowed(2.125, true, 'كجم'), returnsNormally);
+    });
+
+    test('يرفض الكميات غير المنتهية', () {
+      expect(() => assertQtyAllowed(double.nan, true, 'كجم'), throwsArgumentError);
+      expect(() => assertQtyAllowed(double.infinity, true, 'كجم'), throwsArgumentError);
+    });
+  });
+
   group('decomposeQty — العرض المركب', () {
     const paintUnits = [bottle, carton];
 
