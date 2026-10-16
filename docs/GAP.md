@@ -185,7 +185,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | -- | --- | ---- | ------ | -------- |
 | R3-A2 | Per-**role** discount limits absent — limits only per user (`Role` has no limit cols). | §4.2 note | ✅ FIXED | `Role.maxItemDiscountPct/maxInvoiceDiscountPct` (nullable, migration `20261016020000_role_discount_limits`); `common/discount-limits.ts` `effectiveDiscountLimit` (role limit else user); wired in `auth.service.ts:75-76,` + `auth.guard.ts`; `PUT /roles/:id/limits` (`users.service.ts` `updateRoleLimits`, ADMIN-protected, audit `role.limits`); web roles modal + card. Live-verified 2026-10-16 (22/0). |
 | R3-A3 | Feature flags **not applied on any client UI**; no client-facing flag endpoint (API `@Features` only). Refines G15/G16/G17. | §12.3 | MISSING (web) / PARTIAL (mobile) | `auth.guard.ts:99-131`; no flag codes consumed in `apps/web`/`apps/mobile/lib` |
-| R3-A4 | Decimal-vs-integer measurement **never enforced** (`allowDecimal` check has zero production callers). | §5.2 | MISSING | `packages/shared/src/units.ts:12-28`; `price-statements.service.ts:589-598` |
+| R3-A4 | Decimal-vs-integer measurement **never enforced** (`allowDecimal` check has zero production callers). | §5.2 | ✅ FIXED | `packages/shared/src/units.ts` `allowsDecimalByMeasurement`/`assertQtyAllowed` (+tests); `apps/api/src/common/units.ts` `assertLineQtyAllowed` (→ 400); enforced at line entry in `price-statements`, `purchases`, `quotations`, `returns`, `purchase-orders`, `supplier-returns` services; clients: web `lib/units.ts` + statements/purchases forms, mobile `core/calc/units.dart` mirror. Live-verified 2026-10-16 (11/0). |
 | R3-A5 | Batch **expiry date** missing (batch supported, no expiry field). | §5.1 | PARTIAL | `schema.prisma:394,623`; no `expiry` in schema |
 | R3-A6 | Steel **actual-weight note** field unused (no DTO/web/mobile) and no weight-difference report. | §5.2, §11 | PARTIAL | `schema.prisma:865`; absent in `price-statements/*.dto.ts`, web, mobile |
 | R3-A7 | Scheduled price `validFrom` broken: one row per (item,unit,list) upsert overwrites in place → a future-dated price removes the current price; no validFrom input in web. | §5.3 | DEVIATION | `schema.prisma:481`; `prices.service.ts:236-252`; `price-resolver.service.ts:49-59` |
@@ -262,7 +262,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 
 ### Phase P2 — Core correctness (Medium, backend/shared)
 6. **R3-A2** per-role discount limits (fallback to user) — schema + enforcement. — ✅ FIXED (api 280/280; web build clean; 22/22 live verify)
-7. **R3-A4** decimal/integer enforcement at line entry (shared + api + clients).
+7. **R3-A4** decimal/integer enforcement at line entry (shared + api + clients). — ✅ FIXED (shared 99/99; api 283/283; web build clean; mobile 223/223; 11/11 live verify)
 8. **R3-A7** scheduled prices (multi-row valid_from/valid_to + resolver + web input).
 9. **R3-A5** item batch expiry (schema + item/purchase UI).
 10. **R3-A6** steel actual-weight input + weight-difference report.
