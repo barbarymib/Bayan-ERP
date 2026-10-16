@@ -24,15 +24,15 @@ export class UsersController {
   @Get()
   @Permissions('user.view')
   @ApiOkResponse({ description: 'قائمة المستخدمين' })
-  list(@Query() query: QueryUsersDto) {
-    return this.users.list(query);
+  list(@Query() query: QueryUsersDto, @CurrentUser() user: AuthUser) {
+    return this.users.list(query, user.companyId ?? null);
   }
 
   @Get(':id')
   @Permissions('user.view')
   @ApiOkResponse({ description: 'تفاصيل مستخدم' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.users.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+    return this.users.findOne(id, user.companyId ?? null);
   }
 
   @Post()
@@ -53,7 +53,7 @@ export class UsersController {
   @Permissions('user.manage')
   @ApiOkResponse({ description: 'إيقاف مستخدم (soft delete)' })
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
-    return this.users.remove(id, user.id, user.roleCode === 'ADMIN');
+    return this.users.remove(id, user.id, user.roleCode === 'ADMIN', user.companyId ?? null);
   }
 }
 

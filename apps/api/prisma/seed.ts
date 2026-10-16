@@ -296,6 +296,7 @@ async function main(): Promise<void> {
 
   // ربط بيانات الشركة الافتراضية بجميع سجلات الأعمال (§12.2) — يمهد لعزل الاستعلامات
   const companyScopeTables = [
+    'user',
     'category', 'brand', 'priceList', 'item', 'itemPrice', 'priceHistory',
     'customer', 'customerRepAssignment', 'supplier', 'customerGroup',
     'warehouse', 'stockBalance', 'stockMovement', 'stockReservation',

@@ -116,10 +116,11 @@ export class UsersService {
     };
   }
 
-  async list(query: QueryUsersDto) {
+  async list(query: QueryUsersDto, companyId: number | null = null) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
     const where = {
+      ...tenantWhere(companyId),
       ...(query.q
         ? {
             OR: [
@@ -148,9 +149,9 @@ export class UsersService {
     return { users, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
-  async findOne(id: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+  async findOne(id: number, companyId: number | null = null) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, ...tenantWhere(companyId) },
       select: {
         ...SAFE_SELECT,
         role: { select: { code: true, nameAr: true } },
@@ -183,6 +184,7 @@ export class UsersService {
         phone: dto.phone,
         repCode: dto.repCode,
         branchId,
+        companyId,
         roleId: role.id,
         passwordHash: await hash(dto.password, 10),
         maxItemDiscountPct: dto.maxItemDiscountPct ?? 0,
@@ -202,7 +204,7 @@ export class UsersService {
   }
 
   async update(id: number, dto: UpdateUserDto, actorId?: number, companyId: number | null = null) {
-    const before = await this.findOne(id);
+    const before = await this.findOne(id, companyId);
 
     const data: Record<string, unknown> = {
       name: dto.name,
@@ -239,14 +241,14 @@ export class UsersService {
   }
 
   /** إيقاف مستخدم (soft delete) مع حماية من تعطيل آخر مسؤول. */
-  async remove(id: number, actorId: number, isAdmin: boolean) {
+  async remove(id: number, actorId: number, isAdmin: boolean, companyId: number | null = null) {
     if (id === actorId) {
       throw new BadRequestException('You cannot disable your own account');
     }
-    const target = await this.findOne(id);
+    const target = await this.findOne(id, companyId);
 
     const activeAdmins = await this.prisma.user.count({
-      where: { active: true, role: { code: 'ADMIN' } },
+      where: { active: true, role: { code: 'ADMIN' }, ...tenantWhere(companyId) },
     });
     if (isAdmin && target.active && target.role.code === 'ADMIN' && activeAdmins <= 1) {
       throw new ConflictException('Cannot disable the last active admin');
