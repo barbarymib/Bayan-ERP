@@ -11,6 +11,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -159,4 +160,21 @@ export class UpdateRolePermissionsDto {
   @IsArray()
   @IsString({ each: true })
   permissionCodes!: string[];
+}
+
+/** حدود الخصم الافتراضية للدور (§4.2). تُقبل `null` لمسحها (fallback لحد المستخدم). */
+export class UpdateRoleLimitsDto {
+  @ApiPropertyOptional({ example: 5, description: 'أقصى نسبة خصم على الصنف (%) — null للمسح', nullable: true })
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined && value !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  maxItemDiscountPct?: number | null;
+
+  @ApiPropertyOptional({ example: 10, description: 'أقصى نسبة خصم على البيان (%) — null للمسح', nullable: true })
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined && value !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  maxInvoiceDiscountPct?: number | null;
 }

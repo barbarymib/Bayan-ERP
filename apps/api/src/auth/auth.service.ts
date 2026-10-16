@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compare } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.module.js';
+import { effectiveDiscountLimit } from '../common/discount-limits.js';
 import type { AuthUser } from './auth.decorators.js';
 
 export interface LoginInput {
@@ -71,8 +72,8 @@ export class AuthService {
       roleCode: user.role.code,
       repCode: user.repCode,
       permissions: user.role.permissions.map((rp) => rp.permission.code),
-      maxItemDiscountPct: Number(user.maxItemDiscountPct),
-      maxInvoiceDiscountPct: Number(user.maxInvoiceDiscountPct),
+      maxItemDiscountPct: effectiveDiscountLimit(user.role.maxItemDiscountPct, user.maxItemDiscountPct),
+      maxInvoiceDiscountPct: effectiveDiscountLimit(user.role.maxInvoiceDiscountPct, user.maxInvoiceDiscountPct),
       scope: 'tenant',
       companyId: user.companyId,
     };
@@ -115,8 +116,8 @@ export class AuthService {
       roleCode: user.role.code,
       repCode: user.repCode,
       permissions: user.role.permissions.map((rp) => rp.permission.code),
-      maxItemDiscountPct: Number(user.maxItemDiscountPct),
-      maxInvoiceDiscountPct: Number(user.maxInvoiceDiscountPct),
+      maxItemDiscountPct: effectiveDiscountLimit(user.role.maxItemDiscountPct, user.maxItemDiscountPct),
+      maxInvoiceDiscountPct: effectiveDiscountLimit(user.role.maxInvoiceDiscountPct, user.maxInvoiceDiscountPct),
       scope: 'tenant',
       companyId: user.companyId,
     };

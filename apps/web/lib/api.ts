@@ -108,6 +108,8 @@ export interface Role {
   id: number;
   code: string;
   nameAr: string;
+  maxItemDiscountPct: number | null;
+  maxInvoiceDiscountPct: number | null;
   permissions: { code: string; nameAr: string }[];
 }
 

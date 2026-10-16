@@ -159,10 +159,16 @@ export default function UsersPage() {
                     <Badge color="blue">محمي</Badge>
                   ) : (
                     <Button variant="ghost" onClick={() => setEditRole(r)}>
-                      تعديل الصلاحيات
+                      تعديل الصلاحيات والحدود
                     </Button>
                   )
                 ) : null}
+              </div>
+              <div className="mb-2 text-[11px] text-gray-500">
+                حد الخصم: صنف{' '}
+                {r.maxItemDiscountPct == null ? 'حسب المستخدم' : `${Number(r.maxItemDiscountPct).toLocaleString('ar-EG')}%`}
+                {' · '}بيان{' '}
+                {r.maxInvoiceDiscountPct == null ? 'حسب المستخدم' : `${Number(r.maxInvoiceDiscountPct).toLocaleString('ar-EG')}%`}
               </div>
               <div className="flex flex-wrap gap-1">
                 {r.permissions.length === 0 ? (
@@ -358,6 +364,13 @@ function RolePermissionsModal({
   const [q, setQ] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const protectedRole = role.code === 'ADMIN';
+  const [maxItem, setMaxItem] = useState(
+    role.maxItemDiscountPct == null ? '' : String(role.maxItemDiscountPct),
+  );
+  const [maxInvoice, setMaxInvoice] = useState(
+    role.maxInvoiceDiscountPct == null ? '' : String(role.maxInvoiceDiscountPct),
+  );
 
   const query = q.trim().toLowerCase();
   const groups = groupPermissions(permissions)
@@ -393,6 +406,12 @@ function RolePermissionsModal({
     setBusy(true);
     setError(null);
     try {
+      if (!protectedRole) {
+        await put(`/roles/${role.id}/limits`, {
+          maxItemDiscountPct: maxItem.trim() === '' ? null : Number(maxItem),
+          maxInvoiceDiscountPct: maxInvoice.trim() === '' ? null : Number(maxInvoice),
+        });
+      }
       await put(`/roles/${role.id}/permissions`, { permissionCodes: [...selected] });
       onSaved();
     } catch (err) {
@@ -402,12 +421,36 @@ function RolePermissionsModal({
   }
 
   return (
-    <Modal title={`صلاحيات: ${role.nameAr} (${role.code})`} onClose={onClose}>
+    <Modal title={`صلاحيات وحدود: ${role.nameAr} (${role.code})`} onClose={onClose}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث في الصلاحيات…" className="w-64" />
         <span className="text-xs text-gray-500">
           محدد {selected.size} من {permissions.length}
         </span>
+      </div>
+      <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3">
+        <Field label="حد خصم الصنف للدور (%)">
+          <TextInput
+            value={maxItem}
+            onChange={(e) => setMaxItem(e.target.value)}
+            type="number"
+            min="0"
+            max="100"
+            placeholder="اتركه فارغاً لحد المستخدم"
+            disabled={protectedRole}
+          />
+        </Field>
+        <Field label="حد خصم البيان للدور (%)">
+          <TextInput
+            value={maxInvoice}
+            onChange={(e) => setMaxInvoice(e.target.value)}
+            type="number"
+            min="0"
+            max="100"
+            placeholder="اتركه فارغاً لحد المستخدم"
+            disabled={protectedRole}
+          />
+        </Field>
       </div>
       <div className="mb-4 max-h-[55vh] space-y-3 overflow-y-auto pr-1">
         {groups.length === 0 ? (

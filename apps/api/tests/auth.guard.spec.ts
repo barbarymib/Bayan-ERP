@@ -101,6 +101,56 @@ describe('AuthGuard', () => {
     expect((request.user as AuthUser).roleCode).toBe('ADMIN');
   });
 
+  it('resolves effective discount limits from the role over the user (§4.2)', async () => {
+    const guard = makeGuard({
+      prisma: {
+        user: {
+          findUnique: vi.fn(async () => ({
+            id: 1,
+            active: true,
+            companyId: 1,
+            company: { status: 'ACTIVE' },
+            maxItemDiscountPct: 2,
+            maxInvoiceDiscountPct: 4,
+            role: { maxItemDiscountPct: 7, maxInvoiceDiscountPct: 9 },
+          })),
+        },
+        systemFeature: { findUnique: vi.fn(async () => null) },
+        userFeature: { findUnique: vi.fn(async () => null) },
+        companyFeature: { findUnique: vi.fn(async () => null) },
+      },
+    });
+    const { ctx, request } = makeContext({ header: 'Bearer abc' });
+    await guard.canActivate(ctx);
+    expect((request.user as AuthUser).maxItemDiscountPct).toBe(7);
+    expect((request.user as AuthUser).maxInvoiceDiscountPct).toBe(9);
+  });
+
+  it('falls back to the user discount limits when the role has none', async () => {
+    const guard = makeGuard({
+      prisma: {
+        user: {
+          findUnique: vi.fn(async () => ({
+            id: 1,
+            active: true,
+            companyId: 1,
+            company: { status: 'ACTIVE' },
+            maxItemDiscountPct: 6,
+            maxInvoiceDiscountPct: 11,
+            role: { maxItemDiscountPct: null, maxInvoiceDiscountPct: null },
+          })),
+        },
+        systemFeature: { findUnique: vi.fn(async () => null) },
+        userFeature: { findUnique: vi.fn(async () => null) },
+        companyFeature: { findUnique: vi.fn(async () => null) },
+      },
+    });
+    const { ctx, request } = makeContext({ header: 'Bearer abc' });
+    await guard.canActivate(ctx);
+    expect((request.user as AuthUser).maxItemDiscountPct).toBe(6);
+    expect((request.user as AuthUser).maxInvoiceDiscountPct).toBe(11);
+  });
+
   it('rejects 403 when permission is missing', async () => {
     const guard = makeGuard({
       reflector: {

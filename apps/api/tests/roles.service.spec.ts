@@ -14,6 +14,8 @@ interface RoleRow {
   id: number;
   code: string;
   nameAr: string;
+  maxItemDiscountPct?: number | null;
+  maxInvoiceDiscountPct?: number | null;
   permissions: { permission: { code: string } }[];
 }
 
@@ -21,8 +23,8 @@ interface AuditCall {
   action: string;
   entity: string;
   entityId: number;
-  beforeJson?: { permissions: string[] };
-  afterJson?: { permissions: string[] };
+  beforeJson?: Record<string, unknown>;
+  afterJson?: Record<string, unknown>;
 }
 
 type Options = {
@@ -45,7 +47,13 @@ function harness(opts: Options = {}) {
   const creates: { data: { roleId: number; permissionId: number }[] }[] = [];
 
   const prisma = {
-    role: { findUnique: async () => role },
+    role: {
+      findUnique: async () => role,
+      update: async (args: { where: { id: number }; data: Record<string, unknown> }) => ({
+        ...role,
+        ...args.data,
+      }),
+    },
     permission: {
       findMany: async (args: { where?: { code: { in: string[] } } }) => {
         if (args.where) {
@@ -115,5 +123,51 @@ describe('UsersService.updateRolePermissions', () => {
   it('يرمي NotFound لدور غير موجود', async () => {
     const { svc } = harness({ role: null });
     await expect(svc.updateRolePermissions(404, ['report.view'])).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('UsersService.updateRoleLimits', () => {
+  it('يضبط حدّي الدور ويسجّل تدقيقاً قبل/بعد (§4.2)', async () => {
+    const { svc, calls } = harness();
+    const res = await svc.updateRoleLimits(5, { maxItemDiscountPct: 7, maxInvoiceDiscountPct: 12 }, 42);
+    expect(res.maxItemDiscountPct).toBe(7);
+    expect(res.maxInvoiceDiscountPct).toBe(12);
+    expect(res.permissions.map((p) => p.code)).toEqual(['report.view']);
+    expect(calls[0]!.action).toBe('role.limits');
+    expect(calls[0]!.entityId).toBe(5);
+    expect(calls[0]!.afterJson).toEqual({ roleCode: 'ACCOUNTANT', maxItemDiscountPct: 7, maxInvoiceDiscountPct: 12 });
+  });
+
+  it('يمسح الحد عند تمرير null (fallback لحد المستخدم)', async () => {
+    const { svc, calls } = harness({
+      role: {
+        id: 5,
+        code: 'ACCOUNTANT',
+        nameAr: 'محاسب',
+        maxItemDiscountPct: 4,
+        maxInvoiceDiscountPct: 6,
+        permissions: [],
+      },
+    });
+    const res = await svc.updateRoleLimits(5, { maxItemDiscountPct: null });
+    expect(res.maxItemDiscountPct).toBeNull();
+    expect(res.maxInvoiceDiscountPct).toBe(6);
+    expect(calls[0]!.beforeJson).toEqual({ roleCode: 'ACCOUNTANT', maxItemDiscountPct: 4, maxInvoiceDiscountPct: 6 });
+    expect(calls[0]!.afterJson).toEqual({ roleCode: 'ACCOUNTANT', maxItemDiscountPct: null, maxInvoiceDiscountPct: 6 });
+  });
+
+  it('يرفض تعديل دور ADMIN المحمي', async () => {
+    const { svc } = harness({ role: { id: 1, code: 'ADMIN', nameAr: 'مدير', permissions: [] } });
+    await expect(svc.updateRoleLimits(1, { maxItemDiscountPct: 10 })).rejects.toThrow(BadRequestException);
+  });
+
+  it('يرفض جسمًا فارغًا', async () => {
+    const { svc } = harness();
+    await expect(svc.updateRoleLimits(5, {})).rejects.toThrow(BadRequestException);
+  });
+
+  it('يرمي NotFound لدور غير موجود', async () => {
+    const { svc } = harness({ role: null });
+    await expect(svc.updateRoleLimits(404, { maxItemDiscountPct: 1 })).rejects.toThrow(NotFoundException);
   });
 });

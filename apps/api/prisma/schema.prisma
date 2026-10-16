@@ -199,9 +199,12 @@ enum VisitPlanStatus {
 // ============================ المستخدمون والصلاحيات ============================
 
 model Role {
-  id          Int              @id @default(autoincrement())
-  code        String           @unique
-  nameAr      String
+  id     Int    @id @default(autoincrement())
+  code   String @unique
+  nameAr String
+  // حدود الخصم الافتراضية للدور (تُغافل حد المستخدم عند ضبطها، §4.2)
+  maxItemDiscountPct    Decimal? @db.Decimal(5, 2)
+  maxInvoiceDiscountPct Decimal? @db.Decimal(5, 2)
   users       User[]
   permissions RolePermission[]
 }

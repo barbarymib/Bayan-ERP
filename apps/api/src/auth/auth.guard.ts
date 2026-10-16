@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { setTenant } from '../tenant/tenant.context.js';
+import { effectiveDiscountLimit } from '../common/discount-limits.js';
 import {
   FEATURES_KEY,
   GLOBAL_ADMIN_KEY,
@@ -74,7 +75,10 @@ export class AuthGuard implements CanActivate {
     // مستخدم شركة: تحقق من نشاطه ونشاط الشركة (SaaS §12.2)
     const dbUser = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { company: true },
+      include: {
+        company: true,
+        role: { select: { maxItemDiscountPct: true, maxInvoiceDiscountPct: true } },
+      },
     });
     if (!dbUser || !dbUser.active) {
       throw new UnauthorizedException('Inactive user');
@@ -83,7 +87,12 @@ export class AuthGuard implements CanActivate {
       throw new ForbiddenException('Company disabled');
     }
 
-    request.user = payload;
+    // حدود الخصم الفعلية (حد الدور يتقدّم، fallback لحد المستخدم §4.2) — طازجة من القاعدة
+    request.user = {
+      ...payload,
+      maxItemDiscountPct: effectiveDiscountLimit(dbUser.role?.maxItemDiscountPct, dbUser.maxItemDiscountPct),
+      maxInvoiceDiscountPct: effectiveDiscountLimit(dbUser.role?.maxInvoiceDiscountPct, dbUser.maxInvoiceDiscountPct),
+    };
 
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),

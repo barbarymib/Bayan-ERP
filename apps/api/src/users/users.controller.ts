@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Permissions, type AuthUser } from '../auth/auth.decorators.js';
-import { CreateUserDto, QueryUsersDto, UpdateRolePermissionsDto, UpdateUserDto } from './users.dto.js';
+import { CreateUserDto, QueryUsersDto, UpdateRoleLimitsDto, UpdateRolePermissionsDto, UpdateUserDto } from './users.dto.js';
 import { UsersService } from './users.service.js';
 
 @ApiTags('users')
@@ -79,6 +79,17 @@ export class RolesController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.users.updateRolePermissions(id, dto.permissionCodes, user.id);
+  }
+
+  @Put(':id/limits')
+  @Permissions('user.manage')
+  @ApiOkResponse({ description: 'ضبط حدود الخصم الافتراضية لدور (§4.2؛ دور ADMIN محمي)' })
+  updateLimits(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRoleLimitsDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.users.updateRoleLimits(id, dto, user.id);
   }
 }
 

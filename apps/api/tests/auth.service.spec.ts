@@ -55,6 +55,30 @@ describe('AuthService.login', () => {
       UnauthorizedException,
     );
   });
+
+  it('uses the role discount limits when configured (§4.2)', async () => {
+    const { service } = makeService({
+      findFirst: async () =>
+        dbUser({
+          role: {
+            code: 'SALES_REP',
+            permissions: [{ permission: { code: 'statement.create' } }],
+            maxItemDiscountPct: 3,
+            maxInvoiceDiscountPct: 8,
+          },
+        }),
+    });
+    const res = await service.login({ email: 'a@b.c', password: 'secret' });
+    expect(res.user.maxItemDiscountPct).toBe(3);
+    expect(res.user.maxInvoiceDiscountPct).toBe(8);
+  });
+
+  it('falls back to the user discount limits when the role has none', async () => {
+    const { service } = makeService();
+    const res = await service.login({ email: 'a@b.c', password: 'secret' });
+    expect(res.user.maxItemDiscountPct).toBe(5);
+    expect(res.user.maxInvoiceDiscountPct).toBe(10);
+  });
 });
 
 describe('AuthService.refresh', () => {

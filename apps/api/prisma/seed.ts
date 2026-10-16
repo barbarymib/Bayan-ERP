@@ -10,14 +10,19 @@ const prisma = new PrismaClient({
 });
 
 
-const ROLES: { code: string; nameAr: string }[] = [
-  { code: 'ADMIN', nameAr: 'مدير النظام' },
-  { code: 'OWNER', nameAr: 'المدير العام / المالك' },
+const ROLES: {
+  code: string;
+  nameAr: string;
+  maxItemDiscountPct?: number;
+  maxInvoiceDiscountPct?: number;
+}[] = [
+  { code: 'ADMIN', nameAr: 'مدير النظام', maxItemDiscountPct: 100, maxInvoiceDiscountPct: 100 },
+  { code: 'OWNER', nameAr: 'المدير العام / المالك', maxItemDiscountPct: 100, maxInvoiceDiscountPct: 100 },
   { code: 'ACCOUNTANT', nameAr: 'محاسب' },
   { code: 'WAREHOUSEKEEPER', nameAr: 'أمين مخزن' },
   { code: 'SALES_OFFICE', nameAr: 'موظف مبيعات (مكتب)' },
   { code: 'SALES_REP', nameAr: 'مندوب مبيعات' },
-  { code: 'REP_SUPERVISOR', nameAr: 'مشرف المناديب' },
+  { code: 'REP_SUPERVISOR', nameAr: 'مشرف المناديب', maxItemDiscountPct: 15, maxInvoiceDiscountPct: 15 },
 ];
 
 const UNITS: { code: string; nameAr: string; measurement: 'COUNT' | 'WEIGHT' }[] = [

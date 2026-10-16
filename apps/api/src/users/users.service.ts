@@ -4,7 +4,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
-import type { CreateUserDto, QueryUsersDto, UpdateUserDto } from './users.dto.js';
+import type { CreateUserDto, QueryUsersDto, UpdateRoleLimitsDto, UpdateUserDto } from './users.dto.js';
 
 const SAFE_SELECT = {
   id: true,
@@ -28,6 +28,8 @@ export interface RoleWithPerms {
   id: number;
   code: string;
   nameAr: string;
+  maxItemDiscountPct: number | null;
+  maxInvoiceDiscountPct: number | null;
   permissions: { code: string; nameAr: string }[];
 }
 
@@ -51,12 +53,26 @@ export class UsersService {
       orderBy: { code: 'asc' },
       include: { permissions: { include: { permission: { select: { code: true, nameAr: true } } } } },
     });
-    return roles.map((r) => ({
+    return roles.map((r) => this.toRoleRow(r));
+  }
+
+  /** يبني صف الدور مع تحويل حدود الخصم العشرية (null = غير مضبوط §4.2). */
+  private toRoleRow(r: {
+    id: number;
+    code: string;
+    nameAr: string;
+    maxItemDiscountPct?: unknown;
+    maxInvoiceDiscountPct?: unknown;
+    permissions: { permission: { code: string; nameAr: string } }[];
+  }): RoleWithPerms {
+    return {
       id: r.id,
       code: r.code,
       nameAr: r.nameAr,
+      maxItemDiscountPct: r.maxItemDiscountPct == null ? null : Number(r.maxItemDiscountPct),
+      maxInvoiceDiscountPct: r.maxInvoiceDiscountPct == null ? null : Number(r.maxInvoiceDiscountPct),
       permissions: r.permissions.map((rp) => rp.permission),
-    }));
+    };
   }
 
   async listPermissions(): Promise<PermissionRow[]> {
@@ -112,7 +128,58 @@ export class UsersService {
       id: role.id,
       code: role.code,
       nameAr: role.nameAr,
+      maxItemDiscountPct: role.maxItemDiscountPct == null ? null : Number(role.maxItemDiscountPct),
+      maxInvoiceDiscountPct: role.maxInvoiceDiscountPct == null ? null : Number(role.maxInvoiceDiscountPct),
       permissions: perms.map((p) => ({ code: p.code, nameAr: p.nameAr })),
+    };
+  }
+
+  /**
+   * يضبط حدود الخصم الافتراضية لهذا الدور (§4.2: "تُضبط لكل دور ولكل مستخدم").
+   * `null` يعني "غير مضبوط" فيتحوّل الحد الفعلي لحد المستخدم (fallback).
+   */
+  async updateRoleLimits(roleId: number, dto: UpdateRoleLimitsDto, actorId?: number): Promise<RoleWithPerms> {
+    const role = await this.prisma.role.findUnique({
+      where: { id: roleId },
+      include: { permissions: { include: { permission: { select: { code: true, nameAr: true } } } } },
+    });
+    if (!role) throw new NotFoundException(`Role #${roleId} not found`);
+    if (PROTECTED_ROLES.has(role.code)) {
+      throw new BadRequestException(`Role ${role.code} is protected and cannot be edited`);
+    }
+
+    const data: { maxItemDiscountPct?: number | null; maxInvoiceDiscountPct?: number | null } = {};
+    if (dto.maxItemDiscountPct !== undefined) data.maxItemDiscountPct = dto.maxItemDiscountPct;
+    if (dto.maxInvoiceDiscountPct !== undefined) data.maxInvoiceDiscountPct = dto.maxInvoiceDiscountPct;
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('No discount limits supplied (maxItemDiscountPct / maxInvoiceDiscountPct)');
+    }
+
+    const before = {
+      maxItemDiscountPct: role.maxItemDiscountPct == null ? null : Number(role.maxItemDiscountPct),
+      maxInvoiceDiscountPct: role.maxInvoiceDiscountPct == null ? null : Number(role.maxInvoiceDiscountPct),
+    };
+    const updated = await this.prisma.role.update({ where: { id: roleId }, data });
+    const after = {
+      maxItemDiscountPct: updated.maxItemDiscountPct == null ? null : Number(updated.maxItemDiscountPct),
+      maxInvoiceDiscountPct: updated.maxInvoiceDiscountPct == null ? null : Number(updated.maxInvoiceDiscountPct),
+    };
+
+    await this.audits.write({
+      action: 'role.limits',
+      entity: 'Role',
+      entityId: roleId,
+      userId: actorId,
+      beforeJson: { roleCode: role.code, ...before },
+      afterJson: { roleCode: role.code, ...after },
+    });
+
+    return {
+      id: role.id,
+      code: role.code,
+      nameAr: role.nameAr,
+      ...after,
+      permissions: role.permissions.map((rp) => rp.permission),
     };
   }
 
