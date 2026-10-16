@@ -162,6 +162,8 @@ export class PriceStatementsService {
 
     const period = await this.periods.open(tenant);
     const creditWarning = await this.checkCreditLimit(customer.id, totals.net, tenant);
+    // منع تجاوز الحد الائتماني عند الإنشاء حسب الإعداد credit.limit.enforce = BLOCK (§5.4)
+    await this.ops.assertCustomerCredit(customer.id, totals.net, tenant);
 
     // منع تجاوز المتاح (مع احترام حجوزات المسودات) حسب الإعداد stock.sale.enforce = BLOCK
     await this.stock.assertSalePermitted(
@@ -556,6 +558,7 @@ export class PriceStatementsService {
     return {
       creditLimit: Number(customer.creditLimit),
       projectedBalance: roundMoney(outstanding),
+      exceeded: outstanding > Number(customer.creditLimit),
     };
   }
 

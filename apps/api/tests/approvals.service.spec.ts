@@ -43,6 +43,7 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
   const releaseReservations = vi.fn(async (_tx: unknown, _type: string, _id: number) => undefined);
   const finalizeStatement = vi.fn(async () => true);
   const finalizeReturn = vi.fn(async () => true);
+  const assertCustomerCredit = vi.fn(async () => undefined);
 
   const prisma = {
     approval: {
@@ -59,12 +60,12 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
 
   const service = new ApprovalsService(
     prisma,
-    { finalizeStatement, finalizeReturn } as never,
+    { finalizeStatement, finalizeReturn, assertCustomerCredit } as never,
     { releaseReservations } as never,
     { write: async () => undefined } as never,
   );
 
-  return { service, prisma, calls, releaseReservations, finalizeStatement, finalizeReturn };
+  return { service, prisma, calls, releaseReservations, finalizeStatement, finalizeReturn, assertCustomerCredit };
 }
 
 describe('ApprovalsService lifecycle', () => {
@@ -112,7 +113,7 @@ describe('ApprovalsService lifecycle', () => {
     const finalizeStatement = vi.fn(async () => true);
     const svc = new ApprovalsService(
       belowMinPrisma,
-      { finalizeStatement, finalizeReturn: async () => true } as never,
+      { finalizeStatement, finalizeReturn: async () => true, assertCustomerCredit: async () => undefined } as never,
       { releaseReservations: async () => undefined } as never,
       { write: async () => undefined } as never,
     );

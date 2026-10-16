@@ -42,6 +42,8 @@ export class SalesOpsService {
     if (st.status === 'CANCELLED') throw new BadRequestException('Statement is cancelled — cannot finalize');
 
     const tenant = by.companyId ?? null;
+    // منع تجاوز الحد الائتماني عند الاعتماد حسب الإعداد (§5.4)
+    await this.assertCustomerCredit(st.customerId, Number(st.net), tenant);
     const period = await this.periods.open(tenant);
     const rcNumber = Number(st.paid) > 0 ? await this.numbering.issue('RC', by.repCode ?? '', tenant) : null;
 
@@ -119,6 +121,27 @@ export class SalesOpsService {
       });
     });
     return true;
+  }
+
+  /**
+   * منع تجاوز الحد الائتماني عند الاعتماد/التعديل حسب الإعداد `credit.limit.enforce` = BLOCK (§5.4).
+   * WARN (الافتراضي): لا يمنع؛ التحذير يظهر عبر `checkCreditLimit` في إنشاء بيان الأسعار.
+   * يُطبَّق على مسار الاعتماد (assertDecidable) وعلى الترحيل المباشر (finalizeStatement).
+   * يُتجاوز إن لم يكن للعميل حد ائتماني أو كان الإعداد WARN.
+   */
+  async assertCustomerCredit(customerId: number, newNet: number, companyId: number | null): Promise<void> {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'credit.limit.enforce' } });
+    if ((setting?.value ?? 'WARN') !== 'BLOCK') return;
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer || Number(customer.creditLimit) <= 0) return;
+    const { debit, credit } = await this.ledger.balanceOf('CUSTOMER', customerId, companyId);
+    const limit = Number(customer.creditLimit);
+    const projected = Number(customer.openingBalance) + debit - credit + newNet;
+    if (projected > limit) {
+      throw new BadRequestException(
+        `تجاوز الحد الائتماني: الرصيد المتوقع ${projected.toFixed(2)} يتجاوز الحد ${limit.toFixed(2)}`,
+      );
+    }
   }
 
   /** اعتماد مرتجع: إعادة للمخزن (صالح) أو التالف + قيد دائن على العميل. */

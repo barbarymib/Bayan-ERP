@@ -124,11 +124,13 @@ export class ApprovalsService {
   ): Promise<void> {
     const companyId = approval.companyId ?? null;
     if (approval.refType === 'price_statement') {
-      const st = await this.prisma.priceStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true } });
+      const st = await this.prisma.priceStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true, customerId: true, net: true } });
       if (!st || (st.companyId != null && st.companyId !== companyId)) {
         throw new NotFoundException(`Statement ${approval.refId} not found`);
       }
       if (st.status === 'CANCELLED') throw new BadRequestException('كشف الحساب ملغي — لا يمكن اعتماده');
+      // إعادة فحص الحد الائتماني عند الاعتماد (§5.4) — قد تتغيّر الأرصدة بين الإنشاء والاعتماد
+      await this.ops.assertCustomerCredit(st.customerId, Number(st.net), companyId);
     } else if (approval.refType === 'return_statement') {
       const rt = await this.prisma.returnStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true, settlement: true } });
       if (!rt || (rt.companyId != null && rt.companyId !== companyId)) {

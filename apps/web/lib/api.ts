@@ -181,7 +181,7 @@ export interface PriceStatement {
   notes: string | null;
   lines: PriceStatementLine[];
   approvals?: Approval[];
-  creditWarning?: { creditLimit: number; projectedBalance: number } | null;
+  creditWarning?: { creditLimit: number; projectedBalance: number; exceeded?: boolean } | null;
   _count?: { lines: number };
 }
 

@@ -30,6 +30,7 @@ type Harness = {
     approvals: { type: string; refJson?: Record<string, unknown> }[];
     finalized: boolean;
     notified: number;
+    creditChecks: { customerId: number; newNet: number }[];
   };
   st: Record<string, unknown>;
 };
@@ -81,6 +82,7 @@ function harness(
   stOverrides: Record<string, unknown> = {},
   maxRevision: number | null = null,
   itemOverrides: Record<string, unknown> = {},
+  opts: { customer?: Record<string, unknown>; blockCredit?: boolean } = {},
 ): Harness {
   const st = makeStatement(stOverrides);
   const calls: Harness['calls'] = {
@@ -95,6 +97,7 @@ function harness(
     approvals: [],
     finalized: false,
     notified: 0,
+    creditChecks: [],
   };
 
   const tx = {
@@ -128,8 +131,13 @@ function harness(
   };
 
   const prisma = {
-    priceStatement: { findUnique: async () => st },
-    customer: { findUnique: async () => ({ id: 2, nameAr: 'عميل', priceListId: null, companyId: 1 }) },
+    priceStatement: {
+      findUnique: async () => st,
+      create: async () => ({ ...st, id: 99, lines: [] }),
+    },
+    customer: {
+      findUnique: async () => ({ id: 2, nameAr: 'عميل', priceListId: null, companyId: 1, creditLimit: 0, openingBalance: 0, ...opts.customer }),
+    },
     warehouse: {
       findFirst: async () => ({ id: 3, code: 'MAIN', companyId: 1 }),
       findUnique: async () => ({ id: 3, code: 'MAIN', companyId: 1 }),
@@ -172,12 +180,17 @@ function harness(
     entry: async (_tx: unknown, p: LedgerCall) => {
       calls.ledger.push(p);
     },
+    balanceOf: async () => ({ debit: 0, credit: 0 }),
   } as unknown as LedgerService;
 
   const ops = {
     finalizeStatement: async () => {
       calls.finalized = true;
       return true;
+    },
+    assertCustomerCredit: async (customerId: number, newNet: number) => {
+      calls.creditChecks.push({ customerId, newNet });
+      if (opts.blockCredit) throw new BadRequestException('تجاوز الحد الائتماني');
     },
   } as unknown as SalesOpsService;
 
@@ -410,5 +423,26 @@ describe('PriceStatementsService pricing floor & conversion (G7)', () => {
     // رأس 10 من 50 = 20%، بند 5 من 50 = 10%
     expect(res.discountPercent).toBe(20);
     expect(res.lines[0]!.lineDiscountPercent).toBe(10);
+  });
+});
+
+describe('PriceStatementsService.create credit limit (R3-B1 §5.4)', () => {
+  const createDto = { customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }] };
+
+  it('يستدعي فحص الحد الائتماني عند الإنشاء ويُعيد exceeded في التحذير', async () => {
+    const { service, calls } = harness({}, null, {}, { customer: { creditLimit: 50 } });
+    const res = (await service.create(createDto, approver)) as unknown as {
+      creditWarning?: { creditLimit: number; projectedBalance: number; exceeded?: boolean };
+    };
+    expect(calls.creditChecks).toHaveLength(1);
+    expect(calls.creditChecks[0]).toMatchObject({ customerId: 2, newNet: 100 });
+    expect(res.creditWarning).toBeTruthy();
+    expect(res.creditWarning!.exceeded).toBe(true);
+  });
+
+  it('عند رفض فحص الحد (BLOCK) يُسقط الإنشاء ولا يثبّت البيان', async () => {
+    const { service, calls } = harness({}, null, {}, { customer: { creditLimit: 50 }, blockCredit: true });
+    await expect(service.create(createDto, approver)).rejects.toThrow(/الحد الائتماني/);
+    expect(calls.finalized).toBe(false);
   });
 });

@@ -207,6 +207,13 @@ async function main(): Promise<void> {
     create: { key: 'stock.sale.enforce', value: 'ALLOW' },
   });
 
+  // عند تجاوز الحد الائتماني للعميل (WARN تنبيه | BLOCK منع) — §5.4
+  await prisma.systemSetting.upsert({
+    where: { key: 'credit.limit.enforce' },
+    update: { value: 'WARN' },
+    create: { key: 'credit.limit.enforce', value: 'WARN' },
+  });
+
   // فترة مفتوحة حالية (ADR-1)
   const openPeriod = await prisma.period.findFirst({ where: { status: 'OPEN' } });
   if (!openPeriod) {
