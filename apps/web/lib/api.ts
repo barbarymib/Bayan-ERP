@@ -213,6 +213,8 @@ export interface StatementsPage {
 
 export type ReturnStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
 
+export type ReturnSettlement = 'BALANCE' | 'CASH' | 'CREDIT';
+
 export interface ReturnLine {
   id: number;
   sourceLineId: number;
@@ -238,6 +240,8 @@ export interface ReturnStatementDoc {
   date: string;
   total: string;
   notes: string | null;
+  settlement: ReturnSettlement;
+  withoutStatement: boolean;
   lines: ReturnLine[];
   approvals?: Approval[];
   _count?: { lines: number };

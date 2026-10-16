@@ -12,6 +12,7 @@ import {
   type PriceStatement,
   type ReturnStatementDoc,
   type ReturnsPage,
+  type ReturnSettlement,
   type ReturnStatus,
   type StatementsPage,
 } from '@/lib/api';
@@ -52,9 +53,16 @@ const returnStatusColor: Record<ReturnStatus, string> = {
   CANCELLED: 'red',
 };
 
+const settlementLabels: Record<ReturnSettlement, string> = {
+  BALANCE: 'خصم من رصيد العميل',
+  CASH: 'رد نقدية',
+  CREDIT: 'رصيد دائن للعميل',
+};
+
 export default function ReturnsPage() {
   const { user } = useAuth();
   const canCreate = can(user, 'return.create');
+  const canCashRefund = can(user, 'return.cash_refund');
 
   const [rows, setRows] = useState<ReturnStatementDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +135,7 @@ export default function ReturnsPage() {
               <Th>العميل</Th>
               <Th>النوع</Th>
               <Th>السبب</Th>
+              <Th>الأثر المالي</Th>
               <Th>الإجمالي</Th>
               <Th>الحالة</Th>
               <Th></Th>
@@ -152,6 +161,7 @@ export default function ReturnsPage() {
                   </Td>
                   <Td>{r.mode === 'BY_CUSTOMER' ? 'حسب العميل' : 'حسب المندوب'}</Td>
                   <Td>{r.reason?.nameAr ?? '—'}</Td>
+                  <Td className="text-xs text-gray-600">{settlementLabels[r.settlement] ?? r.settlement}</Td>
                   <Td className="font-bold">{formatMoney(r.total)}</Td>
                   <Td>
                     <Badge color={returnStatusColor[r.status]}>{returnStatusLabel[r.status]}</Badge>
@@ -175,6 +185,7 @@ export default function ReturnsPage() {
 
       {createOpen ? (
         <CreateReturnModal
+          canCashRefund={canCashRefund}
           onClose={() => setCreateOpen(false)}
           onSaved={(msg) => {
             setCreateOpen(false);
@@ -202,9 +213,11 @@ export default function ReturnsPage() {
 }
 
 function CreateReturnModal({
+  canCashRefund,
   onClose,
   onSaved,
 }: {
+  canCashRefund: boolean;
   onClose: () => void;
   onSaved: (msg: string) => void;
 }) {
@@ -213,6 +226,7 @@ function CreateReturnModal({
   const [customerId, setCustomerId] = useState('');
   const [date, setDate] = useState(todayStr());
   const [reasonCode, setReasonCode] = useState('DEFECT');
+  const [settlement, setSettlement] = useState<ReturnSettlement>('BALANCE');
   const [notes, setNotes] = useState('');
   const [statements, setStatements] = useState<PriceStatement[]>([]);
   const [statementId, setStatementId] = useState('');
@@ -292,6 +306,7 @@ function CreateReturnModal({
         customerId: Number(customerId),
         date,
         reasonCode,
+        settlement,
         notes: notes.trim() || undefined,
         lines: cleaned,
       });
@@ -339,6 +354,16 @@ function CreateReturnModal({
                 {r.nameAr}
               </option>
             ))}
+          </Select>
+        </Field>
+      </div>
+
+      <div className="mb-4">
+        <Field label="الأثر المالي">
+          <Select value={settlement} onChange={(e) => setSettlement(e.target.value as ReturnSettlement)}>
+            <option value="BALANCE">خصم من رصيد العميل</option>
+            <option value="CREDIT">رصيد دائن للعميل</option>
+            {canCashRefund ? <option value="CASH">رد نقدية من الخزينة</option> : null}
           </Select>
         </Field>
       </div>
@@ -483,6 +508,8 @@ function ReturnDetailModal({ r, onClose }: { r: ReturnStatementDoc; onClose: () 
         <span className="text-gray-500">
           {doc.mode === 'BY_CUSTOMER' ? 'حسب العميل' : 'حسب المندوب'} • {doc.reason?.nameAr ?? '—'}
         </span>
+        <span className="text-gray-500">الأثر المالي: {settlementLabels[doc.settlement] ?? doc.settlement}</span>
+        {doc.withoutStatement ? <Badge color="amber">بدون بيان</Badge> : null}
         {doc.rep ? <span className="text-gray-500">المندوب: {doc.rep.name}</span> : null}
       </div>
 
