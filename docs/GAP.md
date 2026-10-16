@@ -160,6 +160,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-16 | **R3-B11** re-check available stock at approval/finalize on `stock.sale.enforce=BLOCK`, excluding the statement's own reservation | ✅ FIXED (api 300/300; 15/15 live verify — approve blocked 400 + approval stays PENDING when balance drops; approve succeeds only once available-excluding-self ≥ qty) |
 | 2026-10-16 | **R3-A5** item `Batch` registry (code + production/expiry dates) + capture on purchase receive + web batch UI | ✅ FIXED (api 309/309; web build/typecheck/lint 0; 29/29 live verify) |
 | 2026-10-16 | **R3-A6** steel **actual-weight note** on statement lines (persist + STEEL-only) + `weight-notes` report + web/mobile capture | ✅ FIXED (api 314/314; web build/typecheck/lint 0; mobile analyze/tests 223/223; 27/27 live verify) |
+| 2026-10-16 | **R3-C2/E5** valuation **no-price** flag/exclusion (+counts) + **items-without-price** report/tab | ✅ FIXED (api 319/319; web build/typecheck/lint 0; 31/31 live verify) |
 
 ---
 
@@ -210,7 +211,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-B9 | Supplier statement API exists but **no web page** calls it. | §5.5 | PARTIAL | `collections.controller.ts:87-96`; no call in web |
 | R3-B10 | No setting to **disable auto last-purchase-cost update** on approval (always updates). | §5.5 | MISSING | `purchases.service.ts:164-167`; no settings toggle |
 | R3-B11 | Negative-stock **BLOCK not rechecked at approval/finalize** → balance can go negative after the draft/reserve window. | §5.6 | ✅ FIXED | `stock.service.ts` `availableQty`/`assertSalePermitted` gained optional `exclude?: ReservationExclude {refType,refId}` (adds `NOT:{refType,refId}` to the reservation aggregate so a statement's own reservation isn't double-counted); re-check on `stock.sale.enforce=BLOCK` added in `sales-ops.service.ts` `finalizeStatement` (after `assertCustomerCredit`) and in `approvals.service.ts` `assertDecidable` **before** the approval status flip (so a rejection leaves the approval PENDING). Commits `f3bdb25`, `275f408`. Live-verified 2026-10-16 (15/0). |
-| R3-C2 | Valuation "no price" items are costed 0 and folded into totals — not flagged/excluded+counted. | §5.8 note | PARTIAL | `reports.service.ts:89,104-105,142` vs `packages/shared/src/stocktake.ts:39,74` |
+| R3-C2 | Valuation "no price" items are costed 0 and folded into totals — not flagged/excluded+counted. | §5.8 note | ✅ FIXED | `reports.service.ts` `stockValues` rows gain `noPrice` (LAST: `lastPurchaseCost==null`; WEIGHTED: no purchase rows; SALES: no active price-list price); no-price lines are counted (`totals.noPriceItems/noPriceLines/noPriceQtyBase/noPriceValue`) + listed (`noPriceItems[]`) and **excluded** from `byItem`/`byWarehouse`/totals. (`packages/shared/src/stocktake.ts` already counted `noCostLines` — mirror only, not consumed.) Commit `4f5f3cd`. Live-verified 2026-10-16 (31/0). |
 | R3-C3 | Return financial effect (BALANCE/CASH/CREDIT) not exposed in any UI. | §5.9 | PARTIAL | `apps/web/app/(app)/returns/page.tsx`; `new_return_screen.dart:111-117` |
 | R3-C4 | Rep-return **approval** is permission-gated, not an optional per-company **setting**. | §5.9.6 | DEVIATION | `returns.service.ts:183,221-247`; no key in `seed.ts:196-207` |
 | R3-C5 | Multiple **counters** unsupported (no counter identity on counts/lines). | §5.8.3 | MISSING | `stocktakes.dto.ts:49-73`; `schema.prisma:1194-1210` |
@@ -225,7 +226,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-E2 | **No backup before data migration** (`migration.import` runs without a dump; only archive run backs up). | §9 | PARTIAL | `migration/migration.service.ts:388`; `archives.service.ts:306` |
 | R3-E3 | Server-side **sensitive-data encryption** absent (only backup AES + mobile SQLCipher). | §9 | PARTIAL | `backups/crypto.util.ts:33`; not in schema/env |
 | R3-E4 | No **stale-draft warning** for old price statements. | §11 | MISSING | no stale/draft-age logic anywhere in web/mobile |
-| R3-E5 | No **"items without price"** report/list (valuation silently 0). | §11 | MISSING | `valuation.ts:49`; no such method in `reports.service.ts` |
+| R3-E5 | No **"items without price"** report/list (valuation silently 0). | §11 | ✅ FIXED | new `ReportsService.itemsWithoutPrice` (+ `QueryItemsWithoutPriceDto`) lists active items with `lastPurchaseCost==null` (on-hand qty via `stockBalance.groupBy`); `GET /reports/items-without-price` (`report.view`, CSV); web reports tab "أصناف بدون سعر". Commit `4f5f3cd`. Live-verified 2026-10-16 (31/0). |
 | R3-F1 | Mobile **no "my customers" screen** (search+filter+distance). | §8.2 #2 | MISSING | no `features/customers/**`; inline list `home_screen.dart:216-226` |
 | R3-F2 | Mobile items screen **omits stock balances**. | §8.2 #7 | PARTIAL | `catalog/catalog_screen.dart`; `ItemSummary` no qty `models.dart:94-116` |
 | R3-F3 | Mobile home **lacks today KPIs**. | §8.2 #1 | PARTIAL | `home/home_screen.dart` |
@@ -278,7 +279,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 11. **R3-A9** enforce rep customer scoping on statements/returns. — ✅ FIXED (api 292/292; 11/11 live verify)
 12. **R3-B11** re-check negative-stock/credit at approval/finalize. — ✅ FIXED (api 300/300; 15/15 live verify)
 13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD. — ✅ FIXED (api 292/292; 27/27 live verify)
-14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report.
+14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report. — ✅ FIXED (api 319/319; web build clean; 31/31 live verify)
 15. **R3-C8** stocktake freeze WARN mode (surface warning).
 16. **R3-C6/C5** stocktake scope (category/brand/group) + counters; web open-scope UI.
 17. **R3-C7** recount threshold/flagging (shared + UI).
