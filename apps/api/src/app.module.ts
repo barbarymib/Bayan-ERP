@@ -9,6 +9,7 @@ import { TenantContextInterceptor } from './tenant/tenant.interceptor.js';
 import { CommonModule } from './common/common.module.js';
 import { ObjectStorageModule } from './common/object-storage.module.js';
 import { ItemsModule } from './items/items.module.js';
+import { BatchesModule } from './batches/batches.module.js';
 import { UnitsModule } from './units/units.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { BrandsModule } from './brands/brands.module.js';
@@ -54,6 +55,7 @@ import { DevicesModule } from './devices/devices.module.js';
     ObjectStorageModule,
     AuthModule,
     ItemsModule,
+    BatchesModule,
     UnitsModule,
     CategoriesModule,
     BrandsModule,

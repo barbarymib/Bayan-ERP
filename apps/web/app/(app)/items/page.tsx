@@ -1,7 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { can, get, post, patch, del, qs, type Category, type Item, type ItemsPage, type Unit } from '@/lib/api';
+import {
+  can,
+  get,
+  post,
+  patch,
+  del,
+  qs,
+  type Batch,
+  type BatchesPage,
+  type Category,
+  type Item,
+  type ItemsPage,
+  type Unit,
+} from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
   Badge,
@@ -91,6 +104,7 @@ export default function ItemsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
+  const [batchItem, setBatchItem] = useState<Item | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
@@ -183,6 +197,11 @@ export default function ItemsPage() {
                         <Button variant="ghost" onClick={() => setEditItem(item)}>
                           تعديل
                         </Button>
+                        {item.trackBatch ? (
+                          <Button variant="ghost" onClick={() => setBatchItem(item)}>
+                            الدفعات
+                          </Button>
+                        ) : null}
                         {item.active ? (
                           <Button
                             variant="ghost"
@@ -243,6 +262,8 @@ export default function ItemsPage() {
           }}
         />
       ) : null}
+
+      {batchItem ? <BatchesModal item={batchItem} canManage={manage} onClose={() => setBatchItem(null)} /> : null}
     </div>
   );
 }
@@ -525,6 +546,181 @@ function EditItemModal({
         </Button>
         <Button onClick={submit} disabled={busy}>
           {busy ? 'جارِ الحفظ…' : 'حفظ'}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function BatchesModal({ item, canManage, onClose }: { item: Item; canManage: boolean; onClose: () => void }) {
+  const [rows, setRows] = useState<Batch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [productionDate, setProductionDate] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<BatchesPage>(`/batches${qs({ itemId: item.id, includeInactive: true })}`)
+      .then((d) => {
+        if (!cancelled) {
+          setRows(d.batches);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'فشل تحميل الدفعات');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, refresh]);
+
+  async function add() {
+    setBusy(true);
+    setError(null);
+    try {
+      await post('/batches', {
+        itemId: item.id,
+        code: code.trim(),
+        expiry: expiry || undefined,
+        productionDate: productionDate || undefined,
+      });
+      setCode('');
+      setExpiry('');
+      setProductionDate('');
+      setRefresh((s) => s + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حفظ الدفعة');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateExpiry(b: Batch, next: string) {
+    setError(null);
+    try {
+      await patch(`/batches/${b.id}`, { expiry: next || null });
+      setRefresh((s) => s + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل تحديث الصلاحية');
+    }
+  }
+
+  async function remove(b: Batch) {
+    setError(null);
+    try {
+      await del(`/batches/${b.id}`);
+      setRefresh((s) => s + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حذف الدفعة');
+    }
+  }
+
+  function status(b: Batch): { color: string; label: string } {
+    if (!b.expiry) return { color: 'gray', label: 'بلا صلاحية' };
+    const exp = new Date(b.expiry);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Math.ceil((exp.getTime() - today.getTime()) / 86400000);
+    if (days < 0) return { color: 'red', label: 'منتهية' };
+    if (days <= 30) return { color: 'blue', label: `تنتهي خلال ${days} يوم` };
+    return { color: 'green', label: 'سارية' };
+  }
+
+  return (
+    <Modal title={`دفعات ${item.code} — ${item.nameAr}`} onClose={onClose}>
+      {canManage ? (
+        <div className="mb-4 grid grid-cols-4 items-end gap-2">
+          <Field label="كود الدفعة">
+            <TextInput value={code} onChange={(e) => setCode(e.target.value)} required />
+          </Field>
+          <Field label="تاريخ الإنتاج">
+            <TextInput value={productionDate} onChange={(e) => setProductionDate(e.target.value)} type="date" />
+          </Field>
+          <Field label="تاريخ الصلاحية">
+            <TextInput value={expiry} onChange={(e) => setExpiry(e.target.value)} type="date" />
+          </Field>
+          <Button onClick={add} disabled={busy || !code.trim()}>
+            {busy ? '…' : '+ إضافة'}
+          </Button>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mb-3">
+          <Notice type="error">{error}</Notice>
+        </div>
+      ) : null}
+
+      <div className="overflow-x-auto rounded-lg border border-gray-100">
+        <table className="w-full">
+          <thead className="border-b border-gray-100 bg-gray-50">
+            <tr>
+              <Th>الكود</Th>
+              <Th>الإنتاج</Th>
+              <Th>الصلاحية</Th>
+              <Th>الحالة</Th>
+              {canManage ? <Th></Th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <Td className="py-4 text-center text-gray-400">جارِ التحميل…</Td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <Td className="py-4 text-center text-gray-400">لا توجد دفعات</Td>
+              </tr>
+            ) : (
+              rows.map((b) => {
+                const st = status(b);
+                return (
+                  <tr key={b.id} className="border-b border-gray-100 last:border-0">
+                    <Td className="font-mono font-semibold">{b.code || '—'}</Td>
+                    <Td>{b.productionDate ? b.productionDate.slice(0, 10) : '—'}</Td>
+                    <Td>
+                      {canManage ? (
+                        <input
+                          type="date"
+                          className="rounded border border-gray-200 px-2 py-1 text-sm"
+                          value={b.expiry ? b.expiry.slice(0, 10) : ''}
+                          onChange={(e) => updateExpiry(b, e.target.value)}
+                        />
+                      ) : b.expiry ? (
+                        b.expiry.slice(0, 10)
+                      ) : (
+                        '—'
+                      )}
+                    </Td>
+                    <Td>
+                      <Badge color={st.color}>{st.label}</Badge>
+                    </Td>
+                    {canManage ? (
+                      <Td>
+                        <Button variant="danger" onClick={() => remove(b)}>
+                          حذف
+                        </Button>
+                      </Td>
+                    ) : null}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <Button variant="secondary" onClick={onClose}>
+          إغلاق
         </Button>
       </div>
     </Modal>

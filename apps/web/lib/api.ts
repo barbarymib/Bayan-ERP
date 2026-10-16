@@ -70,6 +70,23 @@ export interface Item {
   active: boolean;
 }
 
+// دفعة صنف (اختياري §5.1): كود + تواريخ الإنتاج/الصلاحية
+export interface Batch {
+  id: number;
+  itemId: number;
+  code: string;
+  productionDate: string | null;
+  expiry: string | null;
+  notes: string | null;
+  active: boolean;
+  item?: { id: number; code: string; nameAr: string; trackBatch: boolean };
+}
+
+export interface BatchesPage {
+  batches: Batch[];
+  total: number;
+}
+
 export interface Customer {
   id: number;
   code: string;
@@ -239,6 +256,7 @@ export interface PurchaseLine {
   lineDiscountAmount: string;
   netLine: string;
   landedCost: string | null;
+  batchId?: string;
 }
 
 export interface PurchaseStatementDoc {

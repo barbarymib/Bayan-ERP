@@ -41,6 +41,23 @@ export class PurchaseLineInputDto {
   @ValidateNested()
   @Type(() => DiscountInputDto)
   discount?: DiscountInputDto;
+
+  @ApiPropertyOptional({
+    example: 'B-2026-01',
+    description: 'كود الدفعة المستلمة (لأصناف تتتبع الدفعات §5.1)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  batchId?: string;
+
+  @ApiPropertyOptional({
+    example: '2027-01-15',
+    description: 'تاريخ انتهاء صلاحية الدفعة (يتطلب batchId)',
+  })
+  @IsOptional()
+  @IsDateString()
+  expiry?: string;
 }
 
 export class CreatePurchaseDto {

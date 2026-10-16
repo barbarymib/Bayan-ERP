@@ -16,7 +16,7 @@ import { tenantWhere } from '../common/tenant.js';
 import { allowsDecimalByMeasurement, assertLineQtyAllowed } from '../common/units.js';
 import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
-import { StockService } from '../common/stock.service.js';
+import { StockService, type Tx } from '../common/stock.service.js';
 import { LedgerService } from '../common/ledger.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { CreatePurchaseDto, QueryPurchasesDto } from './purchases.dto.js';
@@ -60,6 +60,8 @@ export class PurchasesService {
       qty: number;
       unitPrice: number;
       discount?: Discount;
+      batchId?: string;
+      expiry?: string;
     }[] = [];
 
     for (const line of dto.lines) {
@@ -90,7 +92,25 @@ export class PurchasesService {
       }
       assertLineQtyAllowed(line.qty, allowDecimal, unitName);
 
-      resolved.push({ itemId: item.id, unitId, factor, qty: line.qty, unitPrice: line.unitPrice, discount: line.discount });
+      // دفعات الأصناف §5.1 — الدفعة مسموحة فقط لأصناف تتتبعها، والصلاحية تتطلب كود دفعة
+      const batchId = line.batchId?.trim() ?? '';
+      if (batchId && !item.trackBatch) {
+        throw new BadRequestException(`الصنف ${item.code} لا يتتبع الدفعات — لا يمكن ربط دفعة به.`);
+      }
+      if (line.expiry && !batchId) {
+        throw new BadRequestException('تاريخ الصلاحية يتطلب كود دفعة (batchId).');
+      }
+
+      resolved.push({
+        itemId: item.id,
+        unitId,
+        factor,
+        qty: line.qty,
+        unitPrice: line.unitPrice,
+        discount: line.discount,
+        batchId,
+        expiry: line.expiry,
+      });
     }
 
     const totals = calcStatementTotals({
@@ -152,6 +172,7 @@ export class PurchasesService {
                 lineDiscountAmount: t.lineDiscountAmount,
                 netLine: t.netFinal,
                 landedCost: landedUnitCost(i),
+                batchId: r.batchId ?? '',
                 periodId: period?.id ?? null,
               };
             }),
@@ -163,6 +184,9 @@ export class PurchasesService {
         const i = resolved.indexOf(line);
         const qtyBase = qtyBases[i]!;
         const cost = landedUnitCost(i);
+        if (line.batchId) {
+          await this.upsertBatch(tx, tenant, line.itemId, line.batchId, line.expiry ?? null);
+        }
         await this.stock.purchaseIn(tx, {
           warehouseId: warehouse.id,
           refType: 'purchase_statement',
@@ -170,7 +194,7 @@ export class PurchasesService {
           userId: user.id,
           periodId: period?.id ?? null,
           companyId: tenant,
-          lines: [{ itemId: line.itemId, qtyBase, cost }],
+          lines: [{ itemId: line.itemId, qtyBase, cost, batchId: line.batchId || undefined }],
         });
         await tx.item.update({
           where: { id: line.itemId },
@@ -249,6 +273,32 @@ export class PurchasesService {
       include: { lines: { include: { item: true, unit: true } }, supplier: true, warehouse: true },
     });
     return fresh;
+  }
+
+  /** تسجيل/تحديث دفعة الصنف (كود + صلاحية) عند توريدها §5.1. */
+  private async upsertBatch(
+    tx: Tx,
+    companyId: number | null,
+    itemId: number,
+    code: string,
+    expiryIso: string | null,
+  ) {
+    const expiry = expiryIso ? new Date(expiryIso) : undefined;
+    const existing = await tx.batch.findFirst({ where: { itemId, code, ...tenantWhere(companyId) } });
+    if (existing) {
+      if (expiry !== undefined) {
+        await tx.batch.update({ where: { id: existing.id }, data: { expiry } });
+      }
+      return;
+    }
+    await tx.batch.create({
+      data: {
+        itemId,
+        code,
+        ...tenantWhere(companyId),
+        ...(expiry ? { expiry } : {}),
+      },
+    });
   }
 
   async list(query: QueryPurchasesDto, companyId: number | null = null) {

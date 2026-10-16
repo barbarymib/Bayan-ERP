@@ -204,7 +204,10 @@ function CreatePurchaseModal({
   }, []);
 
   function addLine() {
-    setLines([...lines, { itemCode: '', unitCode: '', qty: '1', unitPrice: '', discType: '', discValue: '' }]);
+    setLines([
+      ...lines,
+      { itemCode: '', unitCode: '', qty: '1', unitPrice: '', discType: '', discValue: '', batchId: '', expiry: '' },
+    ]);
   }
 
   function updateLine(i: number, patch: Partial<PurchaseRow>) {
@@ -222,13 +225,19 @@ function CreatePurchaseModal({
     setError(null);
     const cleaned = lines
       .filter((l) => l.itemCode && Number(l.qty) > 0)
-      .map((l) => ({
-        itemCode: l.itemCode,
-        unitCode: l.unitCode || undefined,
-        qty: Number(l.qty),
-        unitPrice: Number(l.unitPrice) || 0,
-        discount: l.discType ? { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) || 0 } : undefined,
-      }));
+      .map((l) => {
+        const item = items.find((x) => x.code === l.itemCode);
+        const batchId = item?.trackBatch ? l.batchId.trim() : '';
+        return {
+          itemCode: l.itemCode,
+          unitCode: l.unitCode || undefined,
+          qty: Number(l.qty),
+          unitPrice: Number(l.unitPrice) || 0,
+          discount: l.discType ? { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) || 0 } : undefined,
+          batchId: batchId || undefined,
+          expiry: batchId && l.expiry ? l.expiry : undefined,
+        };
+      });
     const badQty = cleaned.find((l) => {
       const item = items.find((x) => x.code === l.itemCode);
       return item ? !isLineQtyAllowed(item, l.unitCode, l.qty) : false;
@@ -388,6 +397,20 @@ function CreatePurchaseModal({
                       </Button>
                     </div>
                   </div>
+                  {item?.trackBatch ? (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <Field label="كود الدفعة (batch)">
+                        <TextInput
+                          value={l.batchId}
+                          onChange={(e) => updateLine(i, { batchId: e.target.value })}
+                          placeholder="اختياري — اتركه فارغاً لدفعة بلا كود"
+                        />
+                      </Field>
+                      <Field label="تاريخ انتهاء الصلاحية">
+                        <TextInput value={l.expiry} onChange={(e) => updateLine(i, { expiry: e.target.value })} type="date" />
+                      </Field>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -475,6 +498,7 @@ function PurchaseDetailModal({ p, onClose }: { p: PurchaseStatementDoc; onClose:
                   <Td>
                     <div className="font-semibold">{l.item.nameAr}</div>
                     <div className="text-xs text-gray-400">{l.item.code}</div>
+                    {l.batchId ? <div className="text-xs text-gray-400">دفعة: {l.batchId}</div> : null}
                   </Td>
                   <Td>{l.unit.nameAr ?? l.unit.code}</Td>
                   <Td>{formatMoney(l.qty)} {l.unit.code}</Td>
@@ -523,6 +547,8 @@ type PurchaseRow = {
   unitPrice: string;
   discType: string;
   discValue: string;
+  batchId: string;
+  expiry: string;
 };
 
 function todayStr(): string {

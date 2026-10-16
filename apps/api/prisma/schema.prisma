@@ -422,12 +422,33 @@ model Item {
   transferLines       StockTransferLine[]
   purchaseOrderLines  PurchaseOrderLine[]
   supplierReturnLines SupplierReturnLine[]
+  batches             Batch[]
 
   @@index([categoryId])
   @@index([companyId])
   @@index([nameAr])
   @@unique([companyId, code])
   @@unique([companyId, barcode])
+}
+
+// دفعات الأصناف (اختياري §5.1) — كود الدفعة + تواريخ الإنتاج/الصلاحية (للبويات مثلاً)
+model Batch {
+  companyId      Int?
+  id             Int       @id @default(autoincrement())
+  itemId         Int
+  item           Item      @relation(fields: [itemId], references: [id])
+  code           String
+  productionDate DateTime? @db.Date
+  expiry         DateTime? @db.Date
+  notes          String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([itemId])
+  @@index([expiry])
+  @@unique([companyId, itemId, code])
 }
 
 model ItemAttribute {
@@ -1017,6 +1038,8 @@ model PurchaseStatementLine {
   netLine            Decimal           @db.Decimal(18, 2)
   // التكلفة النهائية بعد توزيع مصاريف النقل (Landed Cost) — اختياري
   landedCost         Decimal?          @db.Decimal(18, 4)
+  // كود الدفعة المستلمة (لأصناف تتتبع الدفعات §5.1) — فارغ = بدون دفعة
+  batchId            String            @default("")
   periodId           Int?
 
   @@index([statementId])

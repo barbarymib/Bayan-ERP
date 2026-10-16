@@ -10,6 +10,8 @@ interface Line {
   itemCode: string;
   qty: number;
   unitPrice: number;
+  batchId?: string;
+  expiry?: string;
 }
 
 /**
@@ -17,11 +19,13 @@ interface Line {
  * - وسائط إنشاء بيان التوريد (البنود + landedCost + landedCostTotal)
  * - نداءات إدخال المخزون (stock.purchaseIn) وتحديث آخر سعر شراء
  */
-function build(lineItems: Record<string, number>) {
+function build(lineItems: Record<string, number>, opts: { trackBatch?: boolean } = {}) {
   const calls = {
     create: [] as Record<string, unknown>[],
     purchaseIn: [] as Record<string, unknown>[],
     itemUpdate: [] as Record<string, unknown>[],
+    batchCreate: [] as Record<string, unknown>[],
+    batchUpdate: [] as Record<string, unknown>[],
   };
 
   const tx = {
@@ -37,6 +41,17 @@ function build(lineItems: Record<string, number>) {
         return {};
       },
     },
+    batch: {
+      findFirst: async () => null,
+      create: async (args: Record<string, unknown>) => {
+        calls.batchCreate.push(args);
+        return { id: 1, ...(args as { data: Record<string, unknown> }).data };
+      },
+      update: async (args: Record<string, unknown>) => {
+        calls.batchUpdate.push(args);
+        return {};
+      },
+    },
   };
 
   const prisma = {
@@ -45,7 +60,9 @@ function build(lineItems: Record<string, number>) {
     item: {
       findFirst: async (args: { where: { code: string } }) => ({
         id: lineItems[args.where.code] ?? 0,
+        code: args.where.code,
         baseUnitId: 1,
+        trackBatch: opts.trackBatch ?? false,
         baseUnit: { measurement: 'WEIGHT', nameAr: 'كجم' },
       }),
     },
@@ -158,5 +175,36 @@ describe('PurchasesService.create — توزيع مصاريف النقل Landed 
     // [3,1] بالكمية → نصيب 30 و10، والتكلفة 10 للوحدة في الحالتين
     expect(create.data.lines.create[0]?.landedCost).toBe(10);
     expect(create.data.lines.create[1]?.landedCost).toBe(10);
+  });
+});
+
+describe('PurchasesService.create — دفعات الأصناف (§5.1)', () => {
+  it('يسجّل دفعة الصنف ويحفظ batchId على البند والمخزون', async () => {
+    const { service, calls } = build({ A: 11 }, { trackBatch: true });
+    await service.create(
+      dto([{ itemCode: 'A', qty: 5, unitPrice: 10, batchId: 'B-1', expiry: '2027-01-15' }]),
+      user,
+    );
+
+    expect(calls.batchCreate[0]).toMatchObject({ data: { itemId: 11, code: 'B-1', companyId: 1 } });
+    expect((calls.batchCreate[0] as { data: { expiry?: unknown } }).data.expiry).toBeInstanceOf(Date);
+    const create = calls.create[0] as { data: { lines: { create: { batchId: string }[] } } };
+    expect(create.data.lines.create[0]?.batchId).toBe('B-1');
+    expect((calls.purchaseIn[0]?.lines as { batchId?: string }[])[0]?.batchId).toBe('B-1');
+  });
+
+  it('يرفض دفعة على صنف لا يتتبع الدفعات', async () => {
+    const { service, calls } = build({ A: 11 }, { trackBatch: false });
+    await expect(
+      service.create(dto([{ itemCode: 'A', qty: 5, unitPrice: 10, batchId: 'B-1' }]), user),
+    ).rejects.toThrow('لا يتتبع الدفعات');
+    expect(calls.create).toHaveLength(0);
+  });
+
+  it('يرفض تاريخ صلاحية بلا كود دفعة', async () => {
+    const { service } = build({ A: 11 }, { trackBatch: true });
+    await expect(
+      service.create(dto([{ itemCode: 'A', qty: 5, unitPrice: 10, expiry: '2027-01-15' }]), user),
+    ).rejects.toThrow('يتطلب كود دفعة');
   });
 });
