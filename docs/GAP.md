@@ -161,6 +161,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-16 | **R3-A5** item `Batch` registry (code + production/expiry dates) + capture on purchase receive + web batch UI | ✅ FIXED (api 309/309; web build/typecheck/lint 0; 29/29 live verify) |
 | 2026-10-16 | **R3-A6** steel **actual-weight note** on statement lines (persist + STEEL-only) + `weight-notes` report + web/mobile capture | ✅ FIXED (api 314/314; web build/typecheck/lint 0; mobile analyze/tests 223/223; 27/27 live verify) |
 | 2026-10-16 | **R3-C2/E5** valuation **no-price** flag/exclusion (+counts) + **items-without-price** report/tab | ✅ FIXED (api 319/319; web build/typecheck/lint 0; 31/31 live verify) |
+| 2026-10-16 | **R3-C8** stocktake freeze **WARN** mode (BLOCK still enforced; WARN passes + surfaces `freezeWarning` on movement docs) | ✅ FIXED (api 323/323; web build/typecheck/lint 0; 31/31 live verify) |
 
 ---
 
@@ -217,7 +218,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-C5 | Multiple **counters** unsupported (no counter identity on counts/lines). | §5.8.3 | MISSING | `stocktakes.dto.ts:49-73`; `schema.prisma:1194-1210` |
 | R3-C6 | Stocktake scope: **item-group** missing; web open UI exposes no scope (extends G20). | §5.8.1 | PARTIAL | `stocktakes.dto.ts:17-35`; `stocktakes/page.tsx:209` |
 | R3-C7 | Stocktake "big diff" **recount threshold/flagging** missing (manual transitions only). | §5.8.5/§6.3 | PARTIAL | `stocktakes.service.ts:213-219`; `packages/shared/src/stocktake.ts` |
-| R3-C8 | Freeze **WARN** mode is a no-op (only BLOCK enforced). | §5.8.2 | DEVIATION | `stock.service.ts:81,164`; `stocktakes.service.ts:310-311` |
+| R3-C8 | Freeze **WARN** mode is a no-op (only BLOCK enforced). | §5.8.2 | ✅ FIXED | `stock.service.ts` `assertMovable` now returns a `FreezeStatus` (`mode`/`frozen`/`sessionNumber`) + new `freezeStatus()`/`freezeWarningMessage()`; throws only on `BLOCK`, passes + warns on `WARN` (reads `stocktake.freeze.mode`, `OFF` disables). Movement-create docs (`price-statements`, `purchases`, `transfers`, `supplier-returns`) attach `freezeWarning` to their create responses; web shows it in the save toast. Commit `d1a5abc`. Live-verified 2026-10-16 (31/0). |
 | R3-C9 | Rep **custody-delivery report (محضر تسليم عهدة) + reconciliation** absent (record only). | §5.10 | PARTIAL | `treasury.service.ts:84-148`; no report endpoint |
 | R3-D2 | No signed **consent/notice** for geotracking (§5.13/§9, Egypt 151/2020). | §5.13 | ✅ FIXED (50/50 live verify; api 271/271; mobile 220/220) | API: `ConsentRecord` model + migration `20261016010000_geo_consent` (**schema-qualified `public.`** — see note), `geo.service.ts` `consentStatus/acceptConsent/revokeConsent/assertGeoConsent` (setting `geo.consent.required`, default true; `ForbiddenException` 403 on `startShift` without current-version consent; revoke ends active shift), routes `GET/POST /geo/consent` + `POST /geo/consent/revoke`; mobile: `core/geo/tracking_consent.dart`, `features/geo/consent_screen.dart` gating shift start. |
 | R3-D3 | Tracking interval hardcoded 60s Provider — not user-configurable. | §5.13 | PARTIAL | `providers.dart:39`; `shift_controller.dart:72` |
@@ -280,7 +281,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 12. **R3-B11** re-check negative-stock/credit at approval/finalize. — ✅ FIXED (api 300/300; 15/15 live verify)
 13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD. — ✅ FIXED (api 292/292; 27/27 live verify)
 14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report. — ✅ FIXED (api 319/319; web build clean; 31/31 live verify)
-15. **R3-C8** stocktake freeze WARN mode (surface warning).
+15. **R3-C8** stocktake freeze WARN mode (surface warning). — ✅ FIXED (api 323/323; web build clean; 31/31 live verify)
 16. **R3-C6/C5** stocktake scope (category/brand/group) + counters; web open-scope UI.
 17. **R3-C7** recount threshold/flagging (shared + UI).
 18. **R3-C4** rep-return approval as a per-company setting.
