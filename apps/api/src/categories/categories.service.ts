@@ -94,11 +94,11 @@ export class CategoriesService {
   }
 
   async remove(id: number, companyId: number | null = null) {
-    const usage = await this.prisma.$transaction([
-      this.prisma.item.count({ where: { categoryId: id, ...tenantWhere(companyId) } }),
-      this.prisma.category.count({ where: { parentId: id, ...tenantWhere(companyId) } }),
+    const [itemCount, childCount] = await this.prisma.$transaction(async (tx) => [
+      await tx.item.count({ where: { categoryId: id, ...tenantWhere(companyId) } }),
+      await tx.category.count({ where: { parentId: id, ...tenantWhere(companyId) } }),
     ]);
-    if (usage[0] > 0 || usage[1] > 0) {
+    if (itemCount > 0 || childCount > 0) {
       throw new ConflictException('Category has items or child categories');
     }
     await this.findOne(id, companyId);

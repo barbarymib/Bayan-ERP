@@ -73,7 +73,10 @@ function harness(opts: Options = {}) {
         return { count: args.data.length };
       },
     },
-    $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
+    $transaction: async (arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: unknown) => Promise<unknown>)(prisma)
+        : Promise.all(arg as Promise<unknown>[]),
   } as unknown as PrismaService;
 
   const calls: AuditCall[] = [];

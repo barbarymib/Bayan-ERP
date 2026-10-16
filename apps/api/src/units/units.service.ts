@@ -56,11 +56,11 @@ export class UnitsService {
   }
 
   async remove(id: number) {
-    const usage = await this.prisma.$transaction([
-      this.prisma.itemUnit.count({ where: { unitId: id } }),
-      this.prisma.item.count({ where: { baseUnitId: id } }),
+    const [itemUnitCount, baseItemCount] = await this.prisma.$transaction(async (tx) => [
+      await tx.itemUnit.count({ where: { unitId: id } }),
+      await tx.item.count({ where: { baseUnitId: id } }),
     ]);
-    if (usage[0] > 0 || usage[1] > 0) {
+    if (itemUnitCount > 0 || baseItemCount > 0) {
       throw new ConflictException('Unit is in use by items (item_units or as base unit)');
     }
     await this.prisma.unit.delete({ where: { id } });

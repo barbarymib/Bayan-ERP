@@ -62,11 +62,11 @@ export class PriceListsService {
   }
 
   async remove(id: number, companyId: number | null = null) {
-    const usage = await this.prisma.$transaction([
-      this.prisma.itemPrice.count({ where: { priceListId: id, ...tenantWhere(companyId) } }),
-      this.prisma.customer.count({ where: { priceListId: id, ...tenantWhere(companyId) } }),
+    const [priceCount, customerCount] = await this.prisma.$transaction(async (tx) => [
+      await tx.itemPrice.count({ where: { priceListId: id, ...tenantWhere(companyId) } }),
+      await tx.customer.count({ where: { priceListId: id, ...tenantWhere(companyId) } }),
     ]);
-    if (usage[0] > 0 || usage[1] > 0) {
+    if (priceCount > 0 || customerCount > 0) {
       throw new ConflictException('Price list has prices or linked customers');
     }
     await this.findOne(id, companyId);

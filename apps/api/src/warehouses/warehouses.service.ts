@@ -109,11 +109,11 @@ export class WarehousesService {
 
   /** إيقاف مخزن (soft delete) — متاح فقط إن لم تكن له حركات. */
   async remove(id: number, companyId: number | null = null, userId?: number) {
-    const usage = await this.prisma.$transaction([
-      this.prisma.stockBalance.count({ where: { warehouseId: id, ...tenantWhere(companyId) } }),
-      this.prisma.stockMovement.count({ where: { warehouseId: id, ...tenantWhere(companyId) } }),
+    const [balanceCount, movementCount] = await this.prisma.$transaction(async (tx) => [
+      await tx.stockBalance.count({ where: { warehouseId: id, ...tenantWhere(companyId) } }),
+      await tx.stockMovement.count({ where: { warehouseId: id, ...tenantWhere(companyId) } }),
     ]);
-    if (usage[0] > 0 || usage[1] > 0) {
+    if (balanceCount > 0 || movementCount > 0) {
       throw new ConflictException('Warehouse has stock balances or movements');
     }
     await this.findOne(id, companyId);

@@ -107,13 +107,13 @@ export class UsersService {
     const before = role.permissions.map((rp) => rp.permission.code).sort();
     const after = [...perms.map((p) => p.code)].sort();
 
-    await this.prisma.$transaction([
-      this.prisma.rolePermission.deleteMany({ where: { roleId } }),
-      this.prisma.rolePermission.createMany({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { roleId } });
+      await tx.rolePermission.createMany({
         data: perms.map((p) => ({ roleId, permissionId: p.id })),
         skipDuplicates: true,
-      }),
-    ]);
+      });
+    });
 
     await this.audits.write({
       action: 'role.permissions',

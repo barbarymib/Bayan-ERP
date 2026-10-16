@@ -70,11 +70,11 @@ export class SpecialPricesService {
     if (!group || (group.companyId != null && group.companyId !== companyId)) {
       throw new NotFoundException(`Customer group #${id} not found`);
     }
-    const usage = await this.prisma.$transaction([
-      this.prisma.customer.count({ where: { customerGroupId: id, ...tenantWhere(companyId) } }),
-      this.prisma.specialPrice.count({ where: { customerGroupId: id, ...tenantWhere(companyId) } }),
+    const [customerCount, specialPriceCount] = await this.prisma.$transaction(async (tx) => [
+      await tx.customer.count({ where: { customerGroupId: id, ...tenantWhere(companyId) } }),
+      await tx.specialPrice.count({ where: { customerGroupId: id, ...tenantWhere(companyId) } }),
     ]);
-    if (usage[0] > 0 || usage[1] > 0) {
+    if (customerCount > 0 || specialPriceCount > 0) {
       throw new ConflictException('Customer group has customers or special prices');
     }
     await this.prisma.customerGroup.delete({ where: { id } });

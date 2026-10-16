@@ -78,11 +78,11 @@ export class BranchesService {
   }
 
   async remove(id: number, companyId: number | null = null) {
-    const usage = await this.prisma.$transaction([
-      this.prisma.user.count({ where: { branchId: id, ...tenantWhere(companyId) } }),
-      this.prisma.warehouse.count({ where: { branchId: id, ...tenantWhere(companyId) } }),
+    const [userCount, warehouseCount] = await this.prisma.$transaction(async (tx) => [
+      await tx.user.count({ where: { branchId: id, ...tenantWhere(companyId) } }),
+      await tx.warehouse.count({ where: { branchId: id, ...tenantWhere(companyId) } }),
     ]);
-    if (usage[0] > 0 || usage[1] > 0) {
+    if (userCount > 0 || warehouseCount > 0) {
       throw new ConflictException('Branch has users or warehouses');
     }
     await this.findOne(id, companyId);
