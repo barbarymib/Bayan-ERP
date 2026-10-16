@@ -74,6 +74,12 @@ describe('§4.2 permission matrix', () => {
     });
   }
 
+  it('R3-C1: صاحب المخزن يملك stocktake.execute وsync.use معاً (مدخل الجرد من الموبايل)', () => {
+    const wk = ROLE_PERMISSIONS_MERGED['WAREHOUSEKEEPER'] ?? [];
+    expect(wk).toContain('stocktake.execute');
+    expect(wk).toContain('sync.use');
+  });
+
   it('كل صلاحية معرفة يُمنحها دور واحد على الأقل', () => {
     for (const p of ALL_PERMISSIONS) {
       const holders = Object.values(ROLE_PERMISSIONS_MERGED).filter((codes) =>

@@ -187,6 +187,9 @@ export const EXTRA_ROLE_PERMISSIONS: Record<string, string[]> = {
     'purchase_order.view',
     'supplier_return.create',
     'supplier_return.view',
+    // §5.8 خطوة 3: إدخال العدّات من الموبايل يمرّ عبر قناة المزامنة
+    // sync/push التي تتطلب sync.use على مستوى الـ controller.
+    'sync.use',
   ],
   REP_SUPERVISOR: [
     'transfer.view',
