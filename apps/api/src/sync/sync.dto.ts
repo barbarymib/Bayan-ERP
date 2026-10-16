@@ -55,9 +55,9 @@ export class PushItemDto {
   @MaxLength(64)
   clientUuid!: string;
 
-  @ApiProperty({ enum: ['price_statement', 'return_statement', 'receipt'] })
-  @IsIn(['price_statement', 'return_statement', 'receipt'])
-  type!: 'price_statement' | 'return_statement' | 'receipt';
+  @ApiProperty({ enum: ['price_statement', 'return_statement', 'receipt', 'stocktake'] })
+  @IsIn(['price_statement', 'return_statement', 'receipt', 'stocktake'])
+  type!: 'price_statement' | 'return_statement' | 'receipt' | 'stocktake';
 
   @ApiProperty({ description: 'البيانات الكاملة كما خزّنها الجهاز' })
   @IsObject()

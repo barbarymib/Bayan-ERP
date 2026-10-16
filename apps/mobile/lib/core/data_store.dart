@@ -240,6 +240,20 @@ class DataStore {
 
   Future<void> close() => _db.close();
 
+  /// يقرأ قيمة نصية عامة من جدول Meta (تخزين مؤقت أوفلاين، مثل جلسات الجرد).
+  Future<String?> readMeta(String key) async {
+    final row = await (_db.select(_db.meta)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  /// يكتب قيمة نصية عامة في جدول Meta (upsert بمفتاح واحد).
+  Future<void> writeMeta(String key, String value) async {
+    await _db.into(_db.meta).insertOnConflictUpdate(
+          MetaCompanion.insert(key: key, value: value),
+        );
+  }
+
   static CustomerSummary _customerFromRow(Customer r) => CustomerSummary(
         id: r.id,
         code: r.code,

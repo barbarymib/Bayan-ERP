@@ -361,4 +361,28 @@ class ApiClient {
     );
     return CustodyHandover.fromJson(json);
   }
+
+  /// جلسات الجرد (§5.8 خطوة 3) — تعرض الموبايل الجلسات المفتوحة/قيد العد
+  /// لإدخال الكميات الفعلية. تتطلب `stocktake.view`.
+  Future<List<Map<String, dynamic>>> stocktakeSessions({int limit = 50}) async {
+    final json = await _send(
+      () => _client.get(
+        _uri('/stocktakes', {'limit': '$limit'}),
+        headers: _headers,
+      ),
+      'فشل جلب جلسات الجرد',
+    );
+    return ((json['items'] as List?) ?? const [])
+        .map((e) => (e as Map).cast<String, dynamic>())
+        .toList();
+  }
+
+  /// تفاصيل جلسة جرد بخطوطها (كود/اسم الصنف + رصيد النظام + العدّ المحوسوب)
+  /// للعدّ والتعديل قبل رفعها في صندوق الصادر. تتطلب `stocktake.view`.
+  Future<Map<String, dynamic>> stocktakeDetail(int id) async {
+    return _send(
+      () => _client.get(_uri('/stocktakes/$id'), headers: _headers),
+      'فشل جلب تفاصيل الجرد',
+    );
+  }
 }

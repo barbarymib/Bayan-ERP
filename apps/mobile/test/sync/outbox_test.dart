@@ -145,6 +145,54 @@ void main() {
       // العنصر المعتمد لا يُمَسّ.
       expect(o.byUuid('f2')!.status, SyncStatus.approved);
     });
+
+    test('updatePendingOfType يستبدل محتوى عنصر معلّق بدل تكراره', () {
+      final o = Outbox();
+      o.add(OutboxItem(
+        clientUuid: 's1',
+        type: 'stocktake',
+        payload: <String, dynamic>{'sessionId': 3, 'counts': const []},
+        createdAt: base,
+      ));
+      o.markFailure('s1', 'انقطاع', base);
+
+      final ok = o.updatePendingOfType('stocktake', 3, const {
+        'sessionId': 3,
+        'counts': [
+          {'itemId': 11, 'qty': 7},
+        ],
+      });
+
+      expect(ok, isTrue);
+      expect(o.length, 1, reason: 'دمج بلا تكرار');
+      final i = o.byUuid('s1')!;
+      expect(i.attempts, 0);
+      expect(i.lastError, isNull);
+      expect(i.status, SyncStatus.local);
+      expect((i.payload['counts'] as List).length, 1);
+    });
+
+    test('updatePendingOfType لا يمسّ النهائي ولا جلسة غير مطابقة', () {
+      final o = Outbox();
+      o.add(OutboxItem(
+        clientUuid: 'done',
+        type: 'stocktake',
+        payload: <String, dynamic>{'sessionId': 3},
+        createdAt: base,
+      ));
+      o.markSuccess('done', status: SyncStatus.approved, serverId: 1);
+      expect(o.updatePendingOfType('stocktake', 3, const {'sessionId': 3}), isFalse);
+
+      o.add(OutboxItem(
+        clientUuid: 'o1',
+        type: 'stocktake',
+        payload: <String, dynamic>{'sessionId': 9},
+        createdAt: base,
+      ));
+      expect(o.updatePendingOfType('stocktake', 3, const {'sessionId': 3}), isFalse);
+      expect(o.updatePendingOfType('receipt', 9, const {'sessionId': 9}), isFalse);
+      expect(o.updatePendingOfType('stocktake', 9, const {'sessionId': 9}), isTrue);
+    });
   });
 
   group('SyncStatus', () {

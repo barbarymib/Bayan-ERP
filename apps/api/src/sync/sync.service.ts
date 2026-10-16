@@ -13,6 +13,8 @@ import { ReturnsService } from '../returns/returns.service.js';
 import { CollectionsService } from '../collections/collections.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { SalesOpsService } from '../common/sales-ops.service.js';
+import { StocktakesService } from '../stocktakes/stocktakes.service.js';
+import type { StocktakeCountsDto } from '../stocktakes/stocktakes.dto.js';
 import type { CreateStatementDto, StatementLineInputDto, DiscountInputDto } from '../price-statements/price-statements.dto.js';
 import type { DeviceRegisterDto, PushItemDto, PushDto, ReserveBlockDto } from './sync.dto.js';
 
@@ -45,6 +47,7 @@ export class SyncService {
     private readonly collections: CollectionsService,
     private readonly notifications: NotificationsService,
     private readonly ops: SalesOpsService,
+    private readonly stocktakes: StocktakesService,
   ) {}
 
   /** ربط جهاز واحد لكل مستخدم (§5.12). */
@@ -300,11 +303,47 @@ export class SyncService {
     if (item.type === 'price_statement') return this.pushPriceStatement(user, item);
     if (item.type === 'return_statement') return this.pushReturnStatement(user, item);
     if (item.type === 'receipt') return this.pushReceipt(user, item);
+    if (item.type === 'stocktake') return this.pushStocktake(user, item);
     return {
       clientUuid: item.clientUuid,
       status: 'PENDING_REVIEW' as const,
       error: `type_${item.type}_not_supported_yet`,
     };
+  }
+
+  /**
+   * رفع عدّات جرد أُنجزت أوفلاين — تُطبَّق على الجلسة مباشرة.
+   * لا حاجة لـ clientUuid في الخادم: الإدخال بمفتاح (sessionId, itemId, batchId)
+   * فتكرار الرفع يعيد النتيجة نفسها (آخر كتابة تنتصر).
+   */
+  private async pushStocktake(user: AuthUser, item: PushItemDto) {
+    const uuid = item.clientUuid;
+    if (!user.permissions.includes('stocktake.execute')) {
+      throw new ForbiddenException('لا تملك صلاحية تنفيذ الجرد');
+    }
+    const payload = item.payload ?? {};
+    const sessionId = num(payload['sessionId']);
+    if (sessionId === undefined) throw new BadRequestException('payload.sessionId is required');
+
+    const raw = payload['counts'];
+    const rows = Array.isArray(raw) ? raw : [];
+    if (rows.length === 0) throw new BadRequestException('payload.counts is required');
+
+    const counts = rows.map((r) => {
+      const rec = r as Record<string, unknown>;
+      const itemId = num(rec['itemId']);
+      if (itemId === undefined) throw new BadRequestException('counts[].itemId is required');
+      const qty = num(rec['qty'] ?? rec['qtyBase']);
+      return {
+        itemId,
+        batchId: typeof rec['batchId'] === 'string' ? (rec['batchId'] as string) : '',
+        qty: qty ?? 0,
+      };
+    });
+
+    const dto: StocktakeCountsDto = { counts };
+    const res = (await this.stocktakes.counts(sessionId, dto, user)) as { id: number };
+    return { clientUuid: uuid, status: 'UPLOADED' as const, serverId: res.id };
   }
 
   private async pushPriceStatement(user: AuthUser, item: PushItemDto) {

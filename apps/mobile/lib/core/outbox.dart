@@ -146,6 +146,25 @@ class Outbox {
     return null;
   }
 
+  /// يستبدل محتوى عنصر معلّق من نفس النوع والمفتاح (مثلاً عدّات جلسة جرد واحدة)
+  /// بدل إضافة عنصر جديد في كل حفظ. يعيد false إن لم يوجد عنصر غير نهائي،
+  /// وعندها على الناطق أن يُنشئ عنصراً جديداً.
+  bool updatePendingOfType(String type, Object? key, Map<String, dynamic> payload) {
+    for (final i in _items) {
+      if (i.type != type || i.status.isTerminal) continue;
+      if (i.payload['sessionId'] != key) continue;
+      i.payload
+        ..clear()
+        ..addAll(payload);
+      i.attempts = 0;
+      i.lastError = null;
+      i.status = SyncStatus.local;
+      i.nextAttemptAt = DateTime.now();
+      return true;
+    }
+    return false;
+  }
+
   /// العناصر الجاهزة للرفع الآن (FIFO، لم تستنفد المحاولات، وحان وقتها).
   List<OutboxItem> ready(DateTime now) {
     final r = _items

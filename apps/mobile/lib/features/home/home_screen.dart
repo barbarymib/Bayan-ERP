@@ -12,6 +12,7 @@ import '../geo/shift_screen.dart';
 import '../print/print_screen.dart';
 import '../return/new_return_screen.dart';
 import '../statement/new_statement_screen.dart';
+import '../stocktake/stocktake_screen.dart';
 import '../statements/my_statements_screen.dart';
 import '../sync/sync_controller.dart';
 import '../tools/tools_screen.dart';
@@ -108,6 +109,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     context,
                     MaterialPageRoute<void>(builder: (_) => const MyStatementsScreen()),
                   );
+                case 'stocktake':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(builder: (_) => const StocktakeScreen()),
+                  );
                 case 'lock':
                   _toggleDeviceLock();
               }
@@ -129,6 +135,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   title: Text('بياناتي'),
                 ),
               ),
+              if (user?.permissions.contains('stocktake.view') ?? false)
+                const PopupMenuItem(
+                  value: 'stocktake',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.fact_check_outlined),
+                    title: Text('جرد المخزون'),
+                  ),
+                ),
               CheckedPopupMenuItem(
                 value: 'lock',
                 checked: lockEnabled,

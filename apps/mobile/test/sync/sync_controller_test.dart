@@ -30,6 +30,7 @@ class _FakeDataStore implements DataStore {
   List<PriceListSummary> _priceLists = const [];
   List<StatementSummary> _statements = const [];
   DateTime? _lastDelta;
+  final Map<String, String> _meta = {};
 
   int saveItemsCalls = 0;
   DateTime? savedDelta;
@@ -69,6 +70,12 @@ class _FakeDataStore implements DataStore {
     _lastDelta = at;
     savedDelta = at;
   }
+
+  @override
+  Future<String?> readMeta(String key) async => _meta[key];
+
+  @override
+  Future<void> writeMeta(String key, String value) async => _meta[key] = value;
 
   @override
   Future<void> close() async {}
