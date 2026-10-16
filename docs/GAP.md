@@ -162,6 +162,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-16 | **R3-A6** steel **actual-weight note** on statement lines (persist + STEEL-only) + `weight-notes` report + web/mobile capture | ✅ FIXED (api 314/314; web build/typecheck/lint 0; mobile analyze/tests 223/223; 27/27 live verify) |
 | 2026-10-16 | **R3-C2/E5** valuation **no-price** flag/exclusion (+counts) + **items-without-price** report/tab | ✅ FIXED (api 319/319; web build/typecheck/lint 0; 31/31 live verify) |
 | 2026-10-16 | **R3-C8** stocktake freeze **WARN** mode (BLOCK still enforced; WARN passes + surfaces `freezeWarning` on movement docs) | ✅ FIXED (api 323/323; web build/typecheck/lint 0; 31/31 live verify) |
+| 2026-10-16 | **R3-C6/C5** stocktake **scope UI** (full/category/brand/item) + **multi-counter** attribution (`counter`/`countedById`) | ✅ FIXED (api 329/329; web build/typecheck/lint 0; 44/44 live verify) |
 
 ---
 
@@ -215,8 +216,8 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-C2 | Valuation "no price" items are costed 0 and folded into totals — not flagged/excluded+counted. | §5.8 note | ✅ FIXED | `reports.service.ts` `stockValues` rows gain `noPrice` (LAST: `lastPurchaseCost==null`; WEIGHTED: no purchase rows; SALES: no active price-list price); no-price lines are counted (`totals.noPriceItems/noPriceLines/noPriceQtyBase/noPriceValue`) + listed (`noPriceItems[]`) and **excluded** from `byItem`/`byWarehouse`/totals. (`packages/shared/src/stocktake.ts` already counted `noCostLines` — mirror only, not consumed.) Commit `4f5f3cd`. Live-verified 2026-10-16 (31/0). |
 | R3-C3 | Return financial effect (BALANCE/CASH/CREDIT) not exposed in any UI. | §5.9 | PARTIAL | `apps/web/app/(app)/returns/page.tsx`; `new_return_screen.dart:111-117` |
 | R3-C4 | Rep-return **approval** is permission-gated, not an optional per-company **setting**. | §5.9.6 | DEVIATION | `returns.service.ts:183,221-247`; no key in `seed.ts:196-207` |
-| R3-C5 | Multiple **counters** unsupported (no counter identity on counts/lines). | §5.8.3 | MISSING | `stocktakes.dto.ts:49-73`; `schema.prisma:1194-1210` |
-| R3-C6 | Stocktake scope: **item-group** missing; web open UI exposes no scope (extends G20). | §5.8.1 | PARTIAL | `stocktakes.dto.ts:17-35`; `stocktakes/page.tsx:209` |
+| R3-C5 | Multiple **counters** unsupported (no counter identity on counts/lines). | §5.8.3 | ✅ FIXED | `StocktakeLine` gains `counter String?` + `countedById Int?` (FK→`User`, `onDelete: SET NULL`; relation `StocktakeCountedBy`) via migration `20261016050000_stocktake_counters` (**schema-qualified `public.`**). `StocktakeCountInputDto` accepts optional `counter` (`@MaxLength(50)`); `stocktakes.service.ts` `counts()` persists trimmed `counter` + `countedById=user.id` on create/update (update keeps prior counter when omitted) and records distinct counters in the audit; `get()` returns `counter`/`countedBy`. Web `stocktakes/page.tsx` DetailModal has a counter input + «العداد»/«أدخل بواسطة» columns. Commit `a997148`. Live-verified 2026-10-16 (44/0). |
+| R3-C6 | Stocktake scope: **item-group** missing; web open UI exposes no scope (extends G20). | §5.8.1 | ✅ FIXED | Server scope already supported `itemIds`/`categoryIds`/`brandIds`; "item-group" interpreted as explicit **item selection** (`itemIds`) since no `ItemGroup` model exists. Web OpenModal now offers scope = full / category / brand / item (multi-select from `/categories`, `/brands`, `/items?limit=500`, client-side search) and sends `scope` (requires ≥1 selection for partial modes). Commit `a997148`. Live-verified 2026-10-16 (44/0). |
 | R3-C7 | Stocktake "big diff" **recount threshold/flagging** missing (manual transitions only). | §5.8.5/§6.3 | PARTIAL | `stocktakes.service.ts:213-219`; `packages/shared/src/stocktake.ts` |
 | R3-C8 | Freeze **WARN** mode is a no-op (only BLOCK enforced). | §5.8.2 | ✅ FIXED | `stock.service.ts` `assertMovable` now returns a `FreezeStatus` (`mode`/`frozen`/`sessionNumber`) + new `freezeStatus()`/`freezeWarningMessage()`; throws only on `BLOCK`, passes + warns on `WARN` (reads `stocktake.freeze.mode`, `OFF` disables). Movement-create docs (`price-statements`, `purchases`, `transfers`, `supplier-returns`) attach `freezeWarning` to their create responses; web shows it in the save toast. Commit `d1a5abc`. Live-verified 2026-10-16 (31/0). |
 | R3-C9 | Rep **custody-delivery report (محضر تسليم عهدة) + reconciliation** absent (record only). | §5.10 | PARTIAL | `treasury.service.ts:84-148`; no report endpoint |
@@ -282,7 +283,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD. — ✅ FIXED (api 292/292; 27/27 live verify)
 14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report. — ✅ FIXED (api 319/319; web build clean; 31/31 live verify)
 15. **R3-C8** stocktake freeze WARN mode (surface warning). — ✅ FIXED (api 323/323; web build clean; 31/31 live verify)
-16. **R3-C6/C5** stocktake scope (category/brand/group) + counters; web open-scope UI.
+16. **R3-C6/C5** stocktake scope (category/brand/group) + counters; web open-scope UI. — ✅ FIXED (api 329/329; web build clean; 44/44 live verify)
 17. **R3-C7** recount threshold/flagging (shared + UI).
 18. **R3-C4** rep-return approval as a per-company setting.
 19. **R3-C9** custody-delivery report + reconciliation (api + print).
