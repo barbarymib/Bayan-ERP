@@ -41,6 +41,7 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
   };
 
   const releaseReservations = vi.fn(async (_tx: unknown, _type: string, _id: number) => undefined);
+  const assertSalePermitted = vi.fn(async () => undefined);
   const finalizeStatement = vi.fn(async () => true);
   const finalizeReturn = vi.fn(async () => true);
   const assertCustomerCredit = vi.fn(async () => undefined);
@@ -53,7 +54,17 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
         return {};
       },
     },
-    priceStatement: { findUnique: async () => ({ id: 5, status: 'DRAFT' }) },
+    priceStatement: {
+      findUnique: async () => ({
+        id: 5,
+        status: 'DRAFT',
+        companyId: null,
+        customerId: 9,
+        net: 100,
+        warehouseId: 3,
+        lines: [{ itemId: 11, qtyBase: 2 }],
+      }),
+    },
     returnStatement: { findUnique: async () => ({ id: dispatch.refId, status: 'DRAFT' }) },
     $transaction: async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
   } as unknown as PrismaService;
@@ -61,11 +72,11 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
   const service = new ApprovalsService(
     prisma,
     { finalizeStatement, finalizeReturn, assertCustomerCredit } as never,
-    { releaseReservations } as never,
+    { releaseReservations, assertSalePermitted } as never,
     { write: async () => undefined } as never,
   );
 
-  return { service, prisma, calls, releaseReservations, finalizeStatement, finalizeReturn, assertCustomerCredit };
+  return { service, prisma, calls, releaseReservations, assertSalePermitted, finalizeStatement, finalizeReturn, assertCustomerCredit };
 }
 
 describe('ApprovalsService lifecycle', () => {
@@ -114,7 +125,7 @@ describe('ApprovalsService lifecycle', () => {
     const svc = new ApprovalsService(
       belowMinPrisma,
       { finalizeStatement, finalizeReturn: async () => true, assertCustomerCredit: async () => undefined } as never,
-      { releaseReservations: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
       { write: async () => undefined } as never,
     );
     await svc.decide(3, { approved: true }, user);
@@ -133,7 +144,7 @@ describe('ApprovalsService lifecycle', () => {
     const svc = new ApprovalsService(
       returnPrisma,
       { finalizeStatement: async () => true, finalizeReturn: async () => true } as never,
-      { releaseReservations: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
       { write: async () => undefined } as never,
     );
     await svc.decide(2, { approved: false }, returnUser);
@@ -150,7 +161,7 @@ describe('ApprovalsService lifecycle', () => {
     const svc = new ApprovalsService(
       cancelledPrisma,
       { finalizeStatement: async () => true, finalizeReturn: async () => true } as never,
-      { releaseReservations: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
       { write: async () => undefined } as never,
     );
     await expect(svc.decide(1, { approved: true }, user)).rejects.toThrow('ملغي');
@@ -173,7 +184,7 @@ describe('ApprovalsService lifecycle', () => {
     const svc = new ApprovalsService(
       cashPrisma,
       { finalizeStatement: async () => true, finalizeReturn } as never,
-      { releaseReservations: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
       { write: async () => undefined } as never,
     );
     await expect(svc.decide(4, { approved: true }, returnUser)).rejects.toThrow(/return\.cash_refund/);
@@ -195,7 +206,7 @@ describe('ApprovalsService lifecycle', () => {
     const svc = new ApprovalsService(
       cashPrisma,
       { finalizeStatement: async () => true, finalizeReturn } as never,
-      { releaseReservations: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
       { write: async () => undefined } as never,
     );
     const cashUser = { id: 2, permissions: ['return.approve', 'return.cash_refund'] } as unknown as AuthUser;

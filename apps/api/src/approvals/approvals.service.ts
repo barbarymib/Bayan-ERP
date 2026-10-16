@@ -124,13 +124,24 @@ export class ApprovalsService {
   ): Promise<void> {
     const companyId = approval.companyId ?? null;
     if (approval.refType === 'price_statement') {
-      const st = await this.prisma.priceStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true, customerId: true, net: true } });
+      const st = await this.prisma.priceStatement.findUnique({
+        where: { id: approval.refId },
+        select: { status: true, companyId: true, customerId: true, net: true, warehouseId: true, lines: { select: { itemId: true, qtyBase: true } } },
+      });
       if (!st || (st.companyId != null && st.companyId !== companyId)) {
         throw new NotFoundException(`Statement ${approval.refId} not found`);
       }
       if (st.status === 'CANCELLED') throw new BadRequestException('كشف الحساب ملغي — لا يمكن اعتماده');
       // إعادة فحص الحد الائتماني عند الاعتماد (§5.4) — قد تتغيّر الأرصدة بين الإنشاء والاعتماد
       await this.ops.assertCustomerCredit(st.customerId, Number(st.net), companyId);
+      // R3-B11: إعادة فحص الرصيد المتاح عند الاعتماد (§5.6) — قد يتغيّر المخزون بين الإنشاء والاعتماد
+      // (يُستثنى حجز البيان نفسه). يُنفَّذ قبل تغيير حالة الموافقة حتى لا يُعلّق قرار بلا ترحيل.
+      await this.stock.assertSalePermitted(
+        st.warehouseId,
+        st.lines.map((l) => ({ itemId: l.itemId, qtyBase: Number(l.qtyBase) })),
+        companyId,
+        { refType: 'price_statement', refId: approval.refId },
+      );
     } else if (approval.refType === 'return_statement') {
       const rt = await this.prisma.returnStatement.findUnique({ where: { id: approval.refId }, select: { status: true, companyId: true, settlement: true } });
       if (!rt || (rt.companyId != null && rt.companyId !== companyId)) {
