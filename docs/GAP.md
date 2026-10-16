@@ -148,3 +148,166 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-13 | **G2f** rep-performance report (`reports/rep-performance`) = targets/achievement, sales, collection, visits, GPS distance | ✅ FIXED (7 tests; 21/21 live verify, 90/90 golden) |
 | 2026-10-13 | **Item Card (G2)** `reports/item-card` = item ledger (opening + movements + running + closing + balances) with cost gating | ✅ FIXED (5 tests; 23/23 live verify, 90/90 golden) |
 | 2026-10-15 | **G29 increment 1** printable quotation on web (`/quotations/[id]/print`, A4/A5/80mm) + Arabic client PDF (`lib/quotation-pdf.ts`) | ✅ PARTIAL (web build/typecheck/lint 0; deployed; live 200/307 parity) |
+| 2026-10-16 | **Round 3 full spec re-audit** (6 parallel area reviews + direct verification) | this section |
+
+---
+
+## 6. Round 3 audit (2026-10-16)
+
+Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/bayan-design.md`. Findings below are **new or status changes** vs §2/§3 above; existing `G##` items not repeated unless a status changed. IDs are `R3-A/B/C/D/E/F-n` by area.
+
+### 6.1 Verified OK this round (was unchecked / previously mis-called)
+- **§5.13 geo tracking — fully implemented:** shift start/end + shift-only gating, location push, **150m** proximity with out-of-range reason (`geo.service.ts:7,159,170`), **route replay** with stops/visits (`geo.service.ts:262-297`; web `app/(app)/geo/page.tsx:42-201`), **distance / dwell / not-visited** report (`geo.service.ts:336-371`; web `geo/page.tsx:468-485`), **90-day auto-delete** (`geo.service.ts:9-41`), live map (`geo.service.ts` `liveMap`), `@Features('geotracking.fleet')`. Mobile: mandatory location gate (`core/geo/location_gate.dart`), shift-gated timer (`shift_controller.dart:163-173`). *(An early subagent report claiming geo missing was wrong — verified directly.)*
+- **§5.16 targets/commissions — implemented:** `apps/api/src/rep-targets/*` (`commissionBase COLLECTED|SALES`, `commissionRate`, report + `recalculate`), web `app/(app)/targets/page.tsx`.
+- **§5.16 special offers — implemented:** `apps/api/src/special-prices/*` + `customer-groups.controller.ts` (customer / group / price-list targeting), web `app/(app)/special-prices/page.tsx`.
+- **§5.16 quotation→statement — implemented:** `POST /quotations/:id/convert` (`quotations.controller.ts:69-73`, `quotations.service.ts:251-314`).
+- **§5.16 calculators — implemented (mobile):** `features/tools/paint_calculator_screen.dart`, `steel_calculator_screen.dart`.
+- **§5.16/§9 encrypted daily backup — implemented:** scheduled encrypted (`backups.service.ts`).
+- **§5.15 notifications — all 7 types defined** (`notifications.service.ts:8-15`) with `refreshAlerts` for low_stock/credit_limit/return_approval/archive_reminder/backup_reminder + discount_approval created on statement paths. FCM transport remains blocked (**F2**).
+- **§5.14 reports —** sales-summary/sales-by/discounts/discount-approvals/returns/stopped/stocktake-diff/supplier-debt/rep-performance/item-card/stock-summary(with slow-moving flag)/movements/low-stock/aging/dashboard all present (`reports.controller.ts:31-187`).
+- **§7.3 tables/fields, §7.4 equations, §14 worked examples — verified OK** (see Round-3 sub-report; all tables present, all equations mirrored TS/Dart, examples asserted in both).
+
+### 6.2 New findings
+
+#### High
+| ID | Gap | Spec | Status | Evidence |
+| -- | --- | ---- | ------ | -------- |
+| R3-A1 | Tenant user provisioning/listing not company-scoped: `/users` create never persists `companyId` (new users get `null` → RLS-closed, see nothing); `list`/`findOne` unfiltered and `User` exempt from RLS → cross-tenant user listing. | §12.1/§12.2/§4.1 | DEVIATION | `users.service.ts:179-191,119-146`; `users.controller.ts:42`; `prisma-tenant.extension.ts:12-54` |
+| R3-B1 | Credit-limit is **warn-only** — no `block` mode/setting and not re-checked at approval; spec requires "تنبيه أو منع … (بحسب الإعداد)". | §5.4 | PARTIAL | `price-statements.service.ts:164,251`; no `credit.*` setting; `sales-ops.service.ts:33-74` |
+| R3-B2 | PO line **discounts dropped on receive** → supplier statement net > PO net silently (discount accepted in DTO/UI but no columns). | §5.5 | MISSING | `purchase-orders.service.ts:195-200`; `purchase-orders.dto.ts:39-43`; `purchase-orders/page.tsx:290` |
+| R3-C1 | **Mobile stocktake entry absent** (web-only; no on-device counting/scanning; sync supports no stocktake op). | §5.8.3 | MISSING | `apps/mobile/lib/core/calc/stocktake.dart` (calc only); `apps/api/src/sync/sync.dto.ts:58-60` |
+| R3-D1 | Mobile **no persistent foreground tracking indicator** (spec: "إشعار دائم لأندرويد") and no signed-consent/notice. | §5.13 | MISSING | no `ForegroundService`/notification/consent in `apps/mobile/lib/**`; `core/geo/shift_controller.dart` |
+
+#### Medium
+| ID | Gap | Spec | Status | Evidence |
+| -- | --- | ---- | ------ | -------- |
+| R3-A2 | Per-**role** discount limits absent — limits only per user (`Role` has no limit cols). | §4.2 note | MISSING | `schema.prisma:201-207,239-240`; `price-statements.service.ts:144,158` |
+| R3-A3 | Feature flags **not applied on any client UI**; no client-facing flag endpoint (API `@Features` only). Refines G15/G16/G17. | §12.3 | MISSING (web) / PARTIAL (mobile) | `auth.guard.ts:99-131`; no flag codes consumed in `apps/web`/`apps/mobile/lib` |
+| R3-A4 | Decimal-vs-integer measurement **never enforced** (`allowDecimal` check has zero production callers). | §5.2 | MISSING | `packages/shared/src/units.ts:12-28`; `price-statements.service.ts:589-598` |
+| R3-A5 | Batch **expiry date** missing (batch supported, no expiry field). | §5.1 | PARTIAL | `schema.prisma:394,623`; no `expiry` in schema |
+| R3-A6 | Steel **actual-weight note** field unused (no DTO/web/mobile) and no weight-difference report. | §5.2, §11 | PARTIAL | `schema.prisma:865`; absent in `price-statements/*.dto.ts`, web, mobile |
+| R3-A7 | Scheduled price `validFrom` broken: one row per (item,unit,list) upsert overwrites in place → a future-dated price removes the current price; no validFrom input in web. | §5.3 | DEVIATION | `schema.prisma:481`; `prices.service.ts:236-252`; `price-resolver.service.ts:49-59` |
+| R3-A8 | Below-cost/floor `pricingAlerts` returned by API but **never surfaced** in web/mobile. (G7 backend FIXED.) | §5.3 | PARTIAL | `price-statements.service.ts:161,251,655-660` |
+| R3-A9 | Rep "عملاؤه" scoping **not enforced** on statements/returns (only `sync.delta` filters assigned customers). | §4.2 | PARTIAL | `price-statements.service.ts:124-127`; `returns.service.ts`; `sync.service.ts:127-138` |
+| R3-A10 | Item master editing incomplete: `UpdateItemDto` has no `itemUnits`/`attributes`; web can't set brand/origin/minSalePrice/imageUrl, unit flags/barcode, variants. (extends G12b/G19) | §5.1/§5.2 | PARTIAL | `items.dto.ts:135-191`; `apps/web/app/(app)/items/page.tsx:278-297,357-393,472-479` |
+| R3-B3 | Mobile push sends no `paymentTerm`/`paid` → all rep sales forced **CREDIT**; MIXED unusable; web statement form has no `paid` input. | §5.6 | PARTIAL | `sync.service.ts:349-354`; `new_statement_screen.dart:118-138`; `statements/page.tsx:286-296` |
+| R3-B4 | GPS issuance location never captured/sent by any client (API accepts lat/lng). | §5.6 | PARTIAL | `price-statements.dto.ts:132-137`; not sent in web/mobile payloads |
+| R3-B5 | Discount %↔value auto-conversion is server-only; equivalent value not shown during entry (web+mobile). | §5.6 | PARTIAL | `price-statements.service.ts:625-651`; `statements/page.tsx:340-351,414-428` |
+| R3-B6 | Discount audit incomplete: no audit on statement create; edit logs net-only (no discount delta). | §5.6 | PARTIAL | no `audits.write` in create `price-statements.service.ts:118-260`; `:434-445` |
+| R3-B7 | `paymentRating`/`paymentNotes` stored but never editable/displayed; `customer.rating` perm unused. | §5.4 | MISSING | `schema.prisma:529`; `role-permissions.ts:45`; absent in `customers.dto.ts` |
+| R3-B8 | Customer→rep transfer **history** has no UI (only current rep editable). | §5.4 | PARTIAL | `customers.service.ts:104,159-177`; no UI in `customers/page.tsx` |
+| R3-B9 | Supplier statement API exists but **no web page** calls it. | §5.5 | PARTIAL | `collections.controller.ts:87-96`; no call in web |
+| R3-B10 | No setting to **disable auto last-purchase-cost update** on approval (always updates). | §5.5 | MISSING | `purchases.service.ts:164-167`; no settings toggle |
+| R3-B11 | Negative-stock **BLOCK not rechecked at approval/finalize** → balance can go negative after the draft/reserve window. | §5.6 | PARTIAL | `sales-ops.service.ts:54-64` vs create check `price-statements.service.ts:167,394` |
+| R3-C2 | Valuation "no price" items are costed 0 and folded into totals — not flagged/excluded+counted. | §5.8 note | PARTIAL | `reports.service.ts:89,104-105,142` vs `packages/shared/src/stocktake.ts:39,74` |
+| R3-C3 | Return financial effect (BALANCE/CASH/CREDIT) not exposed in any UI. | §5.9 | PARTIAL | `apps/web/app/(app)/returns/page.tsx`; `new_return_screen.dart:111-117` |
+| R3-C4 | Rep-return **approval** is permission-gated, not an optional per-company **setting**. | §5.9.6 | DEVIATION | `returns.service.ts:183,221-247`; no key in `seed.ts:196-207` |
+| R3-C5 | Multiple **counters** unsupported (no counter identity on counts/lines). | §5.8.3 | MISSING | `stocktakes.dto.ts:49-73`; `schema.prisma:1194-1210` |
+| R3-C6 | Stocktake scope: **item-group** missing; web open UI exposes no scope (extends G20). | §5.8.1 | PARTIAL | `stocktakes.dto.ts:17-35`; `stocktakes/page.tsx:209` |
+| R3-C7 | Stocktake "big diff" **recount threshold/flagging** missing (manual transitions only). | §5.8.5/§6.3 | PARTIAL | `stocktakes.service.ts:213-219`; `packages/shared/src/stocktake.ts` |
+| R3-C8 | Freeze **WARN** mode is a no-op (only BLOCK enforced). | §5.8.2 | DEVIATION | `stock.service.ts:81,164`; `stocktakes.service.ts:310-311` |
+| R3-C9 | Rep **custody-delivery report (محضر تسليم عهدة) + reconciliation** absent (record only). | §5.10 | PARTIAL | `treasury.service.ts:84-148`; no report endpoint |
+| R3-D2 | No signed **consent/notice** for geotracking (§5.13/§9, Egypt 151/2020). | §5.13 | MISSING | absent in `apps/mobile/lib/**` |
+| R3-D3 | Tracking interval hardcoded 60s Provider — not user-configurable. | §5.13 | PARTIAL | `providers.dart:39`; `shift_controller.dart:72` |
+| R3-D4 | No idle **battery throttling** of location pushes. | §5.13 | MISSING | `shift_controller.dart:163-173` (fixed timer) |
+| R3-E1 | Audit rows not on **every** sensitive op: no audit on statement.create / purchase.create / sync push / master-data CRUD (items/customers/suppliers/warehouses). | §9 | PARTIAL | absent in `price-statements.service.ts:173`, `purchases.service.ts:110`, `sync.service.ts:299-483`; contrast `audit-logs.service.ts:36-54` |
+| R3-E2 | **No backup before data migration** (`migration.import` runs without a dump; only archive run backs up). | §9 | PARTIAL | `migration/migration.service.ts:388`; `archives.service.ts:306` |
+| R3-E3 | Server-side **sensitive-data encryption** absent (only backup AES + mobile SQLCipher). | §9 | PARTIAL | `backups/crypto.util.ts:33`; not in schema/env |
+| R3-E4 | No **stale-draft warning** for old price statements. | §11 | MISSING | no stale/draft-age logic anywhere in web/mobile |
+| R3-E5 | No **"items without price"** report/list (valuation silently 0). | §11 | MISSING | `valuation.ts:49`; no such method in `reports.service.ts` |
+| R3-F1 | Mobile **no "my customers" screen** (search+filter+distance). | §8.2 #2 | MISSING | no `features/customers/**`; inline list `home_screen.dart:216-226` |
+| R3-F2 | Mobile items screen **omits stock balances**. | §8.2 #7 | PARTIAL | `catalog/catalog_screen.dart`; `ItemSummary` no qty `models.dart:94-116` |
+| R3-F3 | Mobile home **lacks today KPIs**. | §8.2 #1 | PARTIAL | `home/home_screen.dart` |
+
+#### Low
+| ID | Gap | Spec | Status | Evidence |
+| -- | --- | ---- | ------ | -------- |
+| R3-A11 | No `lastPurchaseAt` date stored (only cost). | §5.3 | PARTIAL | `schema.prisma:396` |
+| R3-A12 | `printing.retail` flag seeded but never enforced. | §12.3 | PARTIAL | `seed.ts:63`; `@Features` uses exclude it |
+| R3-A13 | Currency not modeled (EGP hardcoded). | §3 | PARTIAL | `apps/web/lib/tafqit.ts:94` |
+| R3-A14 | Web shows wrong "own" discount limits (`roleCode==='ADMIN'?100:0`). | §4.2 | DEVIATION | `apps/web/app/(app)/users/page.tsx:84` |
+| R3-B12 | `creditDays` captured but unused (no due-date/overdue). | §5.4 | PARTIAL | `customers.dto.ts:84,158` |
+| R3-B13 | Customer map location: API lat/lng exists, no web input/picker. | §5.4 | MISSING | `customers/page.tsx` |
+| R3-B14 | No dedicated `statement.cancel` permission (gated by `statement.edit`). | §5.6 | DEVIATION | `price-statements.controller.ts:63-64` |
+| R3-B15 | Tax is per-statement, not a company setting. | §5.6 | DEVIATION | `price-statements.dto.ts:104` |
+| R3-C10 | Archive delete lacks explicit "bundle saved" confirmation step. | §5.11.5-6 | PARTIAL | `archives.dto.ts:21-26`; `archives.service.ts:537` |
+| R3-C11 | Archive bundle lacks combined-statement PDF + SQLite (JSON only). | §5.11.3 | PARTIAL | `archives.service.ts:455-489` |
+| R3-C12 | Archive verify re-matches only 6 counts + `salesNet`. | §5.11.4 | PARTIAL | `archives.service.ts:506-526` |
+| R3-C13 | Numbering lacks prefix+**year** / per-period reset (`BP-2027-000001`). | §5.11.8 | MISSING | `numbering.ts:45`; `numbering.service.ts:27-30` |
+| R3-C14 | Customer statement has no migrated-opening display + archive link. | §5.11 | MISSING | `collections.service.ts:302-376` |
+| R3-C15 | `WALLET` lumps Vodafone-Cash/InstaPay. | §5.10 | DEVIATION | `collections.dto.ts:24-27` |
+| R3-C16 | Warehouse types lack STEEL/PAINT (MAIN/REP/DAMAGED/SHOWROOM only). | §5.7 | DEVIATION | `schema.prisma` `enum WarehouseType` |
+| R3-C17 | Return-without-statement self-approvable (no forced 2nd approver). | §5.9 | DEVIATION | `returns.service.ts:183,245-247` |
+| R3-E6 | Periodic restore test is manual (decrypt/checksum only; no drill/restore). | §9 | PARTIAL | `backups.controller.ts:37`; `backups.service.ts:122-150` |
+| R3-E7 | Mobile Drift DB has no secondary indexes. | §11 | MISSING | `apps/mobile/lib/core/db/database.dart` |
+| R3-E8 | 50+ concurrent scalability untested (distinct from G25). | §9 | PARTIAL | `app.module.ts:51` only |
+| R3-F4 | Mobile new statement has no payment step. | §8.2 #3 | PARTIAL | `new_statement_screen.dart:106-149` |
+| R3-F5 | Mobile has no dedicated settings screen. | §8.2 #8 | PARTIAL | `home_screen.dart:97-141` |
+| R3-F6 | Mobile "بياناتي" has no unified drafts/uploaded view. | §8.2 #4 | PARTIAL | `my_statements_screen.dart:21-31` |
+
+---
+
+## 7. Master remediation plan — fill **all** open gaps (incl. medium & low)
+
+Ordering: security/data-integrity first, then correctness, then UI parity, then infra/i18n. Each item ships independently: code → api/web/mobile gates → commit → deploy → live-verify → status log update. Docs/UI-only items need no DB seed/migration.
+
+### Phase P1 — Security & data integrity (High)
+1. **R3-A1** tenant user provisioning/listing scope (+regression test).
+2. **R3-B1** credit-limit warn/block setting + enforce at approval + notify.
+3. **R3-B2** carry PO line discounts into receive/statement (schema migration + shared calc).
+4. **R3-C1** mobile stocktake entry + sync op (web parity already exists).
+5. **R3-D1/D2** mobile foreground tracking notification + signed consent notice.
+
+### Phase P2 — Core correctness (Medium, backend/shared)
+6. **R3-A2** per-role discount limits (fallback to user) — schema + enforcement.
+7. **R3-A4** decimal/integer enforcement at line entry (shared + api + clients).
+8. **R3-A7** scheduled prices (multi-row valid_from/valid_to + resolver + web input).
+9. **R3-A5** item batch expiry (schema + item/purchase UI).
+10. **R3-A6** steel actual-weight input + weight-difference report.
+11. **R3-A9** enforce rep customer scoping on statements/returns.
+12. **R3-B11** re-check negative-stock/credit at approval/finalize.
+13. **R3-B6/E1** audit coverage: statement.create, purchase.create, sync push, master-data CRUD.
+14. **R3-C2/E5** valuation no-price flag/exclusion + "items without price" report.
+15. **R3-C8** stocktake freeze WARN mode (surface warning).
+16. **R3-C6/C5** stocktake scope (category/brand/group) + counters; web open-scope UI.
+17. **R3-C7** recount threshold/flagging (shared + UI).
+18. **R3-C4** rep-return approval as a per-company setting.
+19. **R3-C9** custody-delivery report + reconciliation (api + print).
+20. **R3-B10** setting to disable auto last-purchase-cost update.
+21. **R3-E2** pre-migration backup; **R3-E3** document/enable server at-rest encryption.
+22. **R3-E4** stale-draft warning for price statements.
+23. **R3-A8** surface `pricingAlerts` (web + mobile).
+24. **R3-A10** item master editing (units/attributes/brand/origin/minSalePrice/image/variants).
+25. **R3-B3** mobile payment term + paid amount (enable MIXED).
+26. **R3-B4** capture/send statement GPS location from clients.
+27. **R3-B5** live %↔value discount conversion in entry forms.
+28. **R3-B7** customer payment rating/notes (dto + web) wired to `customer.rating`.
+29. **R3-B8** customer rep-assignment transfer history UI.
+30. **R3-B9** supplier statement web page.
+
+### Phase P3 — Client parity & features (Medium/Low)
+31. **G12** mixed-unit composite display ("3 كرتونة + 2 عبوة") in ui/api.
+32. **G13** mobile barcode/QR scan (items+customers).
+33. **G14** mobile per-line unit picker.
+34. **G15/A3** feature-flag-driven UI hiding (mobile + web) + client flag endpoint.
+35. **G16** web Settings screen.
+36. **G17** tenant-side per-user/company feature-flag management (non-global-admin).
+37. **G18** web WhatsApp/PDF share.
+38. **R3-F1/F2/F3/F4/F5/F6** mobile screens: my-customers (search/filter/distance), item balances, home KPIs, payment step, settings screen, unified "بياناتي".
+39. **G19** item images/variants/QR labels in web UI.
+40. **R3-B12/B13/B14/B15** credit days usage, customer map picker, `statement.cancel` perm, tax setting.
+41. **R3-A11/A12/A13/A14** last-purchase date, `printing.retail` gate, currency setting, fix users-page limits.
+42. **R3-C10..C17** archive confirm/bundle/verify, year numbering, migrated-opening link, wallet split, warehouse types, return 2nd-approver.
+43. **G20** stocktake scoping UI (covered with R3-C6).
+44. **G29** print/PDF templates for purchases, receipts, transfers, returns, supplier-returns, stocktakes, daily-close (web + mobile).
+
+### Phase P4 — Infra, i18n & NFRs (Low/Medium)
+45. **G23** BullMQ background queues (archive/notifications/reminders) — **R3-E6** restore-test job.
+46. **G24** boot-time migration check.
+47. **G25/R3-E8** 50k-item + 50-concurrent performance benchmark.
+48. **G26** Hijri calendar + Arabic-Indic numerals.
+49. **G28** Dockerfiles.
+50. **R3-E7** mobile Drift indexes; **§7.2** queue component.
+
+### Blocked
+- **F2 / §5.15** FCM push transport — needs Firebase project + credentials (notification *records* already work).
