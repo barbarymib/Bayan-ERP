@@ -212,7 +212,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-B4 | GPS issuance location never captured/sent by any client (API accepts lat/lng). | §5.6 | PARTIAL | `price-statements.dto.ts:132-137`; not sent in web/mobile payloads |
 | R3-B5 | Discount %↔value auto-conversion is server-only; equivalent value not shown during entry (web+mobile). | §5.6 | PARTIAL | `price-statements.service.ts:625-651`; `statements/page.tsx:340-351,414-428` |
 | R3-B6 | Discount audit incomplete: no audit on statement create; edit logs net-only (no discount delta). | §5.6 | ✅ FIXED | `statement.create` audit added after finalize/approval (`price-statements.service.ts`); edit audit now logs discount delta before/after `{status,net,subtotal,discountType,discountValue,discountAmount}` + reason. Live-verified 2026-10-16 (with R3-E1, 27/0); commit `4f49855`. |
-| R3-B7 | `paymentRating`/`paymentNotes` stored but never editable/displayed; `customer.rating` perm unused. | §5.4 | MISSING | `schema.prisma:529`; `role-permissions.ts:45`; absent in `customers.dto.ts` |
+| R3-B7 | `paymentRating`/`paymentNotes` stored but never editable/displayed; `customer.rating` perm unused. | §5.4 | ✅ FIXED | `paymentRating`/`paymentNotes` added to create/update DTOs; dedicated `PATCH /customers/:id/rating` gated by `customer.rating` (`customers.controller.ts`, `customers.service.ts:rate()` + `customer.rate` audit); web shows rating badge/notes column + rating modal gated by `can(user,'customer.rating')` (`customers/page.tsx`, `lib/api.ts`). Tests +3 (`customers.service.spec.ts`). Live-verified 2026-10-17 (set 82 + audit row; WAREHOUSEKEEPER → 403); commit `347105f`. |
 | R3-B8 | Customer→rep transfer **history** has no UI (only current rep editable). | §5.4 | PARTIAL | `customers.service.ts:104,159-177`; no UI in `customers/page.tsx` |
 | R3-B9 | Supplier statement API exists but **no web page** calls it. | §5.5 | PARTIAL | `collections.controller.ts:87-96`; no call in web |
 | R3-B10 | No setting to **disable auto last-purchase-cost update** on approval (always updates). | §5.5 | ✅ FIXED | `purchases.service.ts` now checks `purchase.auto_update_last_cost` setting (default true) via `getAutoUpdateLastCostSetting()`; when false/0/no, skips `Item.lastPurchaseCost` update on approval. Tests updated (`purchases.service.spec.ts` +3). |
@@ -291,7 +291,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 17. **R3-C7** recount threshold/flagging (shared + UI). - ✅ FIXED (shared 106/106; api 334/334; web build clean; 27/27 live verify)
 18. **R3-C4** rep-return approval as a per-company setting. - ✅ FIXED (api 339/339; 17/17 live verify)
 19. **R3-C9** custody-delivery report + reconciliation (api + print). - ✅ FIXED (api 345/345; web build clean; 31/31 live verify)
-20. **R3-B10** setting to disable auto last-purchase-cost update.
+20. **R3-B10** setting to disable auto last-purchase-cost update. — ✅ FIXED (api 387/387; live verify commit `4c99fbb`)
 21. **R3-E2** pre-migration backup; **R3-E3** document/enable server at-rest encryption.
 22. **R3-E4** stale-draft warning for price statements.
 23. **R3-A8** surface `pricingAlerts` (web + mobile).
@@ -299,7 +299,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 25. **R3-B3** mobile payment term + paid amount (enable MIXED).
 26. **R3-B4** capture/send statement GPS location from clients.
 27. **R3-B5** live %↔value discount conversion in entry forms.
-28. **R3-B7** customer payment rating/notes (dto + web) wired to `customer.rating`.
+28. **R3-B7** customer payment rating/notes (dto + web) wired to `customer.rating`. — ✅ FIXED (api 390/390; web build clean; live verify commit `347105f`)
 29. **R3-B8** customer rep-assignment transfer history UI.
 30. **R3-B9** supplier statement web page.
 
