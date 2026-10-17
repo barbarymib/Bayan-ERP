@@ -936,6 +936,7 @@ export interface ArchiveConfirmResult {
   bundleSha256: string;
   bundleSaved: boolean;
   bundleLocation: string | null;
+  numberingPeriodMode: string | null;
 }
 
 export interface ArchiveRestoreResult {

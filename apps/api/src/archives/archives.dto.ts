@@ -36,6 +36,14 @@ export class ArchiveConfirmDto {
   @IsString()
   @MaxLength(200)
   bundleLocation?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'بدء ترقيم جديد للفترة بعد الترحيل بإضافة مقطع السنة (2027-...) وإعادة ضبط التسلسل (§5.11.8)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  startNewNumbering?: boolean;
 }
 
 export class ArchiveRestoreDto {

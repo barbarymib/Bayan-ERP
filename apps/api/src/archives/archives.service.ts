@@ -8,6 +8,7 @@ import { recordsToSqlite } from '../common/sqlite.js';
 import { recordsToSheet, toXlsx } from '../common/xlsx.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
+import { NUMBERING_PERIOD_MODE_KEY } from '../numbering.service.js';
 import { createZip, sha256, toCsv, type ZipEntry } from './zip.js';
 
 const DAY = 86_400_000;
@@ -583,6 +584,7 @@ export class ArchivesService {
     bundleSaved: boolean,
     userId: number,
     bundleLocation?: string,
+    startNewNumbering?: boolean,
   ) {
     const run = await this.prisma.archiveRun.findUnique({ where: { id } });
     if (!run) throw new NotFoundException('عملية الترحيل غير موجودة');
@@ -639,7 +641,18 @@ export class ArchivesService {
       const deleted = await this.deleteArchived(tx, r);
       deleted.ledger_entries = ledger.deleted;
 
-      return { periodId: period.id, ledger, opening, deleted };
+      // §5.11.8 الخطوة 8: تفعيل نمط ترقيم الفترة الجديدة (مقطع السنة + إعادة ضبط التسلسل).
+      let numberingPeriodMode: string | null = null;
+      if (startNewNumbering) {
+        const setting = await tx.systemSetting.upsert({
+          where: { key: NUMBERING_PERIOD_MODE_KEY },
+          update: { value: 'YEAR' },
+          create: { key: NUMBERING_PERIOD_MODE_KEY, value: 'YEAR' },
+        });
+        numberingPeriodMode = setting.value;
+      }
+
+      return { periodId: period.id, ledger, opening, deleted, numberingPeriodMode };
     });
 
     const updated = await this.prisma.archiveRun.update({
@@ -666,7 +679,7 @@ export class ArchivesService {
       entity: 'ArchiveRun',
       entityId: id,
       beforeJson: { status: run.status },
-      afterJson: { status: 'CONFIRMED', periodId: result.periodId, deleted: result.deleted, openingBalances: result.opening, rolledLedgerAccounts: result.ledger.created, bundleSaved: true, bundleLocation: bundleLocation ?? null, bundleSha256: run.bundleSha256 },
+      afterJson: { status: 'CONFIRMED', periodId: result.periodId, deleted: result.deleted, openingBalances: result.opening, rolledLedgerAccounts: result.ledger.created, bundleSaved: true, bundleLocation: bundleLocation ?? null, bundleSha256: run.bundleSha256, numberingPeriodMode: result.numberingPeriodMode },
     });
     return {
       id,
@@ -679,6 +692,7 @@ export class ArchivesService {
       bundleSha256: run.bundleSha256,
       bundleSaved: true,
       bundleLocation: bundleLocation ?? null,
+      numberingPeriodMode: result.numberingPeriodMode,
     };
   }
 

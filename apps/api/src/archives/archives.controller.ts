@@ -57,7 +57,7 @@ export class ArchivesController {
 
   @Post(':id/confirm')
   confirm(@Param('id', ParseIntPipe) id: number, @Body() dto: ArchiveConfirmDto, @CurrentUser() user: AuthUser) {
-    return this.archives.confirm(id, dto.confirmText, dto.bundleSaved, user.id, dto.bundleLocation);
+    return this.archives.confirm(id, dto.confirmText, dto.bundleSaved, user.id, dto.bundleLocation, dto.startNewNumbering);
   }
 
   @Post(':id/restore')

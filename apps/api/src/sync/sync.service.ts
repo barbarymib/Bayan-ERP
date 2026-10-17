@@ -94,15 +94,16 @@ export class SyncService {
     const ownerCode = dto.repCode || user.repCode || '';
     const count = dto.count ?? DEFAULT_BLOCK_COUNT;
     for (let attempt = 0; attempt < 5; attempt++) {
+      // كتل الجهاز تبقى على الفترة الافتراضية (0) — التطبيق أوفلاين لا يطبّق مقطع السنة.
       const last = await this.prisma.numberBlock.findFirst({
-        where: { prefix: dto.kind, ownerCode, ...tenantWhere(companyId) },
+        where: { prefix: dto.kind, ownerCode, period: 0, ...tenantWhere(companyId) },
         orderBy: { toNo: 'desc' },
       });
       const from = (last?.toNo ?? 0) + 1;
       const to = from + count - 1;
       try {
         await this.prisma.numberBlock.create({
-          data: { prefix: dto.kind, ownerCode, fromNo: from, toNo: to, lastUsed: to, companyId },
+          data: { prefix: dto.kind, ownerCode, period: 0, fromNo: from, toNo: to, lastUsed: to, companyId },
         });
         return { kind: dto.kind, repCode: ownerCode, from, to, used: 0 };
       } catch (e) {
@@ -219,7 +220,7 @@ export class SyncService {
     );
 
     const blocks = await this.prisma.numberBlock.findMany({
-      where: { ownerCode: user.repCode ?? '', ...tenantWhere(companyId) },
+      where: { ownerCode: user.repCode ?? '', period: 0, ...tenantWhere(companyId) },
       orderBy: { toNo: 'desc' },
       take: 20,
     });

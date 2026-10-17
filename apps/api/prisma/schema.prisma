@@ -804,14 +804,15 @@ model NumberBlock {
   id        Int      @id @default(autoincrement())
   prefix    String // BP, PR, RT, RC, PV, ST
   ownerCode String // كود المندوب أو "" للمكتب
+  period    Int      @default(0) // سنة/فترة الترقيم (0 = بلا فترة، السلوك الافتراضي)
   fromNo    Int
   toNo      Int
   lastUsed  Int      @default(0)
   createdAt DateTime @default(now())
 
-  @@unique([companyId, prefix, ownerCode, fromNo])
+  @@unique([companyId, prefix, ownerCode, period, fromNo])
   @@index([companyId])
-  @@index([prefix, ownerCode])
+  @@index([prefix, ownerCode, period])
 }
 
 // ============================ بيان الأسعار ============================

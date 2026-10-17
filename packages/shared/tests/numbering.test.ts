@@ -51,6 +51,21 @@ describe('الترقيم الآمن أوفلاين (بادئة + كود مندو
     expect(() => formatDocNumber('BP', 'M03', 1.5)).toThrow();
   });
 
+  it('سنة/فترة للمكتب: BP-2027-000001 (§5.11.8)', () => {
+    expect(formatDocNumber('BP', '', 1, 2027)).toBe('BP-2027-000001');
+  });
+
+  it('سنة/فترة مع مندوب: BP-M03-2027-000127', () => {
+    expect(formatDocNumber('BP', 'M03', 127, 2027)).toBe('BP-M03-2027-000127');
+  });
+
+  it('period = 0/فارغ/غير محدد يعيد الصيغة القديمة', () => {
+    expect(formatDocNumber('BP', 'M03', 5, 0)).toBe('BP-M03-000005');
+    expect(formatDocNumber('BP', 'M03', 5, null)).toBe('BP-M03-000005');
+    expect(formatDocNumber('BP', 'M03', 5)).toBe('BP-M03-000005');
+    expect(formatDocNumber('PR', '', 5, undefined)).toBe('PR-000005');
+  });
+
   it('حجز كتلة رقمية جديدة بعد آخر كتلة', () => {
     const block = reserveNextBlock('BP', 'M03', 500, 100);
     expect(block).toEqual({ prefix: 'BP', ownerCode: 'M03', from: 501, to: 600 });

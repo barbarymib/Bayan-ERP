@@ -42,12 +42,26 @@ export interface NumberBlock {
   to: number;
 }
 
-export function formatDocNumber(prefix: DocPrefix, ownerCode: string, sequence: number): string {
+/**
+ * صيغة رقم المستند. مع `period` (سنة/فترة) تصبح:
+ *  - بلا مندوب: `BP-2027-000001`
+ *  - مع مندوب:  `BP-M03-2027-000001`
+ * وبدون `period` تبقى الصيغة القديمة (`BP-M03-000127` / `BP-000127`).
+ * `period = 0` يُعامل كغير محدّد (الفترة الافتراضية للنظام).
+ */
+export function formatDocNumber(
+  prefix: DocPrefix,
+  ownerCode: string,
+  sequence: number,
+  period?: number | string | null,
+): string {
   if (!Number.isInteger(sequence) || sequence < 1) {
     throw new Error(`Invalid sequence: ${sequence}`);
   }
   const seq = String(sequence).padStart(SEQUENCE_WIDTH, '0');
-  return ownerCode ? `${prefix}-${ownerCode}-${seq}` : `${prefix}-${seq}`;
+  const hasPeriod = period !== undefined && period !== null && period !== '' && Number(period) !== 0;
+  const mid = hasPeriod ? `${period}-` : '';
+  return ownerCode ? `${prefix}-${ownerCode}-${mid}${seq}` : `${prefix}-${mid}${seq}`;
 }
 
 /** حجز كتلة أرقام جديدة بعد آخر كتلة (يستدعي الخادم عند اقتراب النفاد). */

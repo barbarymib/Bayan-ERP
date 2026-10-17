@@ -175,6 +175,7 @@ function WizardPane() {
   const [confirmText, setConfirmText] = useState('');
   const [bundleSaved, setBundleSaved] = useState(false);
   const [bundleLocation, setBundleLocation] = useState('');
+  const [startNewNumbering, setStartNewNumbering] = useState(false);
   const [confirmed, setConfirmed] = useState<ArchiveConfirmResult | null>(null);
 
   const allOk = !!checks && checks.every((c) => c.ok);
@@ -211,6 +212,7 @@ function WizardPane() {
       confirmText,
       bundleSaved,
       bundleLocation: bundleLocation.trim() || undefined,
+      startNewNumbering,
     })
       .then((d) => {
         setConfirmed(d);
@@ -219,6 +221,7 @@ function WizardPane() {
         setConfirmText('');
         setBundleSaved(false);
         setBundleLocation('');
+        setStartNewNumbering(false);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'فشل التأكيد'))
       .finally(() => setBusy(false));
@@ -275,6 +278,14 @@ function WizardPane() {
             <input type="checkbox" checked={bundleSaved} onChange={(e) => setBundleSaved(e.target.checked)} />
             أقرّ بأنني حفظت حزمة النسخ الاحتياطي في مكان آمن بعيدًا عن الخادم
           </label>
+          <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={startNewNumbering}
+              onChange={(e) => setStartNewNumbering(e.target.checked)}
+            />
+            بدء ترقيم جديد للفترة — إضافة مقطع السنة (2027-...) وإعادة ضبط التسلسل (اختياري)
+          </label>
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <Field label="مكان حفظ الحزمة (اختياري)">
               <TextInput
@@ -308,6 +319,9 @@ function WizardPane() {
           حسابات دفتر مرحّلة: {confirmed.rolledLedgerAccounts}
           {confirmed.bundleSaved
             ? `؛ تم إقرار حفظ الحزمة${confirmed.bundleLocation ? ` في: ${confirmed.bundleLocation}` : ''}.`
+            : ''}
+          {confirmed.numberingPeriodMode
+            ? `؛ تم تفعيل ترقيم الفترة الجديدة (مقطع السنة) بأرقام تبدأ من 1.`
             : ''}
         </Notice>
       ) : null}
