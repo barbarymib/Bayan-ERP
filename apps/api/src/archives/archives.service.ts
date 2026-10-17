@@ -513,32 +513,66 @@ export class ArchivesService {
     return { manifest, zipId, zipSha256 };
   }
 
-  /** مطابقة الأعداد والإجماليات مع قاعدة البيانات بعد التصدير */
+  /** مطابقة الأعداد والإجماليات بين الحزمة وقاعدة البيانات بعد التصدير (§5.11.4) */
   private async verify(
     r: Range,
     manifest: { counts: Record<string, number>; totals: Record<string, number> },
   ): Promise<{ ok: boolean; detail: string }> {
-    const fresh: Record<string, number> = {
-      price_statements: await this.prisma.priceStatement.count({ where: this.inRange(r, 'date') }),
-      return_statements: await this.prisma.returnStatement.count({ where: this.inRange(r, 'date') }),
-      purchase_statements: await this.prisma.purchaseStatement.count({ where: this.inRange(r, 'date') }),
-      receipts: await this.prisma.receipt.count({ where: this.inRange(r, 'receivedAt') }),
-      payments: await this.prisma.payment.count({ where: this.inRange(r, 'paidAt') }),
-      ledger_entries: await this.prisma.ledgerEntry.count({ where: this.inRange(r, 'entryDate') }),
+    const countByTable: Record<ArchiveTable, Promise<number>> = {
+      price_statements: this.prisma.priceStatement.count({ where: this.inRange(r, 'date') }),
+      price_statement_lines: this.prisma.priceStatementLine.count({ where: { statement: this.inRange(r, 'date') } }),
+      statement_revisions: this.prisma.statementRevision.count({ where: { statement: this.inRange(r, 'date') } }),
+      return_statements: this.prisma.returnStatement.count({ where: this.inRange(r, 'date') }),
+      return_lines: this.prisma.returnLine.count({ where: { return: this.inRange(r, 'date') } }),
+      purchase_statements: this.prisma.purchaseStatement.count({ where: this.inRange(r, 'date') }),
+      purchase_statement_lines: this.prisma.purchaseStatementLine.count({ where: { statement: this.inRange(r, 'date') } }),
+      receipts: this.prisma.receipt.count({ where: this.inRange(r, 'receivedAt') }),
+      receipt_allocations: this.prisma.receiptAllocation.count({
+        where: { OR: [{ receipt: this.inRange(r, 'receivedAt') }, { statement: this.inRange(r, 'date') }] },
+      }),
+      payments: this.prisma.payment.count({ where: this.inRange(r, 'paidAt') }),
+      cheques: this.prisma.cheque.count({ where: this.inRange(r, 'receivedAt') }),
+      stock_movements: this.prisma.stockMovement.count({ where: this.inRange(r, 'createdAt') }),
+      stocktake_sessions: this.prisma.stocktakeSession.count({ where: this.inRange(r, 'openedAt') }),
+      stocktake_lines: this.prisma.stocktakeLine.count({ where: { session: this.inRange(r, 'openedAt') } }),
+      ledger_entries: this.prisma.ledgerEntry.count({ where: this.inRange(r, 'entryDate') }),
     };
-    for (const [k, n] of Object.entries(fresh)) {
-      if (manifest.counts[k] !== n) return { ok: false, detail: `${k}: manifest=${manifest.counts[k]} db=${n}` };
-    }
-    const salesAgg = await this.prisma.priceStatement.aggregate({
-      where: this.inRange(r, 'date'),
-      _sum: { net: true },
+    const keys = Object.keys(countByTable) as ArchiveTable[];
+    const recount = await Promise.all(keys.map((k) => countByTable[k]));
+
+    const diffs: string[] = [];
+    keys.forEach((k, i) => {
+      if (Number(manifest.counts[k] ?? 0) !== recount[i]) {
+        diffs.push(`count ${k}: manifest=${manifest.counts[k] ?? 0} db=${recount[i]}`);
+      }
     });
-    const dbNet = Number(salesAgg._sum.net ?? 0);
-    const manifestNet = Number(manifest.totals.salesNet ?? 0);
-    if (Math.abs(dbNet - manifestNet) > 0.01) {
-      return { ok: false, detail: `salesNet: manifest=${manifestNet} db=${dbNet}` };
+
+    const [sales, purchase, returns, receipts, payments, cheques, ledger] = await Promise.all([
+      this.prisma.priceStatement.aggregate({ where: this.inRange(r, 'date'), _sum: { net: true } }),
+      this.prisma.purchaseStatement.aggregate({ where: this.inRange(r, 'date'), _sum: { net: true } }),
+      this.prisma.returnStatement.aggregate({ where: this.inRange(r, 'date'), _sum: { total: true } }),
+      this.prisma.receipt.aggregate({ where: this.inRange(r, 'receivedAt'), _sum: { amount: true } }),
+      this.prisma.payment.aggregate({ where: this.inRange(r, 'paidAt'), _sum: { amount: true } }),
+      this.prisma.cheque.aggregate({ where: this.inRange(r, 'receivedAt'), _sum: { amount: true } }),
+      this.prisma.ledgerEntry.aggregate({ where: this.inRange(r, 'entryDate'), _sum: { debit: true, credit: true } }),
+    ]);
+    const dbTotals: Record<string, number> = {
+      salesNet: Number(sales._sum.net ?? 0),
+      purchaseNet: Number(purchase._sum.net ?? 0),
+      returnsTotal: Number(returns._sum.total ?? 0),
+      receiptsTotal: Number(receipts._sum.amount ?? 0),
+      paymentsTotal: Number(payments._sum.amount ?? 0),
+      chequesTotal: Number(cheques._sum.amount ?? 0),
+      ledgerDebit: Number(ledger._sum.debit ?? 0),
+      ledgerCredit: Number(ledger._sum.credit ?? 0),
+    };
+    for (const [k, v] of Object.entries(dbTotals)) {
+      if (Math.abs(Number(manifest.totals[k] ?? 0) - v) > 0.01) {
+        diffs.push(`total ${k}: manifest=${manifest.totals[k] ?? 0} db=${v}`);
+      }
     }
-    return { ok: true, detail: 'ok' };
+
+    return diffs.length ? { ok: false, detail: diffs.join('; ') } : { ok: true, detail: 'ok' };
   }
 
   // ============================ التأكيد: حذف + تدوير ============================
