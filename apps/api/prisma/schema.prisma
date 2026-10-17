@@ -29,6 +29,8 @@ enum CustomerClassification {
 
 enum WarehouseType {
   MAIN // رئيسي
+  STEEL // حديد
+  PAINT // بويات
   REP // عهدة مندوب
   DAMAGED // تالف
   SHOWROOM // معرض

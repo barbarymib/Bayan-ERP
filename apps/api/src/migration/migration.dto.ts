@@ -16,7 +16,7 @@ import {
 
 const CLASSIFICATIONS = ['A', 'B', 'C'] as const;
 const MEASUREMENTS = ['COUNT', 'WEIGHT'] as const;
-const WAREHOUSE_TYPES = ['MAIN', 'REP', 'DAMAGED', 'SHOWROOM'] as const;
+const WAREHOUSE_TYPES = ['MAIN', 'STEEL', 'PAINT', 'REP', 'DAMAGED', 'SHOWROOM'] as const;
 const MODES = ['MERGE', 'STRICT'] as const;
 
 export class MigrationUnitDto {

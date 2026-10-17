@@ -17,7 +17,16 @@ import {
   Th,
 } from '@/components/ui';
 
-const TYPES = ['MAIN', 'TRANSIT', 'BLIND'];
+const TYPES: { value: string; label: string }[] = [
+  { value: 'MAIN', label: 'رئيسي' },
+  { value: 'STEEL', label: 'حديد' },
+  { value: 'PAINT', label: 'بويات' },
+  { value: 'REP', label: 'عهدة مندوب' },
+  { value: 'DAMAGED', label: 'تالف' },
+  { value: 'SHOWROOM', label: 'معرض' },
+];
+
+const typeLabel = (t: string): string => TYPES.find((x) => x.value === t)?.label ?? t;
 
 export default function WarehousesPage() {
   const { user } = useAuth();
@@ -85,7 +94,7 @@ export default function WarehousesPage() {
                   <Td className="font-mono font-semibold">{w.code}</Td>
                   <Td className="font-semibold">{w.nameAr}</Td>
                   <Td>
-                    <Badge color="blue">{w.type}</Badge>
+                    <Badge color="blue">{typeLabel(w.type)}</Badge>
                   </Td>
                   <Td>{w.keeper?.name ?? '—'}</Td>
                   <Td>{w.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
@@ -151,8 +160,8 @@ function CreateWarehouseModal({
         <Field label="النوع">
           <Select value={type} onChange={(e) => setType(e.target.value)}>
             {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+              <option key={t.value} value={t.value}>
+                {t.label}
               </option>
             ))}
           </Select>
