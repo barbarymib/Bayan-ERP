@@ -229,8 +229,9 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-D3 | Tracking interval hardcoded 60s Provider — not user-configurable. | §5.13 | PARTIAL | `providers.dart:39`; `shift_controller.dart:72` |
 | R3-D4 | No idle **battery throttling** of location pushes. | §5.13 | MISSING | `shift_controller.dart:163-173` (fixed timer) |
 | R3-E1 | Audit rows not on **every** sensitive op: no audit on statement.create / purchase.create / sync push / master-data CRUD (items/customers/suppliers/warehouses). | §9 | ✅ FIXED | `purchase.create` (entity `PurchaseStatement`) in `purchases.service.ts`; `sync.push` (entity `SyncPush`, only when `serverId` present) in `sync.service.ts`; `item.create/update` (+delete via 2nd `item.update`), `customer/supplier/warehouse.create/update/delete` — services take `AuditLogsService` + optional `userId`, controllers pass `user.id`. Live-verified 2026-10-16 (27/0); commit `4f49855`. |
-| R3-E2 | **No backup before data migration** (`migration.import` runs without a dump; only archive run backs up). | §9 | PARTIAL | `migration/migration.service.ts:388`; `archives.service.ts:306` |
+| R3-E2 | **No backup before data migration** (`migration.import` runs without a dump; only archive run backs up). | §9 | ✅ FIXED | `MigrationService.importPayload` now calls `BackupsService.runBackup(userId)` before importing (skipped in test env; opt-out via `LegacyImportDto.skipBackup`); returns/audits `backupCode`. `BackupsModule` exports `BackupsService`; `MigrationModule` imports it. Tests +2. Live-verified 2026-10-17 (no-op import → `backupCode BK-20261018010530-566a43`, `total 0`). Commit `c2437b2`. |
 | R3-E3 | Server-side **sensitive-data encryption** absent (only backup AES + mobile SQLCipher). | §9 | PARTIAL | `backups/crypto.util.ts:33`; not in schema/env |
+| R3-E2b | **Daily/scheduled encrypted backups FAILED silently since RLS (2026-10-13)** — `pg_dump` aborts on `FORCE ROW LEVEL SECURITY` tables as the non-bypass `bayan` role. | §9 | ✅ FIXED | `resolveDumpDatabaseUrl()` prefers `BACKUP_DATABASE_URL` (dedicated `bayan_backup` role with `BYPASSRLS` + `pg_read_all_data`) over `DATABASE_URL`; server role + env created. Tests +3 (`backups-crypto.spec.ts`). Live-verified 2026-10-17: backup `BK-20261018010530-566a43` `DONE` (268 KB) + `/verify` `ok:true`. Commit `4150210`. |
 | R3-E4 | No **stale-draft warning** for old price statements. | §11 | MISSING | no stale/draft-age logic anywhere in web/mobile |
 | R3-E5 | No **"items without price"** report/list (valuation silently 0). | §11 | ✅ FIXED | new `ReportsService.itemsWithoutPrice` (+ `QueryItemsWithoutPriceDto`) lists active items with `lastPurchaseCost==null` (on-hand qty via `stockBalance.groupBy`); `GET /reports/items-without-price` (`report.view`, CSV); web reports tab "أصناف بدون سعر". Commit `4f5f3cd`. Live-verified 2026-10-16 (31/0). |
 | R3-F1 | Mobile **no "my customers" screen** (search+filter+distance). | §8.2 #2 | MISSING | no `features/customers/**`; inline list `home_screen.dart:216-226` |
@@ -292,7 +293,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 18. **R3-C4** rep-return approval as a per-company setting. - ✅ FIXED (api 339/339; 17/17 live verify)
 19. **R3-C9** custody-delivery report + reconciliation (api + print). - ✅ FIXED (api 345/345; web build clean; 31/31 live verify)
 20. **R3-B10** setting to disable auto last-purchase-cost update. — ✅ FIXED (api 387/387; live verify commit `4c99fbb`)
-21. **R3-E2** pre-migration backup; **R3-E3** document/enable server at-rest encryption.
+21. **R3-E2** pre-migration backup ✅ FIXED (+ **R3-E2b** backup-under-RLS fix); **R3-E3** document/enable server at-rest encryption (docs).
 22. **R3-E4** stale-draft warning for price statements.
 23. **R3-A8** surface `pricingAlerts` (web + mobile).
 24. **R3-A10** item master editing (units/attributes/brand/origin/minSalePrice/image/variants).
