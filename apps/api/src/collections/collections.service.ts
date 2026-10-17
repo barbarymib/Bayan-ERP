@@ -365,10 +365,41 @@ export class CollectionsService {
       });
     }
 
+    const migratedRow = await this.prisma.openingBalance.findFirst({
+      where: { kind: 'CUSTOMER', accountId: customerId, ...tenantWhere(companyId) },
+      orderBy: { id: 'desc' },
+      include: {
+        run: {
+          select: {
+            id: true,
+            code: true,
+            fromDate: true,
+            toDate: true,
+            confirmedAt: true,
+            bundlePath: true,
+            bundleSha256: true,
+          },
+        },
+      },
+    });
+    const migratedOpening = migratedRow
+      ? {
+          amount: Number(migratedRow.amount),
+          runId: migratedRow.run.id,
+          runCode: migratedRow.run.code,
+          fromDate: migratedRow.run.fromDate,
+          toDate: migratedRow.run.toDate,
+          confirmedAt: migratedRow.run.confirmedAt,
+          bundleAvailable: Boolean(migratedRow.run.bundlePath),
+          bundleSha256: migratedRow.run.bundleSha256,
+        }
+      : null;
+
     return {
       customer: { id: customer.id, code: customer.code, nameAr: customer.nameAr },
       openingBalance: opening,
       closingBalance: running,
+      migratedOpening,
       movements,
       outstandingStatements: outstandingRows,
       totalOutstanding: roundMoney(outstandingRows.reduce((s, r) => s + r.outstanding, 0)),

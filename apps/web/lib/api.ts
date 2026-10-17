@@ -334,6 +334,16 @@ export interface CustomerStatement {
   customer: Customer;
   openingBalance: number;
   closingBalance: number;
+  migratedOpening: {
+    amount: number;
+    runId: number;
+    runCode: string;
+    fromDate: string;
+    toDate: string;
+    confirmedAt: string | null;
+    bundleAvailable: boolean;
+    bundleSha256: string | null;
+  } | null;
   movements: {
     id: number;
     date: string;

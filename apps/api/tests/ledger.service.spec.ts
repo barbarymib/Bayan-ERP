@@ -109,3 +109,81 @@ describe('CollectionsService.supplierStatement', () => {
     await expect(service.supplierStatement(1, {}, 1)).rejects.toThrow('not found');
   });
 });
+
+describe('CollectionsService.customerStatement — الرصيد الافتتاحي المُرحّل (R3-C14)', () => {
+  function customerPrisma(opening: unknown): PrismaService {
+    return {
+      customer: {
+        findUnique: async () => ({ id: 1, code: 'CUS-01', nameAr: 'عميل', openingBalance: 500, companyId: 1 }),
+      },
+      ledgerEntry: {
+        findMany: async () => [
+          {
+            id: 1,
+            entryDate: new Date('2026-02-01'),
+            description: 'رصيد افتتاحي مرحّل — الأرشيف AR-000001',
+            debit: 300,
+            credit: 0,
+            refType: 'archive',
+            refId: 7,
+          },
+        ],
+      },
+      priceStatement: { findMany: async () => [] },
+      openingBalance: { findFirst: async () => opening },
+    } as unknown as PrismaService;
+  }
+
+  function makeService(prisma: PrismaService): CollectionsService {
+    return new CollectionsService(
+      prisma,
+      {} as unknown as NumberingService,
+      {} as unknown as PeriodsService,
+      new LedgerService(prisma),
+      { write: async () => {} } as unknown as AuditLogsService,
+    );
+  }
+
+  it('يكشف الرصيد المُرحّل مع بيانات حزمة الأرشيف', async () => {
+    const run = {
+      id: 7,
+      code: 'AR-000001',
+      fromDate: new Date('2025-01-01'),
+      toDate: new Date('2025-12-31'),
+      confirmedAt: new Date('2026-01-05'),
+      bundlePath: 'archives/AR-000001.zip',
+      bundleSha256: 'deadbeef',
+    };
+    const service = makeService(customerPrisma({ id: 3, amount: 800, run }));
+    const res = await service.customerStatement(1, {}, 1);
+    expect(res.migratedOpening).not.toBeNull();
+    expect(res.migratedOpening!.amount).toBe(800);
+    expect(res.migratedOpening!.runId).toBe(7);
+    expect(res.migratedOpening!.runCode).toBe('AR-000001');
+    expect(res.migratedOpening!.bundleAvailable).toBe(true);
+    expect(res.openingBalance).toBe(500);
+    expect(res.closingBalance).toBe(800);
+  });
+
+  it('يرجع null عند غياب رصيد مُرحّل', async () => {
+    const service = makeService(customerPrisma(null));
+    const res = await service.customerStatement(1, {}, 1);
+    expect(res.migratedOpening).toBeNull();
+  });
+
+  it('يرجع null لحزمة بلا ملف مخزّن', async () => {
+    const run = {
+      id: 8,
+      code: 'AR-000002',
+      fromDate: new Date('2025-01-01'),
+      toDate: new Date('2025-12-31'),
+      confirmedAt: null,
+      bundlePath: null,
+      bundleSha256: null,
+    };
+    const service = makeService(customerPrisma({ id: 4, amount: 100, run }));
+    const res = await service.customerStatement(1, {}, 1);
+    expect(res.migratedOpening!.bundleAvailable).toBe(false);
+    expect(res.migratedOpening!.confirmedAt).toBeNull();
+  });
+});

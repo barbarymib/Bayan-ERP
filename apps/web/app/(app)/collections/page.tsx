@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
+  API_URL,
   can,
   get,
+  getToken,
   post,
   qs,
   type ChequeDoc,
@@ -53,6 +56,30 @@ const chequeStatusColor: Record<string, string> = {
   COLLECTED: 'green',
   RETURNED: 'red',
 };
+
+async function downloadArchiveBundle(
+  id: number,
+  code: string,
+  setError: (m: string | null) => void,
+): Promise<void> {
+  try {
+    const res = await fetch(`${API_URL}/archives/${id}/bundle`, {
+      headers: { Authorization: `Bearer ${getToken() ?? ''}` },
+    });
+    if (!res.ok) throw new Error(`فشل تنزيل حزمة الأرشيف (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${code}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'فشل تنزيل حزمة الأرشيف');
+  }
+}
 
 export default function CollectionsPage() {
   const { user } = useAuth();
@@ -721,6 +748,38 @@ function KashfPane() {
               <div className="mt-1 text-xl font-black text-red-600">{formatMoney(data.totalOutstanding)}</div>
             </div>
           </div>
+
+          {data.migratedOpening ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div>
+                <div className="text-sm font-bold text-amber-800">رصيد افتتاحي مُرحّل من الأرشيف</div>
+                <div className="mt-1 text-xl font-black text-amber-900">{formatMoney(data.migratedOpening.amount)}</div>
+                <div className="mt-1 text-xs text-amber-700">
+                  حزمة {data.migratedOpening.runCode} — {formatDate(data.migratedOpening.fromDate)} إلى{' '}
+                  {formatDate(data.migratedOpening.toDate)}
+                  {data.migratedOpening.confirmedAt ? ` — أُكّدت ${formatDate(data.migratedOpening.confirmedAt)}` : ''}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {data.migratedOpening.bundleAvailable ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      downloadArchiveBundle(data.migratedOpening!.runId, data.migratedOpening!.runCode, setError)
+                    }
+                  >
+                    تنزيل حزمة الأرشيف
+                  </Button>
+                ) : null}
+                <Link
+                  href="/archives"
+                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                >
+                  عرض الأرشيف
+                </Link>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mb-4 overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <div className="border-b border-gray-200 px-4 py-2 text-sm font-bold text-gray-700">حركات الحساب</div>
