@@ -9,6 +9,7 @@ import { recordsToSheet, toXlsx } from '../common/xlsx.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { NUMBERING_PERIOD_MODE_KEY } from '../numbering.service.js';
+import { currentCompanyId } from '../tenant/tenant.context.js';
 import { createZip, sha256, toCsv, type ZipEntry } from './zip.js';
 
 const DAY = 86_400_000;
@@ -613,6 +614,8 @@ export class ArchivesService {
       throw new BadRequestException('عدد بيانات الأسعار تغيّر بعد إنشاء الحزمة — أعد الترحيل');
     }
 
+    const companyId = currentCompanyId();
+
     const result = await this.prisma.$transaction(async (tx) => {
       const period = await tx.period.create({
         data: {
@@ -623,6 +626,7 @@ export class ArchivesService {
           checksum: run.bundleSha256,
           closedById: userId,
           closedAt: new Date(),
+          companyId,
         },
       });
       const hasOpen = await tx.period.findFirst({ where: { status: 'OPEN' } });
@@ -632,12 +636,13 @@ export class ArchivesService {
             fromDate: new Date(run.toDate.getTime() + DAY),
             toDate: new Date(run.toDate.getTime() + DAY + 365 * DAY),
             status: 'OPEN',
+            companyId,
           },
         });
       }
 
-      const ledger = await this.rollLedger(tx, r, run.id, run.code);
-      const opening = await this.rollOpeningBalances(tx, r, run.id);
+      const ledger = await this.rollLedger(tx, r, run.id, run.code, companyId);
+      const opening = await this.rollOpeningBalances(tx, r, run.id, companyId);
       const deleted = await this.deleteArchived(tx, r);
       deleted.ledger_entries = ledger.deleted;
 
@@ -702,6 +707,7 @@ export class ArchivesService {
     r: Range,
     runId: number,
     code: string,
+    companyId: number | null,
   ): Promise<{ created: number; deleted: number }> {
     const entries = await tx.ledgerEntry.findMany({
       where: { entryDate: { lt: r.toEnd } },
@@ -728,6 +734,7 @@ export class ArchivesService {
           refType: 'archive',
           refId: runId,
           description: `رصيد افتتاحي مرحّل — الأرشيف ${code}`,
+          companyId,
         },
       });
       created++;
@@ -744,6 +751,7 @@ export class ArchivesService {
     tx: Prisma.TransactionClient,
     r: Range,
     runId: number,
+    companyId: number | null,
   ): Promise<{ customers: number; suppliers: number; items: number; cash: number }> {
     const [customers, suppliers] = await Promise.all([
       tx.customer.findMany({ select: { id: true, openingBalance: true } }),
@@ -765,13 +773,13 @@ export class ArchivesService {
       const net = archivedLedger
         .filter((l) => l.accountType === 'CUSTOMER' && l.accountId === c.id)
         .reduce((s, l) => s + Number(l._sum.debit ?? 0) - Number(l._sum.credit ?? 0), 0);
-      openingRows.push({ runId, kind: 'CUSTOMER', accountId: c.id, amount: Number(c.openingBalance) + net });
+      openingRows.push({ runId, kind: 'CUSTOMER', accountId: c.id, amount: Number(c.openingBalance) + net, companyId });
     }
     for (const s of suppliers) {
       const net = archivedLedger
         .filter((l) => l.accountType === 'SUPPLIER' && l.accountId === s.id)
         .reduce((acc, l) => acc + Number(l._sum.debit ?? 0) - Number(l._sum.credit ?? 0), 0);
-      openingRows.push({ runId, kind: 'SUPPLIER', accountId: s.id, amount: Number(s.openingBalance) + net });
+      openingRows.push({ runId, kind: 'SUPPLIER', accountId: s.id, amount: Number(s.openingBalance) + net, companyId });
     }
 
     const [recSum, paySum] = await Promise.all([
@@ -780,7 +788,7 @@ export class ArchivesService {
     ]);
     const cashAmount =
       Number(recSum._sum.amount ?? 0) - Number(paySum._sum.amount ?? 0) + ledgerNet('CASH');
-    openingRows.push({ runId, kind: 'CASH', accountId: 0, amount: Math.round(cashAmount * 100) / 100 });
+    openingRows.push({ runId, kind: 'CASH', accountId: 0, amount: Math.round(cashAmount * 100) / 100, companyId });
 
     const balances = await tx.stockBalance.findMany({
       select: {
@@ -802,6 +810,7 @@ export class ArchivesService {
         warehouseId: b.warehouseId,
         qtyBase: qty,
         amount: Math.round(qty * Number(b.item.lastPurchaseCost ?? 0) * 100) / 100,
+        companyId,
       });
     }
 

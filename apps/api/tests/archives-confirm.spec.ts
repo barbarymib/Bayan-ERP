@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ArchivesService } from '../src/archives/archives.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
+import { runWithTenant } from '../src/tenant/tenant.context.js';
 
 function makeService(opts: { run?: Record<string, unknown> | null; bundleExists?: boolean }) {
   const prisma = {
@@ -57,5 +58,61 @@ describe('ArchivesService.confirm — إقرار حفظ الحزمة (§5.11.5-6
   it('يرمي NotFound لحزمة غير موجودة', async () => {
     const { service } = makeService({ run: null });
     await expect(service.confirm(1, 'أرشفة', true, 9)).rejects.toThrow(/عملية الترحيل/);
+  });
+});
+
+describe('ArchivesService.confirm — يختم companyId على صفوف التدوير (إصلاح RLS)', () => {
+  it('يمرّر companyId إلى الفترة والمُرحّل إلى الأرصدة الافتتاحية', async () => {
+    const captured = { period: [] as unknown[], opening: [] as unknown[] };
+    const tx = {
+      period: {
+        create: async (a: { data: unknown }) => {
+          captured.period.push(a.data);
+          return { id: 1 };
+        },
+        findFirst: async () => ({ id: 1 }),
+      },
+      ledgerEntry: {
+        findMany: async () => [],
+        create: async (a: unknown) => a,
+        deleteMany: async () => ({ count: 0 }),
+        groupBy: async () => [],
+      },
+      customer: { findMany: async () => [{ id: 1, openingBalance: 500 }] },
+      supplier: { findMany: async () => [] },
+      receipt: { aggregate: async () => ({ _sum: { amount: 0 } }) },
+      payment: { aggregate: async () => ({ _sum: { amount: 0 } }) },
+      stockBalance: { findMany: async () => [] },
+      openingBalance: {
+        createMany: async (a: { data: unknown[] }) => {
+          captured.opening.push(...a.data);
+          return { count: a.data.length };
+        },
+      },
+      systemSetting: { upsert: async () => ({ value: 'YEAR' }) },
+    };
+    const prisma = {
+      archiveRun: {
+        findUnique: async () => READY,
+        update: async () => ({ status: 'CONFIRMED', confirmedAt: new Date() }),
+      },
+      priceStatement: { count: async () => 0 },
+      $transaction: async (fn: (t: unknown) => Promise<unknown>) => fn(tx),
+    } as unknown as PrismaService;
+    const service = new ArchivesService(
+      prisma,
+      { exists: async () => true, basename: (p: string) => p } as never,
+      { write: async () => {} } as never,
+    );
+    (service as unknown as { prechecks: () => Promise<unknown[]> }).prechecks = async () => [];
+    (service as unknown as { deleteArchived: () => Promise<Record<string, number>> }).deleteArchived = async () => ({});
+
+    await runWithTenant({ companyId: 42 }, () => service.confirm(1, 'أرشفة', true, 9));
+
+    expect((captured.period[0] as { companyId: number }).companyId).toBe(42);
+    expect(captured.opening.length).toBeGreaterThan(0);
+    for (const row of captured.opening) {
+      expect((row as { companyId: number }).companyId).toBe(42);
+    }
   });
 });
