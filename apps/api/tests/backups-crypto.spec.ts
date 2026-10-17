@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { decrypt, encrypt, resolveKey } from '../src/backups/crypto.util.js';
+import { resolveDumpDatabaseUrl } from '../src/backups/backups.service.js';
 
 const ORIGINAL_KEY = process.env.BACKUP_ENCRYPTION_KEY;
 
@@ -67,5 +68,26 @@ describe('backup crypto (§5.16 نسخ احتياطي مشفر يومي AES-256-
 
   it('يرفض الملفات الأقصر من رأس الصيغة', () => {
     expect(() => decrypt(Buffer.from('BAYAN'), resolveKey())).toThrow('bad header');
+  });
+});
+
+describe('resolveDumpDatabaseUrl (اتصال pg_dump مع تجاوز RLS)', () => {
+  it('يفضّل BACKUP_DATABASE_URL عند توفره', () => {
+    expect(
+      resolveDumpDatabaseUrl({
+        BACKUP_DATABASE_URL: 'postgresql://bypass@db/bayan',
+        DATABASE_URL: 'postgresql://app@db/bayan',
+      }),
+    ).toBe('postgresql://bypass@db/bayan');
+  });
+
+  it('يرجع إلى DATABASE_URL عند غياب BACKUP_DATABASE_URL', () => {
+    expect(resolveDumpDatabaseUrl({ DATABASE_URL: 'postgresql://app@db/bayan' })).toBe(
+      'postgresql://app@db/bayan',
+    );
+  });
+
+  it('يرفض غياب كلاهما', () => {
+    expect(() => resolveDumpDatabaseUrl({})).toThrow('DATABASE_URL is not set');
   });
 });

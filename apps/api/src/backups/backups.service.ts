@@ -19,6 +19,16 @@ import { decrypt, encrypt, resolveKey } from './crypto.util.js';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * اتصال pg_dump: يفضّل BACKUP_DATABASE_URL (دور BYPASSRLS لتجاوز سياسات RLS على الجداول
+ * ذات FORCE ROW LEVEL SECURITY)، وإلا DATABASE_URL.
+ */
+export function resolveDumpDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const url = env.BACKUP_DATABASE_URL ?? env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not set');
+  return url;
+}
+
 @Injectable()
 export class BackupsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BackupsService.name);
@@ -79,8 +89,9 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
     let storedId: string | null = null;
 
     try {
-      const databaseUrl = process.env.DATABASE_URL;
-      if (!databaseUrl) throw new Error('DATABASE_URL is not set');
+      // pg_dump يتطلب تجاوز RLS (جداول FORCE ROW LEVEL SECURITY): نستخدم اتصالاً بدور
+      // BYPASSRLS عبر BACKUP_DATABASE_URL إن توفّر، وإلا نرجع إلى DATABASE_URL.
+      const databaseUrl = resolveDumpDatabaseUrl();
 
       await execFileAsync(
         this.resolvePgDump(),
