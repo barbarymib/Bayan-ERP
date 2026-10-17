@@ -339,6 +339,14 @@ export class LegacyImportDto {
   @IsIn([...MODES])
   mode?: (typeof MODES)[number];
 
+  @ApiPropertyOptional({
+    default: false,
+    description: 'تخطي النسخة الاحتياطية المشفّرة قبل الترحيل (غير موصى به — للاستخدام المتقدم فقط)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  skipBackup?: boolean;
+
   @ApiPropertyOptional({ type: [MigrationCategoryDto] })
   @IsOptional()
   @IsArray()

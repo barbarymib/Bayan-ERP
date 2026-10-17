@@ -4,8 +4,10 @@ import { MigrationService } from '../src/migration/migration.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
 import type { LegacyImportDto } from '../src/migration/migration.dto.js';
 import type { AuditLogsService } from '../src/audit-logs/audit-logs.service.js';
+import type { BackupsService } from '../src/backups/backups.service.js';
 
 const noopAudits = { write: async () => {} } as unknown as AuditLogsService;
+const noopBackups = { runBackup: vi.fn().mockResolvedValue({ code: 'BK-TEST' }) } as unknown as BackupsService;
 
 const payloadFixture: LegacyImportDto = {
   mode: 'MERGE',
@@ -125,7 +127,7 @@ beforeEach(() => {
 describe('MigrationService (المرحلة 7 — ترحيل البيانات)', () => {
   it('يستورد كل الأقسام ويصل رصيد المخزون الافتتاحي عبر حركة مخزنية', async () => {
     const { prisma, created } = makePrisma();
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     const res = await svc.importPayload(payloadFixture, 1);
 
     expect(res.errors).toBe(0);
@@ -146,7 +148,7 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
 
   it('وضع STRICT يلغي الاستيراد كاملاً عند تكرار كود', async () => {
     const { prisma } = makePrisma({ items: 1, customers: 1 });
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     await expect(
       svc.importPayload(
         { mode: 'STRICT', items: [{ code: 'ITEM1', nameAr: 'x', baseUnitCode: 'PCS' }] } as LegacyImportDto,
@@ -157,7 +159,7 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
 
   it('وضع MERGE يحدّث الموجود بدلاً من إعادة إنشائه ولا يضاعف الرصيد الافتتاحي', async () => {
     const { prisma } = makePrisma({ items: 1, customers: 1 });
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     const res = await svc.importPayload(payloadFixture, 1);
     expect(res.errors).toBe(0);
     expect(res.results.items?.[0]).toMatchObject({ action: 'UPDATED' });
@@ -168,7 +170,7 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
 
   it('يُسجل صفاً تالفاً كـ SKIPPED بخطأ دون إلغاء بقية الاستيراد في وضع MERGE', async () => {
     const { prisma } = makePrisma();
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     const res = await svc.importPayload(
       {
         mode: 'MERGE',
@@ -186,7 +188,7 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
 
   it('بيعرض الموردين بالفتح في حالة عدم وجود أرقام مفردة', async () => {
     const { prisma } = makePrisma();
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     const res = await svc.importPayload(
       {
         mode: 'MERGE',
@@ -204,7 +206,7 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
 
   it('يربط كل السجلات المستوردة بمُعرّف الشركة (عزل المستأجرين)', async () => {
     const { prisma, created } = makePrisma();
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     const res = await svc.importPayload(payloadFixture, 1, 7);
     expect(res.errors).toBe(0);
     expect(created.category?.[0]).toMatchObject({ companyId: 7 });
@@ -219,7 +221,7 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
 
   it('ينشئ تعيين مندوب (CustomerRepAssignment) للعميل المستورد المربوط بمندوب', async () => {
     const { prisma, created } = makePrisma({ rep: true });
-    const svc = new MigrationService(prisma, stockMock as never, noopAudits);
+    const svc = new MigrationService(prisma, stockMock as never, noopAudits, noopBackups);
     const res = await svc.importPayload(
       {
         mode: 'MERGE',
@@ -238,5 +240,38 @@ describe('MigrationService (المرحلة 7 — ترحيل البيانات)', 
       repId: 42,
       companyId: 7,
     });
+  });
+
+  it('يأخذ نسخة احتياطية مشفّرة قبل الترحيل ويعيد رمزها (§9)', async () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const runBackup = vi.fn().mockResolvedValue({ code: 'BK-20260101000000-abc123' });
+      const backups = { runBackup } as unknown as BackupsService;
+      const { prisma } = makePrisma();
+      const svc = new MigrationService(prisma, stockMock as never, noopAudits, backups);
+      const res = await svc.importPayload(payloadFixture, 1);
+      expect(runBackup).toHaveBeenCalledOnce();
+      expect(runBackup).toHaveBeenCalledWith(1);
+      expect(res.backupCode).toBe('BK-20260101000000-abc123');
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+
+  it('يتخطى النسخة الاحتياطية عند skipBackup=true', async () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const runBackup = vi.fn().mockResolvedValue({ code: 'BK-X' });
+      const backups = { runBackup } as unknown as BackupsService;
+      const { prisma } = makePrisma();
+      const svc = new MigrationService(prisma, stockMock as never, noopAudits, backups);
+      const res = await svc.importPayload({ skipBackup: true, ...payloadFixture }, 1);
+      expect(runBackup).not.toHaveBeenCalled();
+      expect(res.backupCode).toBeUndefined();
+    } finally {
+      process.env.NODE_ENV = original;
+    }
   });
 });

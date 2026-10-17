@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.module.js';
 import { StockService } from '../common/stock.service.js';
 import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
+import { BackupsService } from '../backups/backups.service.js';
 import type { LegacyImportDto } from './migration.dto.js';
 
 export interface MigrationRowResult {
@@ -16,6 +17,7 @@ export type MigrationSections = keyof LegacyImportDto;
 export interface MigrationImportResult {
   mode: string;
   strict: boolean;
+  backupCode?: string;
   counts: Partial<Record<MigrationSections, number>>;
   errors: number;
   total: number;
@@ -39,6 +41,7 @@ export class MigrationService {
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
     private readonly audits: AuditLogsService,
+    private readonly backups: BackupsService,
   ) {}
 
   async importPayload(
@@ -48,6 +51,15 @@ export class MigrationService {
   ): Promise<MigrationImportResult> {
     const mode = dto.mode ?? 'MERGE';
     const strict = mode === 'STRICT';
+
+    // نسخة احتياطية مشفّرة قبل أي استيراد (§9): لا ترحيل بلا نسخة قابلة للاسترجاع.
+    // تُتخطى في وضع الاختبار فقط؛ ويمكن تعطيلها صراحةً عبر skipBackup.
+    let backupCode: string | undefined;
+    if (!dto.skipBackup && process.env.NODE_ENV !== 'test') {
+      const backup = await this.backups.runBackup(userId);
+      backupCode = backup.code;
+    }
+
     const results: Partial<Record<MigrationSections, MigrationRowResult[]>> = {
       categories: [],
       units: [],
@@ -389,9 +401,9 @@ export class MigrationService {
       action: 'migration.import',
       entity: 'Migration',
       entityId: 0,
-      afterJson: { mode, strict, total, errors, counts },
+      afterJson: { mode, strict, total, errors, counts, backupCode: backupCode ?? null },
     });
 
-    return { mode, strict, counts, errors, total, results };
+    return { mode, strict, backupCode, counts, errors, total, results };
   }
 }
