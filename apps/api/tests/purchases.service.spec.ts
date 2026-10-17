@@ -19,7 +19,10 @@ interface Line {
  * - وسائط إنشاء بيان التوريد (البنود + landedCost + landedCostTotal)
  * - نداءات إدخال المخزون (stock.purchaseIn) وتحديث آخر سعر شراء
  */
-function build(lineItems: Record<string, number>, opts: { trackBatch?: boolean } = {}) {
+function build(
+  lineItems: Record<string, number>,
+  opts: { trackBatch?: boolean; autoUpdateLastCost?: string | null } = {},
+) {
   const calls = {
     create: [] as Record<string, unknown>[],
     purchaseIn: [] as Record<string, unknown>[],
@@ -34,6 +37,12 @@ function build(lineItems: Record<string, number>, opts: { trackBatch?: boolean }
         calls.create.push(args);
         return { id: 99 };
       },
+    },
+    systemSetting: {
+      findUnique: async (args: { where: { key: string } }) =>
+        opts.autoUpdateLastCost == null || args.where.key !== 'purchase.auto_update_last_cost'
+          ? null
+          : { key: args.where.key, value: opts.autoUpdateLastCost },
     },
     item: {
       update: async (args: Record<string, unknown>) => {
@@ -206,5 +215,30 @@ describe('PurchasesService.create — دفعات الأصناف (§5.1)', () => 
     await expect(
       service.create(dto([{ itemCode: 'A', qty: 5, unitPrice: 10, expiry: '2027-01-15' }]), user),
     ).rejects.toThrow('يتطلب كود دفعة');
+  });
+});
+
+describe('PurchasesService.create — مفتاح إيقاف تحديث آخر سعر شراء (R3-B10)', () => {
+  const map = { A: 11 };
+
+  it('بلا إعداد (افتراضي): يحدّث lastPurchaseCost', async () => {
+    const { service, calls } = build(map);
+    await service.create(dto([{ itemCode: 'A', qty: 2, unitPrice: 50 }]), user);
+    expect(calls.itemUpdate).toHaveLength(1);
+    expect(calls.itemUpdate[0]).toMatchObject({ data: { lastPurchaseCost: 50 } });
+  });
+
+  it('الإعداد true: يحدّث lastPurchaseCost', async () => {
+    const { service, calls } = build(map, { autoUpdateLastCost: 'true' });
+    await service.create(dto([{ itemCode: 'A', qty: 2, unitPrice: 50 }]), user);
+    expect(calls.itemUpdate).toHaveLength(1);
+  });
+
+  it('الإعداد false: لا يحدّث lastPurchaseCost مع بقاء المخزون والقيد', async () => {
+    const { service, calls } = build(map, { autoUpdateLastCost: 'false' });
+    await service.create(dto([{ itemCode: 'A', qty: 2, unitPrice: 50 }]), user);
+    expect(calls.itemUpdate).toHaveLength(0);
+    expect(calls.purchaseIn).toHaveLength(1);
+    expect(calls.create).toHaveLength(1);
   });
 });

@@ -196,10 +196,12 @@ export class PurchasesService {
           companyId: tenant,
           lines: [{ itemId: line.itemId, qtyBase, cost, batchId: line.batchId || undefined }],
         });
-        await tx.item.update({
-          where: { id: line.itemId },
-          data: { lastPurchaseCost: cost },
-        });
+        if (await this.getAutoUpdateLastCostSetting(tx)) {
+          await tx.item.update({
+            where: { id: line.itemId },
+            data: { lastPurchaseCost: cost },
+          });
+        }
       }
 
       await this.ledger.entry(tx, {
@@ -342,5 +344,18 @@ export class PurchasesService {
       throw new NotFoundException(`Purchase ${id} not found`);
     }
     return p;
+  }
+
+  private async getAutoUpdateLastCostSetting(tx: Tx): Promise<boolean> {
+    try {
+      const setting = await tx.systemSetting.findUnique({
+        where: { key: 'purchase.auto_update_last_cost' },
+      });
+      if (!setting) return true;
+      const v = String(setting.value).trim().toLowerCase();
+      return v !== 'false' && v !== '0' && v !== 'no';
+    } catch {
+      return true;
+    }
   }
 }
