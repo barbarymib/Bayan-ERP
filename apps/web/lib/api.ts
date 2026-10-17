@@ -910,6 +910,8 @@ export interface ArchiveRunResult {
   message?: string;
   checks: ArchiveCheck[];
   manifest?: ArchiveManifest;
+  bundleSha256?: string;
+  backupPath?: string | null;
 }
 
 export interface ArchiveViewer {
@@ -932,6 +934,8 @@ export interface ArchiveConfirmResult {
   openingBalances: Record<string, number>;
   rolledLedgerAccounts: number;
   bundleSha256: string;
+  bundleSaved: boolean;
+  bundleLocation: string | null;
 }
 
 export interface ArchiveRestoreResult {

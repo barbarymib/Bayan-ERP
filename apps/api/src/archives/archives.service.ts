@@ -528,7 +528,13 @@ export class ArchivesService {
 
   // ============================ التأكيد: حذف + تدوير ============================
 
-  async confirm(id: number, confirmText: string, userId: number) {
+  async confirm(
+    id: number,
+    confirmText: string,
+    bundleSaved: boolean,
+    userId: number,
+    bundleLocation?: string,
+  ) {
     const run = await this.prisma.archiveRun.findUnique({ where: { id } });
     if (!run) throw new NotFoundException('عملية الترحيل غير موجودة');
     if (run.status !== 'READY') {
@@ -536,6 +542,12 @@ export class ArchivesService {
     }
     if (confirmText.trim() !== CONFIRM_WORD) {
       throw new BadRequestException(`اكتب كلمة التأكيد "${CONFIRM_WORD}" بالضبط لتنفيذ الحذف`);
+    }
+    if (!bundleSaved) {
+      throw new BadRequestException('أقرّ أولًا بحفظ حزمة النسخ الاحتياطي في مكان آمن قبل تنفيذ الحذف');
+    }
+    if (!run.bundlePath || !(await this.storage.exists(run.bundlePath))) {
+      throw new BadRequestException('حزمة النسخ الاحتياطي غير موجودة في المخزن — أعد إنشاء الحزمة قبل الحذف');
     }
 
     const r = this.range(run.fromDate, run.toDate);
@@ -605,7 +617,7 @@ export class ArchivesService {
       entity: 'ArchiveRun',
       entityId: id,
       beforeJson: { status: run.status },
-      afterJson: { status: 'CONFIRMED', periodId: result.periodId, deleted: result.deleted, openingBalances: result.opening, rolledLedgerAccounts: result.ledger.created },
+      afterJson: { status: 'CONFIRMED', periodId: result.periodId, deleted: result.deleted, openingBalances: result.opening, rolledLedgerAccounts: result.ledger.created, bundleSaved: true, bundleLocation: bundleLocation ?? null, bundleSha256: run.bundleSha256 },
     });
     return {
       id,
@@ -616,6 +628,8 @@ export class ArchivesService {
       openingBalances: result.opening,
       rolledLedgerAccounts: result.ledger.created,
       bundleSha256: run.bundleSha256,
+      bundleSaved: true,
+      bundleLocation: bundleLocation ?? null,
     };
   }
 

@@ -173,6 +173,8 @@ function WizardPane() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ArchiveRunResult | null>(null);
   const [confirmText, setConfirmText] = useState('');
+  const [bundleSaved, setBundleSaved] = useState(false);
+  const [bundleLocation, setBundleLocation] = useState('');
   const [confirmed, setConfirmed] = useState<ArchiveConfirmResult | null>(null);
 
   const allOk = !!checks && checks.every((c) => c.ok);
@@ -205,12 +207,18 @@ function WizardPane() {
     if (!result?.id) return;
     setBusy(true);
     setError(null);
-    post<ArchiveConfirmResult>(`/archives/${result.id}/confirm`, { confirmText })
+    post<ArchiveConfirmResult>(`/archives/${result.id}/confirm`, {
+      confirmText,
+      bundleSaved,
+      bundleLocation: bundleLocation.trim() || undefined,
+    })
       .then((d) => {
         setConfirmed(d);
         setResult(null);
         setChecks(null);
         setConfirmText('');
+        setBundleSaved(false);
+        setBundleLocation('');
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'فشل التأكيد'))
       .finally(() => setBusy(false));
@@ -250,13 +258,39 @@ function WizardPane() {
             الحزمة {result.code} جاهزة — {fmtRange(result.manifest ?? { fromDate, toDate })}
           </div>
           <Notice type="success">
-            تم إنشاء النسخة الاحتياطية والتصدير ومطابقة الأعداد. لإتمام الترحيل اكتب كلمة «أرشفة» ثم أكّد.
+            تم إنشاء النسخة الاحتياطية والتصدير ومطابقة الأعداد. الخطوة ١: نزّل الحزمة واحفظها في مكان آمن
+            (قرص خارجي / مشاركة شبكة). الخطوة ٢: أقرّ بحفظها ثم اكتب كلمة «أرشفة» وأكّد الحذف.
           </Notice>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => downloadBundle(result.id!, result.code ?? '', setError)} disabled={busy}>
+              تنزيل حزمة النسخ الاحتياطي (zip)
+            </Button>
+            {result.bundleSha256 ? (
+              <span className="font-mono text-xs text-gray-500" dir="ltr">
+                SHA-256: {result.bundleSha256.slice(0, 16)}…
+              </span>
+            ) : null}
+          </div>
+          <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={bundleSaved} onChange={(e) => setBundleSaved(e.target.checked)} />
+            أقرّ بأنني حفظت حزمة النسخ الاحتياطي في مكان آمن بعيدًا عن الخادم
+          </label>
           <div className="mt-3 flex flex-wrap items-end gap-2">
+            <Field label="مكان حفظ الحزمة (اختياري)">
+              <TextInput
+                value={bundleLocation}
+                onChange={(e) => setBundleLocation(e.target.value)}
+                placeholder="قرص خارجي / مشاركة الشبكة"
+              />
+            </Field>
             <Field label='اكتب كلمة "أرشفة" للتأكيد'>
               <TextInput value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
             </Field>
-            <Button variant="danger" onClick={doConfirm} disabled={busy || confirmText.trim() !== 'أرشفة'}>
+            <Button
+              variant="danger"
+              onClick={doConfirm}
+              disabled={busy || !bundleSaved || confirmText.trim() !== 'أرشفة'}
+            >
               تأكيد الترحيل والحذف
             </Button>
           </div>
@@ -272,6 +306,9 @@ function WizardPane() {
             .join('، ') || 'لا شيء'}
           ؛ أرصدة افتتاحية: {Object.entries(confirmed.openingBalances).map(([k, n]) => `${k}=${n}`).join('، ')}؛
           حسابات دفتر مرحّلة: {confirmed.rolledLedgerAccounts}
+          {confirmed.bundleSaved
+            ? `؛ تم إقرار حفظ الحزمة${confirmed.bundleLocation ? ` في: ${confirmed.bundleLocation}` : ''}.`
+            : ''}
         </Notice>
       ) : null}
     </div>

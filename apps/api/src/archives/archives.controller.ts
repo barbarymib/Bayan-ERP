@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Res } from '@n
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser, Features, Permissions, type AuthUser } from '../auth/auth.decorators.js';
-import { ArchiveConfirmDto, ArchiveRangeDto, ArchiveViewerQueryDto } from './archives.dto.js';
+import { ArchiveConfirmDto, ArchiveRangeDto, ArchiveRestoreDto, ArchiveViewerQueryDto } from './archives.dto.js';
 import { ArchivesService } from './archives.service.js';
 
 @ApiTags('archives')
@@ -57,11 +57,11 @@ export class ArchivesController {
 
   @Post(':id/confirm')
   confirm(@Param('id', ParseIntPipe) id: number, @Body() dto: ArchiveConfirmDto, @CurrentUser() user: AuthUser) {
-    return this.archives.confirm(id, dto.confirmText, user.id);
+    return this.archives.confirm(id, dto.confirmText, dto.bundleSaved, user.id, dto.bundleLocation);
   }
 
   @Post(':id/restore')
-  restore(@Param('id', ParseIntPipe) id: number, @Body() dto: ArchiveConfirmDto, @CurrentUser() user: AuthUser) {
+  restore(@Param('id', ParseIntPipe) id: number, @Body() dto: ArchiveRestoreDto, @CurrentUser() user: AuthUser) {
     return this.archives.restore(id, dto.confirmText, user.id);
   }
 }
