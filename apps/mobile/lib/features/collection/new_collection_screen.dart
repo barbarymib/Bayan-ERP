@@ -108,7 +108,10 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
             decoration: const InputDecoration(labelText: 'طريقة الدفع'),
             items: const [
               DropdownMenuItem(value: 'CASH', child: Text('نقداً')),
+              DropdownMenuItem(value: 'TRANSFER', child: Text('تحويل')),
               DropdownMenuItem(value: 'CHEQUE', child: Text('شيك')),
+              DropdownMenuItem(value: 'VODAFONE_CASH', child: Text('فودافون كاش')),
+              DropdownMenuItem(value: 'INSTAPAY', child: Text('إنستاباي')),
             ],
             onChanged: (v) => setState(() => _method = v ?? 'CASH'),
           ),

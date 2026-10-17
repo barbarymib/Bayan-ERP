@@ -68,7 +68,9 @@ enum PaymentMethod {
   CASH
   TRANSFER
   CHEQUE
-  WALLET // فودافون كاش / إنستاباي
+  VODAFONE_CASH // فودافون كاش
+  INSTAPAY // إنستاباي
+  WALLET // محفظة (قديم — أُبقيت للتوافق مع البيانات السابقة)
 }
 
 enum ReturnMode {

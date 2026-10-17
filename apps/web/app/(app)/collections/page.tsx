@@ -42,7 +42,9 @@ const methodLabel: Record<string, string> = {
   CASH: 'نقدي',
   TRANSFER: 'تحويل',
   CHEQUE: 'شيك',
-  WALLET: 'محفظة',
+  VODAFONE_CASH: 'فودافون كاش',
+  INSTAPAY: 'إنستاباي',
+  WALLET: 'محفظة (قديم)',
 };
 
 const chequeStatusLabel: Record<string, string> = {
@@ -333,7 +335,8 @@ function ReceiptModal({ onClose, onDone }: { onClose: () => void; onDone: (m: st
             <option value="CASH">نقدي</option>
             <option value="TRANSFER">تحويل</option>
             <option value="CHEQUE">شيك</option>
-            <option value="WALLET">محفظة</option>
+            <option value="VODAFONE_CASH">فودافون كاش</option>
+            <option value="INSTAPAY">إنستاباي</option>
           </Select>
         </Field>
         <Field label="التاريخ">
@@ -544,7 +547,8 @@ function PaymentModal({ onClose, onDone }: { onClose: () => void; onDone: (m: st
             <option value="CASH">نقدي</option>
             <option value="TRANSFER">تحويل</option>
             <option value="CHEQUE">شيك</option>
-            <option value="WALLET">محفظة</option>
+            <option value="VODAFONE_CASH">فودافون كاش</option>
+            <option value="INSTAPAY">إنستاباي</option>
           </Select>
         </Field>
         <Field label="التاريخ">

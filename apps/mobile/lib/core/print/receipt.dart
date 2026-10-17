@@ -277,8 +277,15 @@ class ReceiptDoc {
         return 'نقداً';
       case 'TRANSFER':
         return 'تحويل';
+      case 'CHEQUE':
       case 'CHECK':
         return 'شيك';
+      case 'VODAFONE_CASH':
+        return 'فودافون كاش';
+      case 'INSTAPAY':
+        return 'إنستاباي';
+      case 'WALLET':
+        return 'محفظة';
       default:
         return m ?? '';
     }

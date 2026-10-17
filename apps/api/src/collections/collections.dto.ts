@@ -11,6 +11,20 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+/**
+ * طرق القبض/الصرف (§5.10): نقدي، تحويل، شيك، فودافون كاش، إنستاباي.
+ * `WALLET` القديم أُبقي للتوافق مع السجلات السابقة فقط.
+ */
+export const PAYMENT_METHODS = [
+  'CASH',
+  'TRANSFER',
+  'CHEQUE',
+  'VODAFONE_CASH',
+  'INSTAPAY',
+  'WALLET',
+] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
 export class CreateReceiptDto {
   @ApiProperty()
   @IsNumber()
@@ -21,10 +35,10 @@ export class CreateReceiptDto {
   @Min(0.01)
   amount!: number;
 
-  @ApiPropertyOptional({ enum: ['CASH', 'TRANSFER', 'CHEQUE', 'WALLET'], default: 'CASH' })
+  @ApiPropertyOptional({ enum: PAYMENT_METHODS, default: 'CASH' })
   @IsOptional()
-  @IsIn(['CASH', 'TRANSFER', 'CHEQUE', 'WALLET'])
-  method?: 'CASH' | 'TRANSFER' | 'CHEQUE' | 'WALLET';
+  @IsIn(PAYMENT_METHODS)
+  method?: PaymentMethod;
 
   @ApiPropertyOptional({ description: 'ربط المبلغ ببيان محدد' })
   @IsOptional()
@@ -81,10 +95,10 @@ export class QueryReceiptsDto {
   @IsNumber()
   customerId?: number;
 
-  @ApiPropertyOptional({ enum: ['CASH', 'TRANSFER', 'CHEQUE', 'WALLET'] })
+  @ApiPropertyOptional({ enum: PAYMENT_METHODS })
   @IsOptional()
-  @IsIn(['CASH', 'TRANSFER', 'CHEQUE', 'WALLET'])
-  method?: 'CASH' | 'TRANSFER' | 'CHEQUE' | 'WALLET';
+  @IsIn(PAYMENT_METHODS)
+  method?: PaymentMethod;
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
@@ -104,10 +118,10 @@ export class CreatePaymentDto {
   @Min(0.01)
   amount!: number;
 
-  @ApiPropertyOptional({ enum: ['CASH', 'TRANSFER', 'CHEQUE', 'WALLET'], default: 'CASH' })
+  @ApiPropertyOptional({ enum: PAYMENT_METHODS, default: 'CASH' })
   @IsOptional()
-  @IsIn(['CASH', 'TRANSFER', 'CHEQUE', 'WALLET'])
-  method?: 'CASH' | 'TRANSFER' | 'CHEQUE' | 'WALLET';
+  @IsIn(PAYMENT_METHODS)
+  method?: PaymentMethod;
 
   @ApiPropertyOptional()
   @IsOptional()
