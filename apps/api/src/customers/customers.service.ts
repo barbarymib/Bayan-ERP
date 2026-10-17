@@ -3,7 +3,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
-import type { CreateCustomerDto, QueryCustomersDto, UpdateCustomerDto } from './customers.dto.js';
+import type { CreateCustomerDto, QueryCustomersDto, UpdateCustomerDto, UpdateCustomerRatingDto } from './customers.dto.js';
 
 const isUniqueError = (e: unknown): boolean =>
   e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
@@ -43,6 +43,8 @@ export class CustomersService {
               repId: rep?.id,
               openingBalance: dto.openingBalance ?? 0,
               classification: dto.classification ?? 'C',
+              paymentRating: dto.paymentRating ?? null,
+              paymentNotes: dto.paymentNotes ?? null,
               ...tenantWhere(companyId),
             },
             include: { priceList: { select: { id: true, code: true, nameAr: true } }, rep: { select: { id: true, name: true, repCode: true } } },
@@ -154,6 +156,8 @@ export class CustomersService {
           openingBalance: dto.openingBalance,
           classification: dto.classification,
           active: dto.active,
+          ...(dto.paymentRating !== undefined ? { paymentRating: dto.paymentRating } : {}),
+          ...(dto.paymentNotes !== undefined ? { paymentNotes: dto.paymentNotes } : {}),
         },
         include: { priceList: { select: { id: true, code: true, nameAr: true } }, rep: { select: { id: true, name: true, repCode: true } } },
       });
@@ -180,6 +184,27 @@ export class CustomersService {
         creditLimit: Number(updated.creditLimit),
         active: updated.active,
       },
+    });
+    return updated;
+  }
+
+  /** تقييم سداد العميل (يُقيَّد بصلاحية customer.rating). */
+  async rate(id: number, dto: UpdateCustomerRatingDto, companyId: number | null = null, userId?: number) {
+    const before = await this.findOne(id, companyId);
+    const updated = await this.prisma.customer.update({
+      where: { id },
+      data: {
+        ...(dto.paymentRating !== undefined ? { paymentRating: dto.paymentRating } : {}),
+        ...(dto.paymentNotes !== undefined ? { paymentNotes: dto.paymentNotes } : {}),
+      },
+    });
+    await this.audits.write({
+      userId,
+      action: 'customer.rate',
+      entity: 'Customer',
+      entityId: id,
+      beforeJson: { paymentRating: before.paymentRating, paymentNotes: before.paymentNotes },
+      afterJson: { paymentRating: updated.paymentRating, paymentNotes: updated.paymentNotes },
     });
     return updated;
   }

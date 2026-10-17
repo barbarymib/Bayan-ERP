@@ -3,15 +3,22 @@ import { CustomersService } from '../src/customers/customers.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
 import type { AuditLogsService } from '../src/audit-logs/audit-logs.service.js';
 
-const makeAudits = () => ({ write: async () => {} }) as unknown as AuditLogsService;
+const makeAudits = (sink?: Row[]) =>
+  ({
+    write: async (entry: Row) => {
+      sink?.push(entry);
+    },
+  }) as unknown as AuditLogsService;
 
 type Row = Record<string, unknown>;
 
-function makePrisma(options: { openAssignments?: Row[] } = {}) {
+function makePrisma(options: { openAssignments?: Row[]; customer?: Row | null } = {}) {
   const state = {
     createdAssignments: [] as Row[],
     closed: [] as number[],
     customerCreate: [] as Row[],
+    customerUpdate: [] as Row[],
+    audit: [] as Row[],
   };
   const prisma = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma as never),
@@ -23,12 +30,15 @@ function makePrisma(options: { openAssignments?: Row[] } = {}) {
     },
     customer: {
       findFirst: async () => null,
-      findUnique: async () => ({ id: 1, companyId: 1 }) as never,
+      findUnique: async () => (options.customer === undefined ? ({ id: 1, companyId: 1 } as Row) : options.customer) as never,
       create: async (a: { data: Row }) => {
         state.customerCreate.push(a.data);
         return { id: 1, ...a.data } as never;
       },
-      update: async (a: { data: Row }) => ({ id: 1, ...a.data }) as never,
+      update: async (a: { data: Row }) => {
+        state.customerUpdate.push(a.data);
+        return { id: 1, ...a.data } as never;
+      },
     },
     customerRepAssignment: {
       findMany: async () => options.openAssignments ?? [],
@@ -78,6 +88,32 @@ describe('CustomersService — مزامنة تعيين المندوب (CustomerR
     await svc.update(1, { repCode: 'M03' }, 1);
     expect(state.closed).toEqual([]);
     expect(state.createdAssignments).toEqual([]);
+  });
+});
+
+describe('CustomersService — تقييم سداد العميل (customer.rating)', () => {
+  it('يحفظ تقييم السداد والملاحظات ويسجل التدقيق', async () => {
+    const audit: Row[] = [];
+    const { prisma, state } = makePrisma();
+    const svc = new CustomersService(prisma, makeAudits(audit));
+    await svc.rate(1, { paymentRating: 80, paymentNotes: 'منتظم' }, 1, 7);
+    expect(state.customerUpdate).toEqual([{ paymentRating: 80, paymentNotes: 'منتظم' }]);
+    expect(audit).toHaveLength(1);
+    expect(audit[0] as Row).toMatchObject({ action: 'customer.rate', entity: 'Customer', entityId: 1 });
+    expect((audit[0] as Row).afterJson).toEqual({ paymentRating: 80, paymentNotes: 'منتظم' });
+  });
+
+  it('يحدّث التقييم فقط دون المساس بالملاحظات عند إرسال الحقل وحده', async () => {
+    const { prisma, state } = makePrisma();
+    const svc = new CustomersService(prisma, makeAudits());
+    await svc.rate(1, { paymentRating: 40 }, 1, 7);
+    expect(state.customerUpdate).toEqual([{ paymentRating: 40 }]);
+  });
+
+  it('يرفض تقييم عميل خارج المستأجر (NotFound)', async () => {
+    const { prisma } = makePrisma({ customer: null });
+    const svc = new CustomersService(prisma, makeAudits());
+    await expect(svc.rate(1, { paymentRating: 50 }, 1, 7)).rejects.toThrow();
   });
 });
 

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Permissions, type AuthUser } from '../auth/auth.decorators.js';
-import { CreateCustomerDto, QueryCustomersDto, UpdateCustomerDto } from './customers.dto.js';
+import { CreateCustomerDto, QueryCustomersDto, UpdateCustomerDto, UpdateCustomerRatingDto } from './customers.dto.js';
 import { CustomersService } from './customers.service.js';
 
 @ApiTags('customers')
@@ -37,6 +37,17 @@ export class CustomersController {
   @ApiOkResponse({ description: 'إنشاء عميل (بحد ائتماني/مندوب)' })
   create(@Body() dto: CreateCustomerDto, @CurrentUser() user: AuthUser) {
     return this.customers.create(dto, user.companyId ?? null, user.id);
+  }
+
+  @Patch(':id/rating')
+  @Permissions('customer.rating')
+  @ApiOkResponse({ description: 'تقييم سداد العميل (0-100) وملاحظات السداد' })
+  rate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCustomerRatingDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.customers.rate(id, dto, user.companyId ?? null, user.id);
   }
 
   @Patch(':id')

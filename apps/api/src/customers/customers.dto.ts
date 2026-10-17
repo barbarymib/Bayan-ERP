@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -97,6 +98,19 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsEnum(CustomerClassification)
   classification?: CustomerClassification;
+
+  @ApiPropertyOptional({ example: 75, description: 'تقييم السداد 0-100' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  paymentRating?: number;
+
+  @ApiPropertyOptional({ example: 'يسدد خلال 15 يوم' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentNotes?: string;
 }
 
 export class UpdateCustomerDto {
@@ -172,6 +186,34 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({ example: 75, description: 'تقييم السداد 0-100' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  paymentRating?: number;
+
+  @ApiPropertyOptional({ example: 'يسدد خلال 15 يوم' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentNotes?: string;
+}
+
+export class UpdateCustomerRatingDto {
+  @ApiPropertyOptional({ example: 75, description: 'تقييم السداد 0-100' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  paymentRating?: number;
+
+  @ApiPropertyOptional({ example: 'يسدد خلال 15 يوم' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentNotes?: string;
 }
 
 export class QueryCustomersDto {

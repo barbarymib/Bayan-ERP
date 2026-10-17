@@ -21,6 +21,7 @@ import {
 export default function CustomersPage() {
   const { user } = useAuth();
   const manage = can(user, 'customer.manage');
+  const canRate = can(user, 'customer.rating');
 
   const [rows, setRows] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
@@ -32,6 +33,7 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<Customer | null>(null);
+  const [rateRow, setRateRow] = useState<Customer | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,6 +101,7 @@ export default function CustomersPage() {
               <Th>قائمة السعر</Th>
               <Th>حد الائتمان</Th>
               <Th>أيام الائتمان</Th>
+              <Th>تقييم السداد</Th>
               <Th>الحالة</Th>
               <Th></Th>
             </tr>
@@ -125,13 +128,32 @@ export default function CustomersPage() {
                   <Td>{c.priceList?.nameAr ?? '—'}</Td>
                   <Td>{formatMoney(c.creditLimit)}</Td>
                   <Td>{c.creditDays ?? '—'}</Td>
+                  <Td>
+                    {c.paymentRating == null ? (
+                      <span className="text-gray-400">—</span>
+                    ) : (
+                      <span title={c.paymentNotes ?? undefined}>
+                        <Badge color={c.paymentRating >= 70 ? 'green' : c.paymentRating >= 40 ? 'amber' : 'red'}>
+                          {c.paymentRating}
+                        </Badge>
+                        {c.paymentNotes ? <span className="ms-1 text-xs text-gray-400">{c.paymentNotes}</span> : null}
+                      </span>
+                    )}
+                  </Td>
                   <Td>{c.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
                   <Td>
-                    {manage ? (
-                      <Button variant="ghost" onClick={() => setEditRow(c)}>
-                        تعديل
-                      </Button>
-                    ) : null}
+                    <div className="flex gap-1">
+                      {canRate ? (
+                        <Button variant="ghost" onClick={() => setRateRow(c)}>
+                          تقييم
+                        </Button>
+                      ) : null}
+                      {manage ? (
+                        <Button variant="ghost" onClick={() => setEditRow(c)}>
+                          تعديل
+                        </Button>
+                      ) : null}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -176,7 +198,83 @@ export default function CustomersPage() {
           }}
         />
       ) : null}
+
+      {rateRow ? (
+        <RatingModal
+          customer={rateRow}
+          onClose={() => setRateRow(null)}
+          onSaved={() => {
+            setRateRow(null);
+            setNotice('تم حفظ تقييم السداد');
+            setRefresh((s) => s + 1);
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function RatingModal({
+  customer,
+  onClose,
+  onSaved,
+}: {
+  customer: Customer;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [paymentRating, setPaymentRating] = useState(customer.paymentRating == null ? '' : String(customer.paymentRating));
+  const [paymentNotes, setPaymentNotes] = useState(customer.paymentNotes ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    const body: { paymentRating?: number; paymentNotes?: string } = {};
+    if (paymentRating !== '') body.paymentRating = Number(paymentRating);
+    body.paymentNotes = paymentNotes.trim() || undefined;
+    try {
+      await patch(`/customers/${customer.id}/rating`, body);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حفظ التقييم');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`تقييم سداد ${customer.code}`} onClose={onClose}>
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <Field label="تقييم السداد (0-100)">
+          <TextInput
+            value={paymentRating}
+            onChange={(e) => setPaymentRating(e.target.value)}
+            type="number"
+            min="0"
+            max="100"
+          />
+        </Field>
+        <div className="col-span-2">
+          <Field label="ملاحظات السداد">
+            <TextInput value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} />
+          </Field>
+        </div>
+      </div>
+      {error ? (
+        <div className="mb-3">
+          <ErrorBox message={error} />
+        </div>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>
+          إلغاء
+        </Button>
+        <Button onClick={submit} disabled={busy}>
+          {busy ? 'جارٍ الحفظ…' : 'حفظ التقييم'}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

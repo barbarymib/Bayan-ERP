@@ -98,6 +98,8 @@ export interface Customer {
   creditLimit: string;
   creditDays: number | null;
   classification: string;
+  paymentRating: number | null;
+  paymentNotes: string | null;
   priceList: PriceList | null;
   rep: UserBrief | null;
   active: boolean;
