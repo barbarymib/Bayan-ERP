@@ -4,6 +4,7 @@ import type { Readable } from 'node:stream';
 import { gzipSync } from 'node:zlib';
 import type { Prisma } from '../generated/prisma/client';
 import { OBJECT_STORAGE, type ObjectStorage } from '../common/object-storage.js';
+import { recordsToSqlite } from '../common/sqlite.js';
 import { recordsToSheet, toXlsx } from '../common/xlsx.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
@@ -475,6 +476,20 @@ export class ArchivesService {
     for (const t of ARCHIVE_TABLES) {
       writeFile(`${t}.xlsx`, toXlsx([recordsToSheet(t, rows[t] as Record<string, unknown>[])]));
     }
+    writeFile(
+      'data.sqlite',
+      recordsToSqlite(
+        ARCHIVE_TABLES.map((t) => ({ name: t, rows: rows[t] })),
+        {
+          code,
+          fromDate: r.from.toISOString(),
+          toDate: r.to.toISOString(),
+          generatedAt: new Date().toISOString(),
+          counts,
+          totals,
+        },
+      ),
+    );
 
     const manifest = {
       code,
