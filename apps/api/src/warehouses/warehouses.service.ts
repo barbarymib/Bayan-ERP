@@ -43,6 +43,8 @@ export class WarehousesService {
   }
 
   async list(query: QueryWarehousesDto, companyId: number | null = null) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 20, 100);
     const where = {
       ...tenantWhere(companyId),
       ...(query.type ? { type: query.type } : {}),
@@ -56,10 +58,12 @@ export class WarehousesService {
           _count: { select: { balances: true, movements: true } },
         },
         orderBy: { code: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
       }),
       this.prisma.warehouse.count({ where }),
     ]);
-    return { warehouses, total };
+    return { warehouses, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
   async findOne(id: number, companyId: number | null = null) {
