@@ -212,7 +212,12 @@ export class ReturnsService {
     const selfApproved = user.permissions.includes('return.approve');
     // §5.9.6: مرتجعات المندوب تحتاج اعتماد المشرف/المحاسب قبل التأثير النهائي (اختياري بالإعداد).
     const fromRep = !!user.repCode;
-    const needsApproval = fromRep ? !selfApproved && (await this.repApprovalRequired()) : !selfApproved;
+    // §5.9: المرتجع "بدون بيان أصلي" يتطلب «موافقة» إلزامية (لا اعتماد ذاتي) — لا يخفّفه الإعداد سالف الذكر.
+    const needsApproval = withoutStatement
+      ? true
+      : fromRep
+        ? !selfApproved && (await this.repApprovalRequired())
+        : !selfApproved;
     const rtn = await this.prisma.returnStatement.create({
       data: {
         number,
@@ -260,13 +265,16 @@ export class ReturnsService {
             amount: rtn.total,
             customer: customer.nameAr,
             reason: reason.nameAr,
+            withoutStatement,
           } as object,
           companyId: tenant,
           requestedById: user.id,
           status: 'PENDING',
         },
       });
-      const targetIds = await this.notifications.userIdsWithPermission('return.approve');
+      const targetIds = (await this.notifications.userIdsWithPermission('return.approve')).filter(
+        (id) => id !== user.id,
+      );
       await this.notifications.notifyMany(targetIds, {
         type: 'return_approval',
         title: 'مرتجع بانتظار الاعتماد',

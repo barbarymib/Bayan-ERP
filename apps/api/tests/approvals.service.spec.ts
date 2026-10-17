@@ -213,4 +213,48 @@ describe('ApprovalsService lifecycle', () => {
     await svc.decide(4, { approved: true }, cashUser);
     expect(finalizeReturn).toHaveBeenCalledWith(9, cashUser);
   });
+
+  it('لا يعتمد المستخدم مرتجعاً أنشأه بنفسه (§5.9 — يلزم معتمِد ثانٍ)', async () => {
+    const { prisma, calls } = build();
+    const selfPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({ id: 6, type: 'RETURN', refType: 'return_statement', refId: 9, status: 'PENDING', requestedById: 2 }),
+        update: async (args: unknown) => {
+          calls.decisionUpdates.push(args as Record<string, unknown>);
+          return {};
+        },
+      },
+    } as unknown as PrismaService;
+    const finalizeReturn = vi.fn(async () => true);
+    const svc = new ApprovalsService(
+      selfPrisma,
+      { finalizeStatement: async () => true, finalizeReturn } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    await expect(svc.decide(6, { approved: true }, returnUser)).rejects.toThrow(/معتمِد ثان/i);
+    expect(finalizeReturn).not.toHaveBeenCalled();
+    expect(calls.decisionUpdates).toHaveLength(0);
+  });
+
+  it('يعتمد المستخدم مرتجعاً أنشأه غيره (معتمِد ثانٍ)', async () => {
+    const { prisma } = build();
+    const otherPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({ id: 7, type: 'RETURN', refType: 'return_statement', refId: 9, status: 'PENDING', requestedById: 99 }),
+        update: async () => ({}),
+      },
+    } as unknown as PrismaService;
+    const finalizeReturn = vi.fn(async () => true);
+    const svc = new ApprovalsService(
+      otherPrisma,
+      { finalizeStatement: async () => true, finalizeReturn } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    await svc.decide(7, { approved: true }, returnUser);
+    expect(finalizeReturn).toHaveBeenCalledWith(9, returnUser);
+  });
 });

@@ -81,6 +81,10 @@ export class ApprovalsService {
     if (approval.status !== 'PENDING') {
       throw new BadRequestException(`Approval already ${approval.status.toLowerCase()}`);
     }
+    // §5.9: اعتماد المرتجع يتطلب معتمِدًا ثانيًا — لا يعتمد المُنشئ طلبه بنفسه (فصل المهام).
+    if (dto.approved && approval.type === 'RETURN' && approval.requestedById === user.id) {
+      throw new ForbiddenException('لا يمكن اعتماد مرتجع أنشأته بنفسك — يلزم معتمِد ثانٍ');
+    }
     // التحقق من قابلية الاعتماد (المستند غير ملغي + صلاحية رد النقدية عند الحاجة) قبل تغيير الحالة
     if (dto.approved) {
       await this.assertDecidable(approval, user);

@@ -23,6 +23,21 @@ function makeService(opts: { setting?: string | null } = {}) {
     item: {
       findUnique: async () => ({ id: 5, companyId: 1, baseUnitId: 1, baseUnit: { measurement: 'WEIGHT', nameAr: 'كجم' } }),
     },
+    itemUnit: { findUnique: async () => null },
+    priceStatementLine: {
+      findUnique: async () => ({
+        id: 10,
+        itemId: 5,
+        unitId: 1,
+        factor: 1,
+        netLine: 80,
+        qtyBase: 2,
+        item: { id: 5, code: 'IT1', baseUnitId: 1, baseUnit: { measurement: 'WEIGHT', nameAr: 'كجم' } },
+        unit: { id: 1, nameAr: 'كجم' },
+        statement: { status: 'APPROVED', customerId: 1, number: 'BP-000001' },
+      }),
+    },
+    returnLine: { aggregate: async () => ({ _sum: { qtyBase: 0 } }) },
     systemSetting: {
       findUnique: async (a: { where: { key: string } }) => {
         const v = settings[a.where.key];
@@ -70,7 +85,8 @@ function adminUser(perms: string[] = []): AuthUser {
   return { id: 1, companyId: 1, roleCode: 'ADMIN', repCode: undefined, permissions: perms } as unknown as AuthUser;
 }
 
-function dto(mode: 'BY_REP' | 'BY_CUSTOMER' = 'BY_REP'): CreateReturnDto {
+/** مرتجع بدون بيان أصلي (يتطلب موافقة إلزامية). */
+function dtoWithout(mode: 'BY_REP' | 'BY_CUSTOMER' = 'BY_REP'): CreateReturnDto {
   return {
     mode,
     customerId: 1,
@@ -81,42 +97,83 @@ function dto(mode: 'BY_REP' | 'BY_CUSTOMER' = 'BY_REP'): CreateReturnDto {
   } as CreateReturnDto;
 }
 
+/** مرتجع مرتبط ببيان بيع أصلي. */
+function dtoWithStatement(mode: 'BY_REP' | 'BY_CUSTOMER' = 'BY_REP'): CreateReturnDto {
+  return {
+    mode,
+    customerId: 1,
+    reasonCode: 'DEFECT',
+    settlement: 'BALANCE',
+    lines: [{ sourceLineId: 10, qty: 2, condition: 'GOOD' }],
+  } as CreateReturnDto;
+}
+
 const BASE = ['return.without_statement'];
 
-describe('ReturnsService — اعتماد مرتجع المندوب (§5.9.6)', () => {
-  it('مندوب + الإعداد مطلوب (افتراضي/غير معرّف) → ينشئ طلب اعتماد ولا يُرحّل', async () => {
+describe('ReturnsService — مرتجع "بدون بيان" يتطلب موافقة إلزامية (§5.9)', () => {
+  it('مندوب + الإعداد مطلوب (افتراضي) → ينشئ طلب اعتماد ولا يُرحّل', async () => {
     const { service, captured } = makeService({ setting: undefined });
-    await service.create(dto(), repUser(BASE));
+    await service.create(dtoWithout(), repUser(BASE));
     expect(captured.approval).toHaveLength(1);
     expect(captured.approval[0]!.status).toBe('PENDING');
     expect(captured.finalize).toHaveLength(0);
     expect(captured.createdStatus).toBe('DRAFT');
   });
 
-  it('مندوب + الإعداد false → يُرحّل مباشرة بلا اعتماد', async () => {
+  it('مندوب + الإعداد false → ما زال يتطلب اعتماداً (بدون بيان لا يتأثر بالإعداد)', async () => {
     const { service, captured } = makeService({ setting: 'false' });
-    await service.create(dto(), repUser(BASE));
-    expect(captured.approval).toHaveLength(0);
-    expect(captured.finalize).toEqual([99]);
-  });
-
-  it('مندوب مُصرَّح له return.approve + الإعداد مطلوب → اعتماد ذاتي (دون طلب)', async () => {
-    const { service, captured } = makeService({ setting: 'true' });
-    await service.create(dto(), repUser([...BASE, 'return.approve']));
-    expect(captured.approval).toHaveLength(0);
-    expect(captured.finalize).toEqual([99]);
-  });
-
-  it('غير مندوب (بلا return.approve) → طلب اعتماد كما قبل (لا يتأثر بالإعداد)', async () => {
-    const { service, captured } = makeService({ setting: 'false' });
-    await service.create(dto('BY_CUSTOMER'), adminUser(BASE));
+    await service.create(dtoWithout(), repUser(BASE));
     expect(captured.approval).toHaveLength(1);
     expect(captured.finalize).toHaveLength(0);
   });
 
+  it('مندوب مُصرَّح له return.approve + بدون بيان → لا اعتماد ذاتي (طلب اعتماد يُنشأ)', async () => {
+    const { service, captured } = makeService({ setting: 'true' });
+    await service.create(dtoWithout(), repUser([...BASE, 'return.approve']));
+    expect(captured.approval).toHaveLength(1);
+    expect(captured.finalize).toHaveLength(0);
+  });
+
+  it('غير مندوب (بلا return.approve) + بدون بيان → طلب اعتماد', async () => {
+    const { service, captured } = makeService({ setting: 'false' });
+    await service.create(dtoWithout('BY_CUSTOMER'), adminUser(BASE));
+    expect(captured.approval).toHaveLength(1);
+    expect(captured.finalize).toHaveLength(0);
+  });
+
+  it('مدير (ADMIN) يملك return.without_statement و return.approve + بدون بيان → يظل يتطلب اعتماداً (لا اعتماد ذاتي)', async () => {
+    const { service, captured } = makeService({ setting: 'false' });
+    await service.create(dtoWithout('BY_CUSTOMER'), adminUser([...BASE, 'return.approve']));
+    expect(captured.approval).toHaveLength(1);
+    expect(captured.finalize).toHaveLength(0);
+  });
+});
+
+describe('ReturnsService — مرتجع مرتبط ببيان يخضع لإعداد المندوب (§5.9.6)', () => {
+  it('مندوب + الإعداد false → يُرحّل مباشرة بلا اعتماد', async () => {
+    const { service, captured } = makeService({ setting: 'false' });
+    await service.create(dtoWithStatement(), repUser(['return.create']));
+    expect(captured.approval).toHaveLength(0);
+    expect(captured.finalize).toEqual([99]);
+  });
+
   it('مندوب + الإعداد صريح true → طلب اعتماد', async () => {
     const { service, captured } = makeService({ setting: 'true' });
-    await service.create(dto(), repUser(BASE));
+    await service.create(dtoWithStatement(), repUser(['return.create']));
+    expect(captured.approval).toHaveLength(1);
+    expect(captured.finalize).toHaveLength(0);
+  });
+
+  it('مندوب مُصرَّح له return.approve + الإعداد مطلوب + بيان مرتبط → اعتماد ذاتي (دون طلب)', async () => {
+    const { service, captured } = makeService({ setting: 'true' });
+    await service.create(dtoWithStatement(), repUser(['return.create', 'return.approve']));
+    expect(captured.approval).toHaveLength(0);
+    expect(captured.finalize).toEqual([99]);
+  });
+
+  it('غير مندوب (بلا return.approve) + بيان مرتبط → طلب اعتماد كما قبل (لا يتأثر بالإعداد)', async () => {
+    const { service, captured } = makeService({ setting: 'false' });
+    await service.create(dtoWithStatement('BY_CUSTOMER'), adminUser(['return.create']));
     expect(captured.approval).toHaveLength(1);
     expect(captured.finalize).toHaveLength(0);
   });
