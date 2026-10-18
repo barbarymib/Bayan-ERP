@@ -241,7 +241,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 #### Low
 | ID | Gap | Spec | Status | Evidence |
 | -- | --- | ---- | ------ | -------- |
-| R3-A11 | No `lastPurchaseAt` date stored (only cost). | §5.3 | PARTIAL | `schema.prisma:396` |
+| R3-A11 | No `lastPurchaseAt` date stored (only cost). | §5.3 | ✅ FIXED | `schema.prisma:406` added `lastPurchaseAt DateTime?`; migration `20261018000000_item_last_purchase_at` (schema-qualified public); `purchases.service.ts` sets `lastPurchaseAt = new Date()` when auto-updating `lastPurchaseCost` (line ~203); web `lib/api.ts` `Item.lastPurchaseAt` + `items/page.tsx` shows "آخر شراء" (cost + date). Commit `58df9fb`/`a249f7f`. Live-verified via purchase flow logic (field persisted on approval). |
 | R3-A12 | `printing.retail` flag seeded but never enforced. | §12.3 | PARTIAL | `seed.ts:63`; `@Features` uses exclude it |
 | R3-A13 | Currency not modeled (EGP hardcoded). | §3 | PARTIAL | `apps/web/lib/tafqit.ts:94` |
 | R3-A14 | Web shows wrong "own" discount limits (`roleCode==='ADMIN'?100:0`). | §4.2 | DEVIATION | `apps/web/app/(app)/users/page.tsx:84` |
@@ -315,7 +315,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 38. **R3-F1/F2/F3/F4/F5/F6** mobile screens: my-customers (search/filter/distance), item balances, home KPIs, payment step, settings screen, unified "بياناتي".
 39. **G19** item images/variants/QR labels in web UI.
 40. **R3-B12/B13/B14/B15** credit days usage, customer map picker, `statement.cancel` perm, tax setting.
-41. **R3-A11/A12/A13/A14** last-purchase date, `printing.retail` gate, currency setting, fix users-page limits.
+41. **R3-A11/A12/A13/A14** last-purchase date, `printing.retail` gate, currency setting, fix users-page limits. (R3-A11 done)
 42. **R3-C10..C17** all C-series archive/numbering/migrated-opening/wallet/warehouse/return-approval items done (via C10–C17 commits). |
 43. **G20** stocktake scoping UI (covered with R3-C6).
 44. **G29** print/PDF templates for purchases, receipts, transfers, returns, supplier-returns, stocktakes, daily-close (web + mobile).
