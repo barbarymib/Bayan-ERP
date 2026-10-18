@@ -351,7 +351,9 @@ function CreateStatementModal({
       setBusy(false);
       return;
     }
+    const geoPromise = getGeo();
     try {
+      const pos = await geoPromise;
       const res = await post<PriceStatement & { creditWarning: PriceStatement['creditWarning'] }>('/price-statements', {
         customerId: Number(customerId),
         warehouseId: warehouseId ? Number(warehouseId) : undefined,
@@ -362,6 +364,7 @@ function CreateStatementModal({
         shipping: Number(shipping) || 0,
         paid: Number(paid) || 0,
         taxPercent: Number(taxPercent) || 0,
+        ...(pos ? { lat: pos.lat, lng: pos.lng } : {}),
         notes: notes.trim() || undefined,
       });
       const warning = res.creditWarning
@@ -751,4 +754,18 @@ function todayStr(): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function getGeo(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 },
+    );
+  });
 }

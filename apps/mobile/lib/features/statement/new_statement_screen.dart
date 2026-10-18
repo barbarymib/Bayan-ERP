@@ -121,6 +121,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       return;
     }
     setState(() => _saving = true);
+    final geo = ref.read(locationProvider).getCurrentPosition();
     final customer = ref
         .read(dataStoreProvider)
         .customers
@@ -151,6 +152,16 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       }).toList(),
       'createdAt': DateTime.now().toIso8601String(),
     };
+    // Best-effort issuance location; statement still saves if GPS is unavailable.
+    try {
+      final pos = await geo;
+      if (pos != null) {
+        payload['lat'] = pos.lat;
+        payload['lng'] = pos.lng;
+      }
+    } catch (_) {
+      // Location unavailable or permission denied — send without coordinates.
+    }
     final ok = await _enqueueStatement(payload);
     if (!mounted) return;
     setState(() => _saving = false);

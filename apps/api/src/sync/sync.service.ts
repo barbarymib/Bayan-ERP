@@ -410,6 +410,9 @@ export class SyncService {
     const paymentTerm: CreateStatementDto['paymentTerm'] =
       termRaw === 'CASH' || termRaw === 'CREDIT' || termRaw === 'MIXED' ? termRaw : undefined;
 
+    const lat = num(payload['lat']);
+    const lng = num(payload['lng']);
+
     const dto: CreateStatementDto = {
       customerId,
       date: (payload['date'] as string) || (payload['createdAt'] as string),
@@ -417,6 +420,8 @@ export class SyncService {
       number: item.number,
       paid: num(payload['paid']) ?? 0,
       ...(paymentTerm ? { paymentTerm } : {}),
+      ...(lat !== undefined ? { lat } : {}),
+      ...(lng !== undefined ? { lng } : {}),
       discount,
       notes:
         typeof payload['notes'] === 'string'
