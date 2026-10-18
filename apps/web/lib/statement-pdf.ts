@@ -5,7 +5,10 @@ import { formatArabicAmount, numberToArabic } from '@/lib/tafqit';
 type PdfMake = {
   vfs: Record<string, string>;
   fonts: Record<string, unknown>;
-  createPdf: (doc: object) => { download: (name: string) => void };
+  createPdf: (doc: object) => {
+    download: (name: string) => void;
+    getBlob: (cb: (b: Blob) => void) => void;
+  };
 };
 
 const money = (v: unknown) => fmtMoney(Number(v));
@@ -56,6 +59,22 @@ async function ensurePdfMake(): Promise<PdfMake> {
 /** تصدير PDF عربي RTL (تقييم pdfmake بخط مضمّن — ADR-7). */
 export async function downloadStatementPdf(st: PriceStatement, outstanding: number | null): Promise<void> {
   const pm = await ensurePdfMake();
+  await pm.createPdf(statementDoc(st, outstanding)).download(`${st.number}.pdf`);
+}
+
+/** PDF كـ Blob (للمشاركة عبر واتساب/Web Share — G18). */
+export async function statementPdfBlob(st: PriceStatement, outstanding: number | null): Promise<Blob> {
+  const pm = await ensurePdfMake();
+  return new Promise<Blob>((resolve, reject) => {
+    try {
+      pm.createPdf(statementDoc(st, outstanding)).getBlob((b) => resolve(b));
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function statementDoc(st: PriceStatement, outstanding: number | null): object {
   const before = outstanding != null ? outstanding - Number(st.net) : null;
 
   const label = (text: string): object => ({ text: `${text}:`, bold: true, fontSize: 12, color: '#334155' });
@@ -185,6 +204,5 @@ export async function downloadStatementPdf(st: PriceStatement, outstanding: numb
     pageMargins: [36, 30, 36, 30],
     pageSize: 'A4',
   };
-
-  await pm.createPdf(doc).download(`${st.number}.pdf`);
+  return doc;
 }

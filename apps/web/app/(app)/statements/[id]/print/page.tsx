@@ -9,7 +9,8 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ErrorBox, formatDate, formatMoney } from '@/components/ui';
-import { downloadStatementPdf } from '@/lib/statement-pdf';
+import { downloadStatementPdf, statementPdfBlob } from '@/lib/statement-pdf';
+import { downloadBlob, shareFileOrWhatsApp, type WhatsAppLink } from '@/lib/share';
 import { formatArabicAmount } from '@/lib/tafqit';
 
 export default function StatementPrintPage() {
@@ -20,6 +21,9 @@ export default function StatementPrintPage() {
   const [outstanding, setOutstanding] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [waUrl, setWaUrl] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [size, setSize] = useState<'A4' | 'A5' | '80'>('A4');
   const autoprint = search.get('autoprint') === '1';
 
@@ -66,6 +70,31 @@ export default function StatementPrintPage() {
 
   const before = outstanding != null ? outstanding - Number(statement.net) : null;
 
+  const shareWhatsApp = async () => {
+    setShareBusy(true);
+    setWaUrl(null);
+    setShareNotice(null);
+    try {
+      const link = await get<WhatsAppLink>(`/whatsapp/statement/${statement.customer.id}`);
+      const blob = await statementPdfBlob(statement, outstanding);
+      const file = new File([blob], `${statement.number}.pdf`, { type: 'application/pdf' });
+      const outcome = await shareFileOrWhatsApp({ text: link.text, url: link.url, file });
+      if (outcome === 'shared') return;
+      if (outcome === 'no-phone') {
+        setShareNotice('لا يوجد رقم هاتف مسجّل لهذا العميل — تم تنزيل PDF، أرسله يدوياً');
+        downloadBlob(file);
+        return;
+      }
+      downloadBlob(file);
+      setWaUrl(link.url);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setShareNotice(err instanceof Error ? err.message : 'تعذّرت المشاركة');
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
   const actions = (
     <div className="print:hidden sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white p-3">
       <span className="text-lg font-black text-black">معاينة الطباعة</span>
@@ -91,6 +120,26 @@ export default function StatementPrintPage() {
         >
           {pdfBusy ? 'جارٍ الإنشاء…' : 'تصدير PDF'}
         </button>
+        <button
+          onClick={() => void shareWhatsApp()}
+          disabled={shareBusy}
+          className="rounded-lg bg-green-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          {shareBusy ? 'جارٍ الإنشاء…' : 'مشاركة واتساب'}
+        </button>
+        {waUrl ? (
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg bg-green-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-green-800"
+          >
+            فتح واتساب ← (تم تنزيل PDF، أرفقه بالرسالة)
+          </a>
+        ) : null}
+        {shareNotice ? (
+          <span className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">{shareNotice}</span>
+        ) : null}
         <button
           onClick={() => window.print()}
           className="rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-gray-700"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   can,
   delBody,
@@ -216,6 +217,12 @@ export default function StatementsPage() {
                     <Button variant="ghost" onClick={() => setViewRow(s)}>
                       عرض
                     </Button>
+                    <Link
+                      href={`/statements/${s.id}/print`}
+                      className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      طباعة
+                    </Link>
                     {canCancel && s.status !== 'CANCELLED' && s.status !== 'ARCHIVED' ? (
                       <Button variant="ghost" onClick={() => setCancelRow(s)}>
                         إلغاء
