@@ -29,6 +29,14 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B9: supplier statement web page (2026-10-18)
+- **Spec §5.5 (GAP R3-B9, was PARTIAL):** `GET /suppliers/:id/statement` existed in `collections.controller.ts` but no web page called it.
+- **API route fact:** `CollectionsController` is `@Controller()` (**no prefix**) → supplier statement is `GET /api/suppliers/:id/statement` and customer statement `GET /api/customers/:id/statement` (NOT under `/collections`, despite the module name). Perms `ledger.view`/`report.view`. Query: optional `from`/`to` (`QueryStatementOfAccountDto`). Returns `{supplier:{id,code,nameAr}, openingBalance, closingBalance, movements[], outstandingStatements[], totalOutstanding}`.
+- **Web** `suppliers/page.tsx`: new `SupplierStatementModal` (fetches `/suppliers/${id}/statement`, `useEffect [supplier.id]`, loading/error/`formatMoney`/`formatDate`) rendering 3 balance cards + movements table (sticky head, `colSpan={5}` empty state) + "فواتير مشتريات غير مسددة" table. Trigger: added "كشف الحساب" column + per-row `Button variant="secondary"` gated `can(user,'ledger.view')||can(user,'report.view')` (else `—`), `statementRow` state. `lib/api.ts` +`SupplierStatement` (mirrors CustomerStatement minus migratedOpening/returned).
+- **Bug caught in review:** first used `/collections/suppliers/...` → 404; corrected to `/suppliers/...` (no collections prefix). Verified live.
+- **Gates:** web typecheck/lint/`build` 0 (API untouched).
+- **Live-verify 2026-10-18:** `GET /api/suppliers/1/statement` → `{opening:0, closing:0, movements:0, outstanding:0, supplier.code:S0001}` (correct shape).
+- **Next:** R3-B12 (creditDays → due-date/overdue, §5.4) → P3 (G12 mixed-unit display, G16 settings-screen completion, G15/G17 feature-flag UI, G18 WhatsApp/PDF, G19 item images/variants, G29 print/PDF templates) → P4 (G23 queues, G24 migration check, G25 benchmark, G26 Hijri, G28 Dockerfiles, R3-E7 Drift indexes).
 ### Completed — R3-B8: customer rep-transfer history UI (2026-10-18)
 - **Spec §5.4 (GAP R3-B8, was PARTIAL):** backend tracked `CustomerRepAssignment` (auto-managed by `syncAssignment` on rep change) but there was no UI to view the transfer history.
 - **Schema fact:** `CustomerRepAssignment` has `repId` as a **bare scalar** (no `rep User @relation`), so rep names are resolved in the service — avoided a FK migration.
