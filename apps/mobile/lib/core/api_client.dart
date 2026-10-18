@@ -432,4 +432,14 @@ class ApiClient {
       'فشل سحب الإقرار',
     );
   }
+
+  /// الميزات الفعّالة للمستخدم/الشركة الحاليَّين (§12.3) — خريطة كود ⇒ مفعّل.
+  /// يستهلكها العميل لتقييم واجهات الميزات محلياً (R3-A3).
+  Future<Map<String, bool>> features() async {
+    final json = await _send(
+      () => _client.get(_uri('/auth/features'), headers: _headers),
+      'فشل جلب الميزات',
+    );
+    return json.map((code, on) => MapEntry(code, on == true));
+  }
 }

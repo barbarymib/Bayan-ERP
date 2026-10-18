@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bayan_rep/core/api_client.dart';
 import 'package:bayan_rep/core/data_store.dart';
 import 'package:bayan_rep/core/db/database.dart';
 import 'package:bayan_rep/core/models.dart';
@@ -14,6 +16,8 @@ import 'package:bayan_rep/features/print/print_controller.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/open.dart';
 
@@ -61,6 +65,7 @@ void main() {
   late FakeBluetoothPrinter fake;
   late SessionStore session;
   late Outbox outbox;
+  late DataStore store;
 
   PrintState state() => container.read(printControllerProvider);
 
@@ -97,7 +102,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     session = SessionStore(prefs);
 
-    final store = DataStore(AppDatabase.forTesting(NativeDatabase.memory()));
+    store = DataStore(AppDatabase.forTesting(NativeDatabase.memory()));
     await store.init();
     await store.saveCustomers(const [
       CustomerSummary(id: 7, code: 'C7', name: 'عميل 7', balance: 1000),
@@ -187,5 +192,73 @@ void main() {
     await controller.disconnect();
     expect(state().connected, isFalse);
     expect(fake.connected, isFalse);
+  });
+
+  group('loadFeatures (رقبة طباعة التجزئة R3-A12)', () {
+    ProviderContainer containerWithFeatures(Map<String, bool> flags) {
+      final api = ApiClient(
+        baseUrl: 'http://test',
+        client: MockClient((req) async {
+          expect(req.url.path, '/auth/features');
+          return http.Response.bytes(
+            utf8.encode(jsonEncode(flags)),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      );
+      return ProviderContainer(
+        overrides: [
+          sessionProvider.overrideWithValue(session),
+          outboxProvider.overrideWithValue(outbox),
+          dataStoreProvider.overrideWithValue(store),
+          bluetoothPrinterProvider.overrideWithValue(fake),
+          apiClientProvider.overrideWithValue(api),
+        ],
+      );
+    }
+
+    test('printing.retail معطّل ⇒ تُخفى الأوراق الحرارية وتُضبط A4', () async {
+      final c = containerWithFeatures(const {'printing.retail': false});
+      addTearDown(c.dispose);
+      await c.read(printControllerProvider.notifier).loadFeatures();
+      final s = c.read(printControllerProvider);
+      expect(s.retailPrinting, isFalse);
+      expect(s.allowedPapers, [ReceiptPaper.a4, ReceiptPaper.a5]);
+      expect(s.paper, ReceiptPaper.a4, reason: 'تُترك الورقة الحرارية الافتراضية');
+    });
+
+    test('printing.retail مفعّل ⇒ كل الأوراق متاحة', () async {
+      final c = containerWithFeatures(const {'printing.retail': true});
+      addTearDown(c.dispose);
+      await c.read(printControllerProvider.notifier).loadFeatures();
+      final s = c.read(printControllerProvider);
+      expect(s.retailPrinting, isTrue);
+      expect(s.allowedPapers, ReceiptPaper.values);
+    });
+
+    test('تعذّر الجلب ⇒ تُبقي الوضع الافتتاحي (كل الأوراق)', () async {
+      final api = ApiClient(
+        baseUrl: 'http://test',
+        client: MockClient((req) async => http.Response.bytes(
+              utf8.encode('oops'),
+              500,
+            )),
+      );
+      final c = ProviderContainer(
+        overrides: [
+          sessionProvider.overrideWithValue(session),
+          outboxProvider.overrideWithValue(outbox),
+          dataStoreProvider.overrideWithValue(store),
+          bluetoothPrinterProvider.overrideWithValue(fake),
+          apiClientProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(c.dispose);
+      await c.read(printControllerProvider.notifier).loadFeatures();
+      final s = c.read(printControllerProvider);
+      expect(s.retailPrinting, isTrue, reason: 'يفشل مفتوحاً حتى لا تعطِّل الطباعة');
+      expect(s.allowedPapers, ReceiptPaper.values);
+    });
   });
 }

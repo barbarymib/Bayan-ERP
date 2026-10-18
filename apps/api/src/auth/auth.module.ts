@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { FeaturesService } from './features.service.js';
 
 const expiresIn = (process.env.JWT_EXPIRES_IN ?? '1d') as unknown as JwtSignOptions['expiresIn'];
 
@@ -19,7 +20,7 @@ if (process.env.NODE_ENV === 'production' && (!jwtSecret || jwtSecret.length < 1
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService],
+  providers: [AuthService, FeaturesService],
+  exports: [AuthService, FeaturesService],
 })
 export class AuthModule {}

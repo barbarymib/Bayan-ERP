@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { setTenant } from '../tenant/tenant.context.js';
 import { effectiveDiscountLimit } from '../common/discount-limits.js';
+import { FeaturesService } from './features.service.js';
 import {
   FEATURES_KEY,
   GLOBAL_ADMIN_KEY,
@@ -24,6 +25,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    private readonly features: FeaturesService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -111,31 +113,11 @@ export class AuthGuard implements CanActivate {
     ]);
     if (requiredFeatures?.length) {
       for (const code of requiredFeatures) {
-        const on = await this.featureEnabled(code, dbUser.id, dbUser.companyId);
+        const on = await this.features.isEnabled(code, dbUser.id, dbUser.companyId);
         if (!on) throw new ForbiddenException(`Feature disabled: ${code}`);
       }
     }
 
     return true;
-  }
-
-  /** تقييم الميزة: استثناء المستخدم ← استثناء الشركة ← الحالة العامة (§12.3). */
-  private async featureEnabled(code: string, userId: number, companyId: number | null): Promise<boolean> {
-    const feature = await this.prisma.systemFeature.findUnique({ where: { code } });
-    if (!feature) return false;
-
-    const [userOverride, companyOverride] = await Promise.all([
-      this.prisma.userFeature.findUnique({
-        where: { userId_featureId: { userId, featureId: feature.id } },
-      }),
-      companyId
-        ? this.prisma.companyFeature.findUnique({
-            where: { companyId_featureId: { companyId, featureId: feature.id } },
-          })
-        : null,
-    ]);
-    if (userOverride) return userOverride.enabled;
-    if (companyOverride) return companyOverride.enabled;
-    return feature.enabled;
   }
 }

@@ -18,8 +18,11 @@ class _PrintScreenState extends ConsumerState<PrintScreen> {
   @override
   void initState() {
     super.initState();
-    // تحدّث قائمة المستندات عند فتح الشاشة.
-    Future.microtask(() => ref.read(printControllerProvider.notifier).refresh());
+    // تحدّث قائمة المستندات وقراءة الميزات (لتصفية أوراق التجزئة) عند فتح الشاشة.
+    Future.microtask(() {
+      ref.read(printControllerProvider.notifier).refresh();
+      ref.read(printControllerProvider.notifier).loadFeatures();
+    });
   }
 
   @override
@@ -190,12 +193,12 @@ class _PrintScreenState extends ConsumerState<PrintScreen> {
   }
 
   Widget _paperPicker(PrintState state) {
+    final allowed = state.allowedPapers;
+    final current = allowed.contains(state.paper) ? state.paper : allowed.first;
     return DropdownButtonFormField<ReceiptPaper>(
-      initialValue: state.paper,
+      initialValue: current,
       decoration: const InputDecoration(labelText: 'الورق / الصيغة'),
-      items: ReceiptPaper.values
-          .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
-          .toList(),
+      items: allowed.map((p) => DropdownMenuItem(value: p, child: Text(p.label))).toList(),
       onChanged: (p) {
         if (p != null) {
           ref.read(printControllerProvider.notifier).setPaper(p);

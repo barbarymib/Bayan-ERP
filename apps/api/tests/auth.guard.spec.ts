@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthGuard } from '../src/auth/auth.guard.js';
+import { FeaturesService } from '../src/auth/features.service.js';
 import { IS_PUBLIC_KEY, PERMISSIONS_KEY, type AuthUser } from '../src/auth/auth.decorators.js';
 
 function makeContext(overrides: {
@@ -33,6 +34,7 @@ function makeGuard(overrides: {
     userFeature?: { findUnique: (args: never) => Promise<unknown> };
     companyFeature?: { findUnique: (args: never) => Promise<unknown> };
   };
+  features?: FeaturesService;
 } = {}): AuthGuard {
   const reflector = (overrides.reflector ?? {
     getAllAndOverride: (key: string) => {
@@ -61,7 +63,9 @@ function makeGuard(overrides: {
     companyFeature: { findUnique: vi.fn(async () => null) },
   }) as never;
 
-  return new AuthGuard(reflector, jwt, prisma as never);
+  const features = overrides.features ?? (new FeaturesService(prisma as never) as unknown as FeaturesService);
+
+  return new AuthGuard(reflector, jwt, prisma as never, features);
 }
 
 describe('AuthGuard', () => {

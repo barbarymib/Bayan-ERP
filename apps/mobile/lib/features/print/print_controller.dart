@@ -30,6 +30,10 @@ class PrintState {
   final String? error;
   final String? message;
 
+  /// ميزة طباعة التجزئة (‎`printing.retail`‎) — تُتيح الأوراق الحرارية (‎80/58 ملّم‎).
+  /// تُقرأ من الخادم؛ القيمة الابتدائية `true` حتى تصل (وتُعدَّل عند الفشل).
+  final bool retailPrinting;
+
   const PrintState({
     this.documents = const [],
     this.selected,
@@ -42,6 +46,7 @@ class PrintState {
     this.lastPrinterAddress,
     this.error,
     this.message,
+    this.retailPrinting = true,
   });
 
   bool get busy =>
@@ -51,6 +56,12 @@ class PrintState {
       status == PrintStatus.sharing;
 
   bool get connected => printer != null;
+
+  /// الأوراق المتاحة حسب ميزة الطباعة: التجزئة الحرارية مشروطة بالميزة،
+  /// وورقـا A5/A4 متاحان دائماً كصيغ المستندات (R3-A12).
+  List<ReceiptPaper> get allowedPapers => retailPrinting
+      ? ReceiptPaper.values
+      : const [ReceiptPaper.a4, ReceiptPaper.a5];
 
   PrintState copyWith({
     List<OutboxItem>? documents,
@@ -64,6 +75,7 @@ class PrintState {
     String? lastPrinterAddress,
     Object? error = _keep,
     Object? message = _keep,
+    bool? retailPrinting,
   }) {
     return PrintState(
       documents: documents ?? this.documents,
@@ -78,6 +90,7 @@ class PrintState {
       lastPrinterAddress: lastPrinterAddress ?? this.lastPrinterAddress,
       error: identical(error, _keep) ? this.error : error as String?,
       message: identical(message, _keep) ? this.message : message as String?,
+      retailPrinting: retailPrinting ?? this.retailPrinting,
     );
   }
 }
@@ -114,6 +127,23 @@ class PrintController extends Notifier<PrintState> {
       error: null,
       message: null,
     );
+  }
+
+  /// يقرأ الميزات الفعّالة من الخادم ويقيّد الأوراق المتاحة حسب `printing.retail`
+  /// (R3-A12). عند تعذّر الجلب تُبقى الحالة الافتتاحية (كل الأوراق) حتى لا تعطِّل
+  /// الطباعة دون اتصال.
+  Future<void> loadFeatures() async {
+    try {
+      final flags = await ref.read(apiClientProvider).features();
+      final retail = flags['printing.retail'] ?? true;
+      final allowed = retail
+          ? ReceiptPaper.values
+          : const [ReceiptPaper.a4, ReceiptPaper.a5];
+      final paper = allowed.contains(state.paper) ? state.paper : ReceiptPaper.a4;
+      state = state.copyWith(retailPrinting: retail, paper: paper);
+    } catch (_) {
+      // تُهمل الأخطاء وتُبقي الوضع الافتتاحي (كل الأوراق متاحة).
+    }
   }
 
   /// يختار مستنداً ويبني نسخته القابلة للطباعة مع معاينة.
