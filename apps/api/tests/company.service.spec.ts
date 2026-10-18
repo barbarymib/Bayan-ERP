@@ -106,8 +106,21 @@ describe('CompanyService.setCompanyFeature / clearCompanyFeature', () => {
   });
 });
 
-describe('CompanyService.setUserFeature', () => {
-  it('upserts a USER override when enabled is provided', async () => {
+describe('CompanyService.updateSettings', () => {
+  it('applies profile + tax fields and returns them', async () => {
+    const svc = make();
+    const out = await svc.updateSettings(1, { nameAr: 'شركة جديدة', taxPercent: 15 }, 7, 'admin');
+    expect(out.company.nameAr).toBe('شركة جديدة');
+    expect(out.company.taxPercent).toBe(15);
+    expect(out.company.code).toBe('bayan');
+  });
+
+  it('throws without a company scope', async () => {
+    await expect(make().updateSettings(null, { taxPercent: 5 }, 7)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('CompanyService.setUserFeature', () => {  it('upserts a USER override when enabled is provided', async () => {
     const out = await make().setUserFeature(1, 2, 'reports.valuation', true, 7, 'admin');
     expect(out).toEqual({ code: 'reports.valuation', userId: 2, enabled: true, scope: 'USER' });
   });

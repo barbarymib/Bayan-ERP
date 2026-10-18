@@ -39,21 +39,43 @@ export class CompanyService {
     if (!company) throw new NotFoundException(`Company ${id} not found`);
     const updated = await this.prisma.company.update({
       where: { id },
-      data: dto.taxPercent != null ? { taxPercent: dto.taxPercent } : {},
+      data: {
+        ...(dto.nameAr != null ? { nameAr: dto.nameAr } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone || null } : {}),
+        ...(dto.email !== undefined ? { email: dto.email || null } : {}),
+        ...(dto.contactName !== undefined ? { contactName: dto.contactName || null } : {}),
+        ...(dto.taxPercent != null ? { taxPercent: dto.taxPercent } : {}),
+      },
     });
     await this.audits.write({
       userId,
       action: 'company.update',
       entity: 'Company',
       entityId: id,
-      beforeJson: { taxPercent: Number(company.taxPercent) },
-      afterJson: { taxPercent: Number(updated.taxPercent), actor: actor ?? null },
+      beforeJson: {
+        nameAr: company.nameAr,
+        phone: company.phone,
+        email: company.email,
+        contactName: company.contactName,
+        taxPercent: Number(company.taxPercent),
+      },
+      afterJson: {
+        nameAr: updated.nameAr,
+        phone: updated.phone,
+        email: updated.email,
+        contactName: updated.contactName,
+        taxPercent: Number(updated.taxPercent),
+        actor: actor ?? null,
+      },
     });
     return {
       company: {
         id: updated.id,
         code: updated.code,
         nameAr: updated.nameAr,
+        phone: updated.phone,
+        email: updated.email,
+        contactName: updated.contactName,
         taxPercent: Number(updated.taxPercent),
       },
     };

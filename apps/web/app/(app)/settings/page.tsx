@@ -10,6 +10,10 @@ export default function CompanySettingsPage() {
   const manage = can(user, 'company.manage');
 
   const [settings, setSettings] = useState<CompanySettings | null>(null);
+  const [nameAr, setNameAr] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [contactName, setContactName] = useState('');
   const [taxPercent, setTaxPercent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +27,10 @@ export default function CompanySettingsPage() {
       .then((d) => {
         if (!cancelled) {
           setSettings(d);
+          setNameAr(d.company.nameAr);
+          setPhone(d.company.phone ?? '');
+          setEmail(d.company.email ?? '');
+          setContactName(d.company.contactName ?? '');
           setTaxPercent(String(d.company.taxPercent));
           setError(null);
         }
@@ -43,8 +51,14 @@ export default function CompanySettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      const d = await patch<{ company: { taxPercent: number } }>('/company', { taxPercent: Number(taxPercent) || 0 });
-      setSettings((s) => (s ? { ...s, company: { ...s.company, taxPercent: d.company.taxPercent } } : s));
+      const d = await patch<{ company: CompanySettings['company'] }>('/company', {
+        nameAr,
+        phone,
+        email,
+        contactName,
+        taxPercent: Number(taxPercent) || 0,
+      });
+      setSettings((s) => (s ? { ...s, company: d.company } : s));
       setTaxPercent(String(d.company.taxPercent));
       setNotice('تم حفظ إعدادات الشركة');
     } catch (err) {
@@ -72,10 +86,19 @@ export default function CompanySettingsPage() {
         <div className="max-w-xl rounded-xl border border-gray-200 bg-white p-5">
           <div className="mb-4 grid grid-cols-2 gap-3">
             <Field label="اسم الشركة">
-              <TextInput value={settings.company.nameAr} readOnly disabled />
+              <TextInput value={nameAr} onChange={(e) => setNameAr(e.target.value)} disabled={!manage} />
             </Field>
             <Field label="كود الشركة">
               <TextInput value={settings.company.code} readOnly disabled dir="ltr" />
+            </Field>
+            <Field label="الهاتف">
+              <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" disabled={!manage} />
+            </Field>
+            <Field label="البريد الإلكتروني">
+              <TextInput value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" disabled={!manage} />
+            </Field>
+            <Field label="الشخص المسؤول">
+              <TextInput value={contactName} onChange={(e) => setContactName(e.target.value)} disabled={!manage} />
             </Field>
           </div>
 

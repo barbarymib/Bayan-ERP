@@ -1,7 +1,31 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateCompanySettingsDto {
+  @ApiPropertyOptional({ description: 'اسم الشركة' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  nameAr?: string;
+
+  @ApiPropertyOptional({ description: 'هاتف الشركة' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  phone?: string;
+
+  @ApiPropertyOptional({ description: 'البريد الإلكتروني للشركة' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'الشخص المسؤول' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contactName?: string;
+
   @ApiPropertyOptional({ description: 'الضريبة الافتراضية للشركة %', minimum: 0, maximum: 100 })
   @IsOptional()
   @IsNumber()
