@@ -847,6 +847,7 @@ model PriceStatement {
   taxAmount      Decimal         @default(0) @db.Decimal(18, 2)
   net            Decimal         @db.Decimal(18, 2)
   paid           Decimal         @default(0) @db.Decimal(18, 2)
+  dueDate        DateTime?
   lat            Decimal?        @db.Decimal(10, 7)
   lng            Decimal?        @db.Decimal(10, 7)
   notes          String?

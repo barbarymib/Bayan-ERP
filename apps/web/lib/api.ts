@@ -232,6 +232,8 @@ export interface PriceStatement {
   taxAmount: string;
   net: string;
   paid: string;
+  dueDate?: string | null;
+  overdue?: boolean;
   notes: string | null;
   lines: PriceStatementLine[];
   approvals?: Approval[];

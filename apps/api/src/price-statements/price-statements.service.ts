@@ -213,6 +213,11 @@ export class PriceStatementsService {
       tenant,
     );
 
+    // تاريخ الاستحقاق = تاريخ البيان + مدة سداد العميل (creditDays) — أساس تقادم الديون (§5.4).
+    const statementDate = dto.date ? new Date(dto.date) : new Date();
+    const dueDate = new Date(statementDate);
+    dueDate.setDate(dueDate.getDate() + (customer.creditDays ?? 0));
+
     const statement = await this.prisma.priceStatement.create({
       data: {
         number,
@@ -221,7 +226,8 @@ export class PriceStatementsService {
         repId: user.repCode ? user.id : null,
         warehouseId: warehouse.id,
         companyId: tenant,
-        date: dto.date ? new Date(dto.date) : new Date(),
+        date: statementDate,
+        dueDate,
         status: 'DRAFT',
         paymentTerm: dto.paymentTerm ?? 'CREDIT',
         subtotal: totals.subtotal,
@@ -569,7 +575,11 @@ export class PriceStatementsService {
       },
     });
     const staleDays = await this.staleDraftDays();
-    const items = rows.map((r) => ({ ...r, ...computeStaleDraft(r.status, r.updatedAt, staleDays) }));
+    const items = rows.map((r) => ({
+      ...r,
+      ...computeStaleDraft(r.status, r.updatedAt, staleDays),
+      overdue: this.isOverdue(r.status, r.dueDate, Number(r.net), Number(r.paid)),
+    }));
     return { total, items, staleDraftDays: staleDays };
   }
 
@@ -596,10 +606,17 @@ export class PriceStatementsService {
     return {
       ...this.stripCost(st, user),
       ...computeStaleDraft(st.status, st.updatedAt, staleDays),
+      overdue: this.isOverdue(st.status, st.dueDate, Number(st.net), Number(st.paid)),
       staleDraftDays: staleDays,
       approvals,
       revisions,
     };
+  }
+
+  /** متأخر: معتمد، ومرور تاريخ الاستحقاق (dueDate = التاريخ + creditDays) مع بقاء رصيد مستحق (§5.4). */
+  private isOverdue(status: string, dueDate: Date | null | undefined, net: number, paid: number): boolean {
+    if (status !== 'APPROVED' || !dueDate) return false;
+    return new Date(dueDate).getTime() < Date.now() && net - paid > 0.005;
   }
 
   async cancel(id: number, dto: CancelStatementDto, user: AuthUser) {
@@ -843,11 +860,16 @@ export class PriceStatementsService {
     warehouseId: number,
     totals: StatementTotals,
     periodId: number | null,
+    creditDays: number | null = null,
   ) {
+    const date = dto.date ? new Date(dto.date) : existing.date;
+    const dueDate = new Date(date);
+    dueDate.setDate(dueDate.getDate() + (creditDays ?? 0));
     return {
       customerId,
       warehouseId,
-      date: dto.date ? new Date(dto.date) : existing.date,
+      date,
+      dueDate,
       paymentTerm: dto.paymentTerm ?? existing.paymentTerm,
       subtotal: totals.subtotal,
       discountType: toDbDiscountType(dto.discount?.type),

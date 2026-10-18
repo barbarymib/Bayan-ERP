@@ -173,6 +173,7 @@ export default function StatementsPage() {
               <Th>العميل</Th>
               <Th>الدفع</Th>
               <Th>الصافي</Th>
+              <Th>الاستحقاق</Th>
               <Th>البند</Th>
               <Th>الحالة</Th>
               <Th></Th>
@@ -198,6 +199,10 @@ export default function StatementsPage() {
                   </Td>
                   <Td>{s.paymentTerm}</Td>
                   <Td className="font-bold">{formatMoney(s.net)}</Td>
+                  <Td>
+                    <div>{s.dueDate ? formatDate(s.dueDate) : '—'}</div>
+                    {s.overdue ? <Badge color="red">متأخر</Badge> : null}
+                  </Td>
                   <Td>{s._count?.lines ?? '—'}</Td>
                   <Td>
                     <div className="flex flex-wrap items-center gap-1">
@@ -616,6 +621,8 @@ function StatementDetailModal({ statement, onClose }: { statement: PriceStatemen
         <Badge color={statusColor[s.status]}>{statusLabel[s.status]}</Badge>
         <span className="text-gray-500">{formatDate(s.date)}</span>
         <span className="text-gray-500">دفع: {s.paymentTerm}</span>
+        {s.dueDate ? <span className="text-gray-500">يستحق: {formatDate(s.dueDate)}</span> : null}
+        {s.overdue ? <Badge color="red">متأخر السداد</Badge> : null}
         <span className="text-gray-500">المخزن: {s.warehouse.nameAr}</span>
       </div>
 
