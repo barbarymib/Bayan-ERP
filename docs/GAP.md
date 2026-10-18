@@ -1,4 +1,4 @@
-# Bayan ERP — Gap Analysis vs. Design Spec
+﻿# Bayan ERP — Gap Analysis vs. Design Spec
 
 > Generated from a 6-subagent parallel review of the codebase against `docs/bayan-design.md`,
 > with the security-sensitive RBAC/tenant findings re-verified directly by hand.
@@ -333,3 +333,4 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 
 ### Migration note — schema `bayan`
 The RLS migration (`20261012000000_rls_tenant_isolation`) does `CREATE SCHEMA IF NOT EXISTS bayan` and puts the helper `bayan.current_company_id()` there. Because the DB role is named `bayan`, its default `search_path` is `bayan, public`, so an **unqualified `CREATE TABLE` in any migration after RLS lands in schema `bayan`, not `public`** (where all 72 app tables live) → Prisma Client (which resolves via `public`) fails at runtime with `relation "…" does not exist`. **Rule: new-table migrations MUST schema-qualify `public."Table"` (and FKs `REFERENCES public."…"`).** Column-only (`ALTER TABLE`) migrations are unaffected.
+
