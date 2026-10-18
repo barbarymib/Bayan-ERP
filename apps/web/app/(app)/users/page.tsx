@@ -81,8 +81,29 @@ export default function UsersPage() {
 
       {me ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          حدود الخصم الخاصة بك: أقصى خصم صنف <b>{Number(me.roleCode === 'ADMIN' ? 100 : 0)}%</b> —
-          <span className="font-semibold"> تُضبط لكل مستخدم من صفحة المستخدمين</span>
+          حدود الخصم الخاصة بك: أقصى خصم صنف{' '}
+          <b>
+            {Number(
+              me.maxItemDiscountPct == null
+                ? me.roleCode === 'ADMIN'
+                  ? 100
+                  : 0
+                : me.maxItemDiscountPct,
+            ).toLocaleString('ar-EG')}
+            %
+          </b>{' '}
+          — أقصى خصم فاتورة{' '}
+          <b>
+            {Number(
+              me.maxInvoiceDiscountPct == null
+                ? me.roleCode === 'ADMIN'
+                  ? 100
+                  : 0
+                : me.maxInvoiceDiscountPct,
+            ).toLocaleString('ar-EG')}
+            %
+          </b>{' '}
+          — تُضبط لكل مستخدم من صفحة المستخدمين
         </div>
       ) : null}
 
