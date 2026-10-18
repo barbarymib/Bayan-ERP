@@ -29,6 +29,14 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — G26: Hijri dates + Arabic-Indic numerals (2026-10-18)
+- **Spec §9 (GAP G26, was MISSING):** "RTL, Gregorian with optional Hijri, optional Arabic/Hindi numerals."
+- **Web** `components/ui.tsx`: `formatMoney` now `ar-EG-u-nu-arab` (Arabic-Indic digits); added `formatDateGregorian`, `formatDateHijri` (`Intl.DateTimeFormat('ar-SA-u-ca-islamic-nu-arab')`, catch→Gregorian), `toArabicNumerals` (0-9→٠-٩). `formatDate` delegates to Gregorian (back-compat). No deps needed (native `Intl`).
+- **Gates:** web typecheck/lint/build 0. **Live-verify (node):** `formatMoney(1234.5)`→`١٬٢٣٤٫٥`; Gregorian `١٨‏/١٠‏/٢٠٢٦`; Hijri `٠٨‏/٠٥‏/١٤٤٨ هـ`; `toArabicNumerals` OK. Commit `1ae9732`.
+- **Gotcha:** PowerShell `[IO.File]::WriteAllText`/`Set-Content` double-encodes UTF-8 Arabic (mojibake + BOM). Always use the `edit` tool for files with Arabic text; verify with `git diff` before committing. A corrupted commit was `git reset --hard HEAD~1` reverted and redone.
+- **Remaining:** mobile Hijri/Arabic-Indic helper (mobile app uses Latin digits; lower priority).
+- **Next:** G24 boot migration check, G28 Dockerfiles, G18 web WhatsApp/PDF share, G19 item images/variants/QR, G29 print templates, G12 mixed-unit display. Then full audit. Blocked: FCM.
+
 ### Completed — G15: web feature-flag-driven UI hiding (2026-10-18)
 - **Spec §12.3/§12.4 (GAP G15, was PARTIAL):** flags evaluated but not used to hide UI. Mobile already gated retail print (R3-A3); web gate added.
 - **Web** `lib/auth.tsx`: `AuthProvider` now fetches `GET /auth/features` on boot + login, exposes `features: Record<string,boolean>` and `featureEnabled(code)` (`features[code] !== false`, so missing/failed = visible). `logout` clears flags. `app/(app)/layout.tsx`: `NavLink.feature?` + filter `(!l.feature || featureEnabled(l.feature))`; `/geo`→`geotracking.fleet`, `/archives`→`archiving.core`. `reports/page.tsx`: valuation tab gated by `reports.valuation`; `prices/page.tsx`: bulk tab gated by `pricing.bulk` (in addition to `price.manage`).

@@ -50,7 +50,7 @@
 - `G17` `MISSING` — §12.3/§12.4 tenant-side **per-user / per-company feature-flag management** (web).
 - `G18` `PARTIAL` — §5.16 **WhatsApp sharing** (API deep-link `wa.me` exists; web/mobile PDF-attach sharing absent).
 - `G21` `FIXED` — §4.2 **permission-cell mismatches**: removed `rep.track` from `SALES_REP` and `stocktake.view` from `REP_SUPERVISOR`; self geo-reporting split into a new `geo.report` permission (rep/supervisor keep their own shift/location/visit + mobile intact) while fleet-view endpoints stay on `rep.track`/`geo.fleet`. Matrix extracted to `apps/api/src/auth/role-permissions.ts` (single source) + §4.2 regression test. Seed now revokes known perms absent from the matrix. Was: `apps/api/prisma/seed.ts:123`.
-- `G26` `MISSING` — §9 **Hijri dates + Arabic-Indic numerals** not implemented in web/mobile.
+- `G26` `FIXED` — §9 **Hijri dates + Arabic-Indic numerals**: web `formatDateHijri` (Intl `ar-SA-u-ca-islamic-nu-arab`) + `formatDateGregorian` + `formatMoney` (`ar-EG-u-nu-arab`) + `toArabicNumerals`; commit `1ae9732`.
 
 ### Low
 
@@ -108,7 +108,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 18. **G17** Tenant-side feature-flag management. ✅ done (company module `GET/PUT/DELETE /company/features`, per-user overrides, web Settings section; commit `392efa5`)
 19. **G18** WhatsApp sharing with PDF.
 17. **G19** Item images/variants/QR labels.  `G12` mixed-unit display. **G20** stocktake scoping.
-18. **G26** Hijri + Arabic-Indic numerals (i18n).
+18. **G26** Hijri + Arabic-Indic numerals (i18n). ✅ done (`ui.tsx` `formatMoney` uses `ar-EG-u-nu-arab`, `formatDateGregorian`/`formatDateHijri` (Intl `ar-SA-u-ca-islamic`), `toArabicNumerals`; commit `1ae9732`)
 
 ### Batch D+ — Infra & ops
 19. **G23** Background queues (Redis/BullMQ) for archive/notifications/reminders.
@@ -325,7 +325,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 45. **G23** BullMQ background queues (archive/notifications/reminders) — **R3-E6** restore-test job.
 46. **G24** boot-time migration check.
 47. **G25/R3-E8** 50k-item + 50-concurrent performance benchmark.
-48. **G26** Hijri calendar + Arabic-Indic numerals.
+48. **G26** Hijri calendar + Arabic-Indic numerals. — ✅ FIXED (web `formatDateHijri` via `Intl` `ar-SA-u-ca-islamic` + `formatMoney` Arabic-Indic `ar-EG-u-nu-arab` + `toArabicNumerals`; web typecheck/lint/build 0; commit `1ae9732`)
 49. **G28** Dockerfiles.
 50. **R3-E7** mobile Drift indexes; **§7.2** queue component.
 
