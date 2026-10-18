@@ -61,7 +61,7 @@
 - `G24` `FIXED` — §12.5 **boot-time migration check**: `apps/api/src/migrations-check/migrations-check.ts` compares `prisma/migrations` folders vs applied `_prisma_migrations` rows; `main.ts` fails boot listing pending (skip: `SKIP_MIGRATION_CHECK=1`); `GET /api/health` reports `migrations: {total, applied, pending}` (`ok`/`degraded`). Commit `fdccb5d`.
 - `G25` — No 50k-row performance benchmark (§9).
 - `G27` `FIXED` — §7.4 **stock-valuation equation** ported to `packages/shared` (`valuation.ts`: `calcStockLineValue`/`calcStockValue`/`weightedAverageCost`/`resolveUnitCost`, methods `LAST`/`WEIGHTED`/`SALES` mirroring `ReportsService.stockValues`) + Dart clone (`apps/mobile/lib/core/calc/valuation.dart`). Was server-only.
-- `G28` — No Dockerfiles.
+- `G28` `FIXED` — **Dockerfiles**: `.dockerignore` + `apps/api/Dockerfile` (deps→build→`migrator` runs `prisma migrate deploy`→runner via `pnpm deploy --prod`, node:24-alpine) + `apps/web/Dockerfile` (`output:'standalone'`, standalone+static+public runtime). Compose adds `api-migrate`/`minio-init`(app S3 user `bayan` — API rejects default `minioadmin` creds in production)/`api`(healthcheck, IPv4 `127.0.0.1`)/`web` under profile `apps` (`docker compose --profile apps up --build`); infra-only default unchanged. **Found & fixed while live-verifying:** `readS3Env` passed `http://host:port` raw to minio-js (needs bare hostname) — now parses scheme/host/port + derives `useSSL`; +5 tests. Commit `344cf85`.
 - `G29` — Print/PDF limited to statements (no A4/A5/80mm for other docs). **Progress:** quotations now have a web print view (`/quotations/[id]/print`, A4/A5/80mm) + client PDF (`lib/quotation-pdf.ts`) — increment 1. Remaining: purchase orders, receipts/collections, transfers, returns, supplier-returns, stocktakes, daily-close, etc. (web + mobile).
 
 ---
@@ -114,7 +114,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 19. **G23** Background queues (Redis/BullMQ) for archive/notifications/reminders.
 20. **G24** Boot-time migration check. ✅ done (migrations-check module + boot guard + health migration status; commit `fdccb5d`)
 21. **G25** 50k performance benchmark.
-22. **G28** Dockerfiles.
+22. **G28** Dockerfiles. ✅ done (api+web Dockerfiles + compose profile `apps` with migrate/init one-shots; commit `344cf85`)
 
 ### Blocked
 - **F2 / §5.15** FCM push — needs Firebase project + credentials.
@@ -326,7 +326,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 46. **G24** boot-time migration check. — ✅ FIXED (api typecheck/lint/440 tests; live verify: healthy boot `35/35`, health `status:ok`, failure path exits non-zero listing pending; commit `fdccb5d`)
 47. **G25/R3-E8** 50k-item + 50-concurrent performance benchmark.
 48. **G26** Hijri calendar + Arabic-Indic numerals. — ✅ FIXED (web `formatDateHijri` via `Intl` `ar-SA-u-ca-islamic` + `formatMoney` Arabic-Indic `ar-EG-u-nu-arab` + `toArabicNumerals`; web typecheck/lint/build 0; commit `1ae9732`)
-49. **G28** Dockerfiles.
+49. **G28** Dockerfiles. — ✅ FIXED (api 445 tests/lint; web tc/lint/build 0; images built; full stack live-verified: migrate exit 0, api `[boot] migrations ok (35/35)` + health `pending:[]`, web 200 `lang=ar dir=rtl`, S3 `bucketExists=true`; commit `344cf85`)
 50. **R3-E7** mobile Drift indexes; **§7.2** queue component.
 
 ### Blocked
