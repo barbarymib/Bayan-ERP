@@ -29,6 +29,14 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B5: live %↔value discount equivalence hints (2026-10-18)
+- **Spec §5.6/§5.3 (GAP R3-B5, was PARTIAL):** server converted discount %↔value but clients never displayed the equivalent during entry.
+- **Shared truth:** `packages/shared/src/discount.ts` → `convertDiscount(discount, base) → {amount, percent}` (and `discountToAmount`/`discountToPercent`); Dart port `apps/mobile/lib/core/calc/discount.dart` has `calcLineDiscount` (mobile line+header discounts are **percent-only** — `_Line.discountType` fixed, header uses `DiscountType.percent`).
+- **Web** `statements/page.tsx`: imported `calcStatementTotals, convertDiscount` from `@bayan/shared`. In `CreateStatementModal` before return: `previewLines` (qty/unitPrice/optional discount parsed from row strings) + `previewSubtotal = calcStatementTotals({lines}).subtotal` in try/catch (0 on invalid input). Header "قيمة الخصم" `Field hint`: percent → `القيمة المكافئة ≈ X ج`, amount → `النسبة المكافئة ≈ Y %`. Per-line discount `Field label="القيمة" hint`: counterpart vs line gross `(qty||0)*(unitPrice||0)`.
+- **Mobile** `new_statement_screen.dart`: header `خصم البيان %` TextField followed by conditional `bodySmall` Text `القيمة المكافئة ≈ … ج` using `calcLineDiscount(totals.subtotal, Discount(percent, v))` (`totals` computed at top of build); per-line discount row followed by same hint vs line gross. Both only when value>0 & base>0.
+- **Gates:** web typecheck/lint/**`npm run build`** 0; mobile `flutter analyze` clean. **API untouched** (server conversion already existed) → no api test run, no migration.
+- **Note:** pure client display → live-verify = production build + analyzer; math is the same shared/Dart function the server uses.
+- **Next:** R3-B8 (customer rep-transfer history UI) → B9 (supplier statement web page) → B12 (creditDays due-date/overdue) → P3/P4.
 ### Completed — R3-B4: capture/send statement GPS location (2026-10-18)
 - **Spec §5.6 (GAP R3-B4, was PARTIAL):** API accepted `lat`/`lng` but no client ever sent them; sync push ignored them.
 - **Web** `statements/page.tsx`: module helper `getGeo(): Promise<{lat,lng}|null>` — `navigator.geolocation.getCurrentPosition`, `timeout:5000, maximumAge:60000`, resolves `null` on error/unsupported. Started as `geoPromise` before the try, awaited inside; body spreads `...(pos ? {lat,lng} : {})`.
