@@ -174,11 +174,33 @@ export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () =
 
 export function formatMoney(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === '') return '—';
-  return Number(v).toLocaleString('ar-EG');
+  return Number(v).toLocaleString('ar-EG-u-nu-arab');
+}
+
+export function formatDateGregorian(v: string | Date): string {
+  const d = typeof v === 'string' ? new Date(v) : v;
+  return d.toLocaleString('ar-EG');
+}
+
+export function formatDateHijri(v: string | Date): string {
+  const d = typeof v === 'string' ? new Date(v) : v;
+  try {
+    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-nu-arab', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return formatDateGregorian(d);
+  }
 }
 
 export function formatDate(v: string): string {
-  return new Date(v).toLocaleString('ar-EG');
+  return formatDateGregorian(v);
+}
+
+export function toArabicNumerals(s: string | number): string {
+  return String(s).replace(/[0-9]/g, (c) => '٠١٢٣٤٥٦٧٨٩'[Number(c)]);
 }
 
 export function today(): string {
