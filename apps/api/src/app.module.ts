@@ -29,6 +29,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { GeoModule } from './geo/geo.module.js';
 import { ArchivesModule } from './archives/archives.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { CompanyModule } from './company/company.module.js';
 import { SyncModule } from './sync/sync.module.js';
 import { BranchesModule } from './branches/branches.module.js';
 import { QuotationsModule } from './quotations/quotations.module.js';
@@ -75,6 +76,7 @@ import { DevicesModule } from './devices/devices.module.js';
     GeoModule,
     ArchivesModule,
     AdminModule,
+  CompanyModule,
     SyncModule,
     BranchesModule,
     QuotationsModule,

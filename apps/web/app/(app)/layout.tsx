@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { RequireAuth, useAuth } from '@/lib/auth';
+import { can } from '@/lib/api';
+
+type NavLink = { href: string; label: string; phase: number; perm?: string };
 
 function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  const links = [
+  const links: NavLink[] = [
     { href: '/statements', label: 'بيانات الأسعار', phase: 2 },
     { href: '/quotations', label: 'عروض الأسعار', phase: 2 },
     { href: '/returns', label: 'مرتجعات', phase: 2 },
@@ -41,6 +44,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: '/branches', label: 'الفروع', phase: 1 },
     { href: '/users', label: 'المستخدمون والأدوار', phase: 1 },
     { href: '/devices', label: 'الأجهزة والأمان', phase: 1 },
+    { href: '/settings', label: 'إعدادات الشركة', phase: 1, perm: 'company.manage' },
   ];
 
   const groups = [
@@ -82,7 +86,7 @@ function Shell({ children }: { children: ReactNode }) {
                 {group.title}
               </div>
               {links
-                .filter((l) => l.phase === group.phase)
+                .filter((l) => l.phase === group.phase && (!l.perm || can(user, l.perm)))
                 .map((link) => {
                   const active = pathname?.startsWith(link.href);
                   return (

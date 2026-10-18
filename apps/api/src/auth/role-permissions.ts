@@ -51,6 +51,7 @@ export const EXTRA_PERMISSIONS: { code: string; nameAr: string }[] = [
   { code: 'visit.plan.manage', nameAr: 'إدارة خطة الزيارات' },
   { code: 'visit.plan.view', nameAr: 'رؤية خطة الزيارات' },
   { code: 'user.view', nameAr: 'عرض المستخدمين والأدوار' },
+  { code: 'company.manage', nameAr: 'إدارة إعدادات الشركة (الضريبة)' },
   { code: 'sync.use', nameAr: 'استخدام قناة مزامنة المناديب' },
   { code: 'label.view', nameAr: 'باركود/QR ومشاركة كشوف الحساب' },
   { code: 'geo.fleet', nameAr: 'متابعة أسطول المناديب' },
@@ -170,6 +171,7 @@ export const EXTRA_ROLE_PERMISSIONS: Record<string, string[]> = {
     'label.view',
     'geo.fleet',
     'device.manage',
+    'company.manage',
   ],
   ACCOUNTANT: [
     'transfer.view',

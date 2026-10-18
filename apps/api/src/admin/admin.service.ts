@@ -153,6 +153,7 @@ export class AdminService {
         phone: dto.phone ?? company.phone,
         email: dto.email ?? company.email,
         contactName: dto.contactName ?? company.contactName,
+        taxPercent: dto.taxPercent ?? company.taxPercent,
         status: dto.status ?? company.status,
       },
     });
@@ -160,8 +161,8 @@ export class AdminService {
       action: 'company.update',
       entity: 'Company',
       entityId: id,
-      beforeJson: { nameAr: company.nameAr, status: company.status, phone: company.phone, email: company.email, contactName: company.contactName },
-      afterJson: { nameAr: updated.nameAr, status: updated.status, phone: updated.phone, email: updated.email, contactName: updated.contactName, actor: actor ?? null },
+      beforeJson: { nameAr: company.nameAr, status: company.status, phone: company.phone, email: company.email, contactName: company.contactName, taxPercent: Number(company.taxPercent) },
+      afterJson: { nameAr: updated.nameAr, status: updated.status, phone: updated.phone, email: updated.email, contactName: updated.contactName, taxPercent: Number(updated.taxPercent), actor: actor ?? null },
     });
     return { company: updated };
   }

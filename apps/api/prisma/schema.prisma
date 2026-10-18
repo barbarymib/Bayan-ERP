@@ -292,6 +292,7 @@ model Company {
   phone       String?
   email       String?
   contactName String?
+  taxPercent  Decimal       @default(0) @db.Decimal(5, 2) // الضريبة الافتراضية للشركة (R3-B15)
   status      CompanyStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

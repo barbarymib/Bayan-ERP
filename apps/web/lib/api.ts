@@ -613,6 +613,18 @@ export function can(user: AuthUser | null, permission: string): boolean {
   return !!user && user.permissions.includes(permission);
 }
 
+export interface CompanySettings {
+  company: {
+    id: number;
+    code: string;
+    nameAr: string;
+    phone: string | null;
+    email: string | null;
+    contactName: string | null;
+    taxPercent: number;
+  };
+}
+
 export type StocktakeStatus = 'OPEN' | 'COUNTING' | 'REVIEW' | 'APPROVED' | 'CLOSED';
 
 export interface StocktakeSummary {

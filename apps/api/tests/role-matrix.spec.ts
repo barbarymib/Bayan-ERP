@@ -107,4 +107,13 @@ describe('§4.2 permission matrix', () => {
       expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).not.toContain('statement.cancel');
     }
   });
+
+  it('R3-B15: company.manage ممنوحة لـ ADMIN/OWNER وغير ممنوحة لبقية الأدوار', () => {
+    for (const role of ['ADMIN', 'OWNER']) {
+      expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).toContain('company.manage');
+    }
+    for (const role of ['ACCOUNTANT', 'SALES_REP', 'SALES_OFFICE', 'WAREHOUSEKEEPER', 'REP_SUPERVISOR']) {
+      expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).not.toContain('company.manage');
+    }
+  });
 });

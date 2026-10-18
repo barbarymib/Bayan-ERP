@@ -7,6 +7,7 @@ import {
   get,
   post,
   qs,
+  type CompanySettings,
   type Customer,
   type CustomersPage,
   type Item,
@@ -290,6 +291,18 @@ function CreateStatementModal({
           setWarehouses(w.warehouses);
           setItems(it.items);
         }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<CompanySettings>('/company')
+      .then((d) => {
+        if (!cancelled) setTaxPercent(String(d.company.taxPercent));
       })
       .catch(() => undefined);
     return () => {

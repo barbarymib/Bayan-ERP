@@ -15,6 +15,7 @@ import type { StockService } from '../src/common/stock.service.js';
 import type { PriceResolverService } from '../src/common/price-resolver.service.js';
 import type { NotificationsService } from '../src/notifications/notifications.service.js';
 import type { AuditLogsService } from '../src/audit-logs/audit-logs.service.js';
+import type { CompanyService } from '../src/company/company.service.js';
 import type { AuthUser } from '../src/auth/auth.decorators.js';
 
 type RevisionCall = { data: { statementId: number; revisionNo: number; reason: string | null; changedById: number } };
@@ -37,6 +38,7 @@ type Harness = {
     notified: number;
     creditChecks: { customerId: number; newNet: number }[];
     statementFindMany: { where: Record<string, unknown> }[];
+    statementCreate: { data: Record<string, unknown> }[];
   };
   st: Record<string, unknown>;
 };
@@ -96,6 +98,7 @@ function harness(
     assignments?: number[];
     staleDays?: number;
     listRows?: Record<string, unknown>[];
+    taxDefault?: number;
   } = {},
 ): Harness {  const st = makeStatement(stOverrides);
   const calls: Harness['calls'] = {
@@ -112,6 +115,7 @@ function harness(
     notified: 0,
     creditChecks: [],
     statementFindMany: [],
+    statementCreate: [],
   };
 
   const tx = {
@@ -152,7 +156,10 @@ function harness(
         return opts.listRows ?? [];
       },
       count: async () => 0,
-      create: async () => ({ ...st, id: 99, lines: [] }),
+      create: async (args: { data: Record<string, unknown> }) => {
+        calls.statementCreate.push(args);
+        return { ...st, ...args.data, id: 99, lines: [] };
+      },
     },
     customer: {
       findUnique: async () => ({ id: 2, nameAr: 'عميل', priceListId: null, companyId: 1, creditLimit: 0, openingBalance: 0, ...opts.customer }),
@@ -247,6 +254,7 @@ function harness(
     { resolve: async () => 50 } as unknown as PriceResolverService,
     notifications,
     audits,
+    { defaultTaxPercent: async () => opts.taxDefault ?? null } as unknown as CompanyService,
   );
 
   return { service, calls, st };
@@ -501,6 +509,30 @@ describe('PriceStatementsService unit precision (R3-A4 §5.2)', () => {
       approver,
     );
     expect(res).toBeTruthy();
+  });
+});
+
+describe('PriceStatementsService company default tax (R3-B15 §5.6)', () => {
+  it('يرث الضريبة الافتراضية للشركة عند عدم تحديد taxPercent في الطلب', async () => {
+    const { service, calls } = harness({}, null, {}, { taxDefault: 15 });
+    await service.create({ customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }] }, approver);
+    expect(calls.statementCreate).toHaveLength(1);
+    expect(Number((calls.statementCreate[0]!.data as { taxPercent: number }).taxPercent)).toBe(15);
+  });
+
+  it('يُقدّم taxPercent الصريح على ضريبة الشركة', async () => {
+    const { service, calls } = harness({}, null, {}, { taxDefault: 15 });
+    await service.create(
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }], taxPercent: 5 },
+      approver,
+    );
+    expect(Number((calls.statementCreate[0]!.data as { taxPercent: number }).taxPercent)).toBe(5);
+  });
+
+  it('عند عدم وجود شركة ولا ضريبة صريحة يبقى 0', async () => {
+    const { service, calls } = harness({}, null, {}, {});
+    await service.create({ customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }] }, approver);
+    expect(Number((calls.statementCreate[0]!.data as { taxPercent: number }).taxPercent)).toBe(0);
   });
 });
 

@@ -5,8 +5,11 @@ import {
   IsEmail,
   IsIn,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -49,6 +52,13 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   contactName?: string;
+
+  @ApiPropertyOptional({ description: 'الضريبة الافتراضية للشركة %', minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxPercent?: number;
 
   @ApiPropertyOptional({ enum: ['ACTIVE', 'DISABLED'] })
   @IsOptional()

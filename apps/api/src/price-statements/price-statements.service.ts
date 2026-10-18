@@ -21,6 +21,7 @@ import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
 import { LedgerService } from '../common/ledger.service.js';
 import { SalesOpsService } from '../common/sales-ops.service.js';
+import { CompanyService } from '../company/company.service.js';
 import { StockService, freezeWarningMessage } from '../common/stock.service.js';
 import { PriceResolverService } from '../common/price-resolver.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -146,10 +147,13 @@ export class PriceStatementsService {
     private readonly resolver: PriceResolverService,
     private readonly notifications: NotificationsService,
     private readonly audits: AuditLogsService,
+    private readonly company: CompanyService,
   ) {}
 
   async create(dto: CreateStatementDto, user: AuthUser) {
     const tenant = user.companyId ?? null;
+    // الضريبة الافتراضية للشركة عند عدم تحديدها في الطلب (R3-B15)
+    const effectiveTaxPercent = dto.taxPercent ?? (await this.company.defaultTaxPercent(tenant)) ?? 0;
     // idempotency
     if (dto.clientUuid) {
       const existing = await this.prisma.priceStatement.findFirst({
@@ -185,7 +189,7 @@ export class PriceStatementsService {
       lines: resolved.map((r) => ({ qty: r.qty, unitPrice: r.unitPrice, discount: r.discount })),
       headerDiscount: dto.discount,
       shipping: dto.shipping,
-      taxPercent: dto.taxPercent,
+      taxPercent: effectiveTaxPercent,
     });
 
     if (dto.paid && dto.paid > totals.net) {
@@ -225,7 +229,7 @@ export class PriceStatementsService {
         discountValue: dto.discount?.value ?? null,
         discountAmount: totals.headerDiscountAmount,
         shipping: totals.shipping,
-        taxPercent: dto.taxPercent ?? 0,
+        taxPercent: effectiveTaxPercent,
         taxAmount: totals.tax,
         net: totals.net,
         paid: dto.paid ?? 0,
