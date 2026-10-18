@@ -61,7 +61,7 @@ export class PriceStatementsController {
   }
 
   @Delete(':id/cancel')
-  @Permissions('statement.edit')
+  @Permissions('statement.cancel')
   @ApiOkResponse({ description: 'إلغاء بيان (سبب إلزامي) وعكس أثر المخزون/الحساب' })
   cancel(@Param('id', ParseIntPipe) id: number, @Body() dto: CancelStatementDto, @CurrentUser() user: AuthUser) {
     return this.statements.cancel(id, dto, user);

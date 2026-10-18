@@ -66,7 +66,7 @@ function unitOptions(item: Item | undefined) {
 export default function StatementsPage() {
   const { user } = useAuth();
   const canCreate = can(user, 'statement.create');
-  const canCancel = can(user, 'statement.edit');
+  const canCancel = can(user, 'statement.cancel');
 
   const [rows, setRows] = useState<PriceStatement[]>([]);
   const [loading, setLoading] = useState(true);

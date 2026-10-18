@@ -98,4 +98,13 @@ describe('§4.2 permission matrix', () => {
     expect(sup).toContain('rep.track');
     expect(ROLE_PERMISSIONS_MERGED['ACCOUNTANT'] ?? []).not.toContain('geo.report');
   });
+
+  it('R3-B14: statement.cancel ممنوحة لـ ADMIN/OWNER/ACCOUNTANT/REP_SUPERVISOR وغير ممنوحة للمناديب/المخزن', () => {
+    for (const role of ['ADMIN', 'OWNER', 'ACCOUNTANT', 'REP_SUPERVISOR']) {
+      expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).toContain('statement.cancel');
+    }
+    for (const role of ['SALES_REP', 'SALES_OFFICE', 'WAREHOUSEKEEPER']) {
+      expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).not.toContain('statement.cancel');
+    }
+  });
 });
