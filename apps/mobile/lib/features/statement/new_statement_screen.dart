@@ -40,6 +40,8 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
   final List<_Line> _lines = [];
   int? _customerId;
   final TextEditingController _headerDiscount = TextEditingController();
+  final TextEditingController _paid = TextEditingController();
+  String _paymentTerm = 'CREDIT';
   bool _saving = false;
 
   @override
@@ -48,6 +50,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       l.dispose();
     }
     _headerDiscount.dispose();
+    _paid.dispose();
     super.dispose();
   }
 
@@ -127,6 +130,8 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       'customerId': customer.id,
       'customerName': customer.name,
       'headerDiscount': _num(_headerDiscount),
+      'paymentTerm': _paymentTerm,
+      'paid': _num(_paid),
       'subtotal': totals.subtotal,
       'headerDiscountAmount': totals.headerDiscountAmount,
       'net': totals.net,
@@ -197,6 +202,25 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
                     ))
                 .toList(),
             onChanged: (v) => setState(() => _customerId = v),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _paymentTerm,
+            decoration: const InputDecoration(labelText: 'نوع السداد'),
+            items: const [
+              DropdownMenuItem(value: 'CASH', child: Text('نقدي')),
+              DropdownMenuItem(value: 'CREDIT', child: Text('آجل')),
+              DropdownMenuItem(value: 'MIXED', child: Text('مختلط')),
+            ],
+            onChanged: (v) => setState(() => _paymentTerm = v ?? 'CREDIT'),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _paid,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            textDirection: TextDirection.ltr,
+            decoration: const InputDecoration(labelText: 'المدفوع نقداً وقت الإصدار'),
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 16),
           Row(

@@ -272,6 +272,7 @@ function CreateStatementModal({
   const [discType, setDiscType] = useState('');
   const [discValue, setDiscValue] = useState('');
   const [shipping, setShipping] = useState('0');
+  const [paid, setPaid] = useState('0');
   const [taxPercent, setTaxPercent] = useState('0');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineRow[]>([]);
@@ -359,6 +360,7 @@ function CreateStatementModal({
         lines: cleaned,
         discount: discType ? { type: discType as 'percent' | 'amount', value: Number(discValue) || 0 } : undefined,
         shipping: Number(shipping) || 0,
+        paid: Number(paid) || 0,
         taxPercent: Number(taxPercent) || 0,
         notes: notes.trim() || undefined,
       });
@@ -423,6 +425,9 @@ function CreateStatementModal({
         ) : null}
         <Field label="الشحن (ج)">
           <TextInput value={shipping} onChange={(e) => setShipping(e.target.value)} type="number" min="0" step="any" />
+        </Field>
+        <Field label="المدفوع نقداً (ج)">
+          <TextInput value={paid} onChange={(e) => setPaid(e.target.value)} type="number" min="0" step="any" />
         </Field>
         <Field label="ضريبة %">
           <TextInput value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} type="number" min="0" max="100" />

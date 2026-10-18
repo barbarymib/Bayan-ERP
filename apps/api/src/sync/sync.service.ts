@@ -406,12 +406,17 @@ export class SyncService {
     const discount: DiscountInputDto | undefined =
       headerPct !== undefined && headerPct > 0 ? { type: 'percent', value: headerPct } : undefined;
 
+    const termRaw = typeof payload['paymentTerm'] === 'string' ? payload['paymentTerm'] : undefined;
+    const paymentTerm: CreateStatementDto['paymentTerm'] =
+      termRaw === 'CASH' || termRaw === 'CREDIT' || termRaw === 'MIXED' ? termRaw : undefined;
+
     const dto: CreateStatementDto = {
       customerId,
       date: (payload['date'] as string) || (payload['createdAt'] as string),
       clientUuid: uuid,
       number: item.number,
       paid: num(payload['paid']) ?? 0,
+      ...(paymentTerm ? { paymentTerm } : {}),
       discount,
       notes:
         typeof payload['notes'] === 'string'
