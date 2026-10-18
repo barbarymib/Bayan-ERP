@@ -662,6 +662,19 @@ export interface CompanySettings {
   };
 }
 
+export interface CompanyFeatureItem {
+  code: string;
+  nameAr: string;
+  globalDefault: boolean;
+  override: boolean | null;
+  enabled: boolean;
+  scope: 'GLOBAL' | 'COMPANY';
+}
+
+export interface CompanyFeaturesResponse {
+  features: CompanyFeatureItem[];
+}
+
 export type StocktakeStatus = 'OPEN' | 'COUNTING' | 'REVIEW' | 'APPROVED' | 'CLOSED';
 
 export interface StocktakeSummary {
