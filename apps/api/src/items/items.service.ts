@@ -1,18 +1,41 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
+import { OBJECT_STORAGE, type ObjectStorage } from '../common/object-storage.js';
 import type { CreateItemDto, QueryItemsDto, UpdateItemDto } from './items.dto.js';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const IMAGE_MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+};
+const DATA_URL_RE = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/]+=*)$/;
+
+export type ItemImageSource =
+  | { kind: 'redirect'; url: string }
+  | { kind: 'buffer'; mime: string; buffer: Buffer };
 
 @Injectable()
 export class ItemsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audits: AuditLogsService,
+    @Optional()
+    @Inject(OBJECT_STORAGE)
+    private readonly storage?: ObjectStorage,
   ) {}
 
   /** يحوّل صفوف الوحدات (بأكواد الوحدات) إلى صفوف قابلة للكتابة بـ unitId. */
@@ -124,6 +147,8 @@ export class ItemsService {
           attributes: true,
           itemUnits: { include: { unit: true } },
           prices: { include: { priceList: true }, orderBy: { priceListId: 'asc' } },
+          parent: { select: { id: true, code: true, nameAr: true } },
+          _count: { select: { variants: true } },
         },
         orderBy: { nameAr: 'asc' },
         skip: (page - 1) * limit,
@@ -218,6 +243,98 @@ export class ItemsService {
       include: { baseUnit: true, attributes: true },
       orderBy: { nameAr: 'asc' },
     });
+  }
+
+  /** يرفع صورة الصنف (§5.1) ويحفظها في ObjectStorage تحت items/{companyId}/{id}/… */
+  async uploadImage(id: number, dataUrl: string, companyId: number | null = null, userId?: number) {
+    const item = await this.findOne(id, companyId);
+    if (!this.storage) {
+      throw new ConflictException('Object storage is not configured');
+    }
+    const match = DATA_URL_RE.exec(dataUrl);
+    if (!match) {
+      throw new UnsupportedMediaTypeException('dataUrl must be a base64 image data URL (png/jpeg/webp/gif)');
+    }
+    const mime = match[1] ?? '';
+    const buffer = Buffer.from(match[2] ?? '', 'base64');
+    if (buffer.length === 0) throw new UnsupportedMediaTypeException('Image is empty');
+    if (buffer.length > MAX_IMAGE_BYTES) {
+      throw new PayloadTooLargeException(`Image exceeds ${MAX_IMAGE_BYTES} bytes`);
+    }
+    const ext = (mime.split('/')[1] ?? 'png').replace('jpeg', 'jpg');
+    const relPath = `items/${companyId ?? 'global'}/${id}/${Date.now()}.${ext}`;
+    const storageId = await this.storage.save(relPath, buffer);
+    try {
+      const updated = await this.prisma.item.update({
+        where: { id },
+        data: { imageUrl: storageId },
+        include: {
+          category: true,
+          baseUnit: true,
+          brand: true,
+          attributes: true,
+          itemUnits: { include: { unit: true } },
+        },
+      });
+      await this.audits.write({
+        userId,
+        action: 'item.image',
+        entity: 'Item',
+        entityId: id,
+        beforeJson: { imageUrl: item.imageUrl },
+        afterJson: { imageUrl: storageId },
+      });
+      return updated;
+    } catch (err) {
+      await this.storage.remove(storageId).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /** يزيل صورة الصنف (حذف أفضل الجهد من التخزين + تفريغ imageUrl). */
+  async clearImage(id: number, companyId: number | null = null, userId?: number) {
+    const item = await this.findOne(id, companyId);
+    const previous = item.imageUrl;
+    const updated = await this.prisma.item.update({
+      where: { id },
+      data: { imageUrl: null },
+      include: {
+        category: true,
+        baseUnit: true,
+        brand: true,
+        attributes: true,
+        itemUnits: { include: { unit: true } },
+      },
+    });
+    if (previous && this.storage && !previous.startsWith('data:') && !/^https?:\/\//.test(previous)) {
+      await this.storage.remove(previous).catch(() => undefined);
+    }
+    await this.audits.write({
+      userId,
+      action: 'item.image',
+      entity: 'Item',
+      entityId: id,
+      beforeJson: { imageUrl: previous },
+      afterJson: { imageUrl: null },
+    });
+    return updated;
+  }
+
+  /** مصدر صورة الصنف: data URL→تمرير، http(s)→تحويل، وإلا كائن مخزّن→تحميل. */
+  async getImageSource(id: number, companyId: number | null = null): Promise<ItemImageSource> {
+    const item = await this.findOne(id, companyId);
+    const url = item.imageUrl;
+    if (!url) throw new NotFoundException(`Item #${id} has no image`);
+    if (url.startsWith('data:')) {
+      const match = /^data:([^;,]+);base64,(.*)$/s.exec(url);
+      if (!match) throw new NotFoundException(`Item #${id} image data URL is malformed`);
+      return { kind: 'buffer', mime: match[1] ?? 'application/octet-stream', buffer: Buffer.from(match[2] ?? '', 'base64') };
+    }
+    if (/^https?:\/\//.test(url)) return { kind: 'redirect', url };
+    if (!this.storage) throw new NotFoundException('Object storage is not configured');
+    const buffer = await this.storage.load(url);
+    const ext = url.split('.').pop()?.toLowerCase() ?? '';
+    return { kind: 'buffer', mime: IMAGE_MIME[ext] ?? 'application/octet-stream', buffer };
   }
 
   /** تحويل كمية بين وحدات صنف عبر معاملات الوحدة الأساسية — قبول المرحلة 1. */

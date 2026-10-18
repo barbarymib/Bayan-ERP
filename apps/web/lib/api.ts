@@ -73,6 +73,8 @@ export interface Item {
   lastPurchaseAt: string | null;
   imageUrl: string | null;
   parentItemId: number | null;
+  parent?: { id: number; code: string; nameAr: string } | null;
+  _count?: { variants: number };
   trackBatch: boolean;
   active: boolean;
 }
@@ -636,6 +638,21 @@ export const patch = <T>(path: string, body: unknown) => request<T>(path, { meth
 export const del = (path: string) => request<unknown>(path, { method: 'DELETE' });
 export const delBody = <T>(path: string, body: unknown) =>
   request<T>(path, { method: 'DELETE', body: JSON.stringify(body) });
+
+/** يجلب استجابة نصية مُصادَق عليها (مثل SVG الملصقات) دون فك JSON. */
+export async function getText(path: string, allowRefresh = true): Promise<string> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}${path}`, { headers });
+  if (res.status === 401) {
+    if (allowRefresh && (await tryRefresh())) return getText(path, false);
+    clearToken();
+    throw new ApiError(401, 'انتهت الجلسة، برجاء تسجيل الدخول من جديد');
+  }
+  if (!res.ok) throw new ApiError(res.status, `فشل الطلب (${res.status})`);
+  return res.text();
+}
 
 export const qs = (params: Record<string, string | number | boolean | undefined>): string => {
   const esc = new URLSearchParams();

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { can, get, post, patch, qs, type Customer, type CustomersPage, type PriceList } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { ItemLabelModal } from '@/components/item-label-modal';
 import {
   Badge,
   Button,
@@ -35,6 +36,7 @@ export default function CustomersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<Customer | null>(null);
   const [rateRow, setRateRow] = useState<Customer | null>(null);
+  const [qrRow, setQrRow] = useState<Customer | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -144,6 +146,9 @@ export default function CustomersPage() {
                   <Td>{c.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
                   <Td>
                     <div className="flex gap-1">
+                      <Button variant="ghost" onClick={() => setQrRow(c)}>
+                        QR
+                      </Button>
                       {canRate ? (
                         <Button variant="ghost" onClick={() => setRateRow(c)}>
                           تقييم
@@ -209,6 +214,16 @@ export default function CustomersPage() {
             setNotice('تم حفظ تقييم السداد');
             setRefresh((s) => s + 1);
           }}
+        />
+      ) : null}
+
+      {qrRow ? (
+        <ItemLabelModal
+          kind="customer"
+          code={qrRow.code}
+          nameAr={qrRow.nameAr}
+          subtitle={qrRow.phone ?? undefined}
+          onClose={() => setQrRow(null)}
         />
       ) : null}
     </div>

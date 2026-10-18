@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
+  API_URL,
   can,
   get,
   post,
@@ -16,6 +17,8 @@ import {
   type ItemsPage,
   type Unit,
 } from '@/lib/api';
+import { fileToDataUrl } from '@/lib/image';
+import { ItemLabelModal } from '@/components/item-label-modal';
 import { useAuth } from '@/lib/auth';
 import {
   Badge,
@@ -117,6 +120,7 @@ export default function ItemsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
   const [batchItem, setBatchItem] = useState<Item | null>(null);
+  const [labelItem, setLabelItem] = useState<Item | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
@@ -192,12 +196,23 @@ export default function ItemsPage() {
                     <div className="flex items-center gap-2">
                       {item.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.imageUrl} alt={item.nameAr} className="h-8 w-8 rounded object-cover" />
+                        <img
+                          src={`${API_URL}/items/${item.id}/image`}
+                          alt={item.nameAr}
+                          className="h-8 w-8 rounded object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
                       ) : null}
                       <div>
                         <div className="font-semibold">{item.nameAr}</div>
                         {item.nameEn ? <div className="text-xs text-gray-400">{item.nameEn}</div> : null}
-                        {item.parentItemId ? <div className="text-xs text-blue-500">تنويعة</div> : null}
+                        {item.parent ? (
+                          <div className="text-xs text-blue-500">تنويع من {item.parent.nameAr}</div>
+                        ) : item._count && item._count.variants > 0 ? (
+                          <div className="text-xs text-blue-500">الأساسي · {item._count.variants} تنويع</div>
+                        ) : null}
                       </div>
                     </div>
                   </Td>
@@ -219,33 +234,52 @@ export default function ItemsPage() {
                   </Td>
                   <Td>{formatMoney(item.minStock)}</Td>
                   <Td>{item.minSalePrice != null ? formatMoney(item.minSalePrice) : '—'}</Td>
-                  <Td>{item.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
                   <Td>
-                    {manage ? (
-                      <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setEditItem(item)}>
-                          تعديل
-                        </Button>
-                        {item.trackBatch ? (
-                          <Button variant="ghost" onClick={() => setBatchItem(item)}>
-                            الدفعات
-                          </Button>
-                        ) : null}
-                        {item.active ? (
-                          <Button
-                            variant="ghost"
-                            onClick={async () => {
-                              await del(`/items/${item.id}`);
-                              setNotice(`تم إيقاف ${item.code}`);
-                              setRefresh((s) => s + 1);
-                            }}
-                            className="!text-red-600"
-                          >
-                            إيقاف
-                          </Button>
+                    {item.lastPurchaseCost != null ? (
+                      <div>
+                        <div>{formatMoney(item.lastPurchaseCost)}</div>
+                        {item.lastPurchaseAt ? (
+                          <div className="text-xs text-gray-400">
+                            {new Date(item.lastPurchaseAt).toLocaleDateString('ar-EG')}
+                          </div>
                         ) : null}
                       </div>
-                    ) : null}
+                    ) : (
+                      '—'
+                    )}
+                  </Td>
+                  <Td>{item.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
+                  <Td>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" onClick={() => setLabelItem(item)}>
+                        ملصق
+                      </Button>
+                      {manage ? (
+                        <>
+                          <Button variant="ghost" onClick={() => setEditItem(item)}>
+                            تعديل
+                          </Button>
+                          {item.trackBatch ? (
+                            <Button variant="ghost" onClick={() => setBatchItem(item)}>
+                              الدفعات
+                            </Button>
+                          ) : null}
+                          {item.active ? (
+                            <Button
+                              variant="ghost"
+                              onClick={async () => {
+                                await del(`/items/${item.id}`);
+                                setNotice(`تم إيقاف ${item.code}`);
+                                setRefresh((s) => s + 1);
+                              }}
+                              className="!text-red-600"
+                            >
+                              إيقاف
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
                   </Td>
                 </tr>
               ))
@@ -297,6 +331,16 @@ export default function ItemsPage() {
       ) : null}
 
       {batchItem ? <BatchesModal item={batchItem} canManage={manage} onClose={() => setBatchItem(null)} /> : null}
+
+      {labelItem ? (
+        <ItemLabelModal
+          kind="item"
+          code={labelItem.code}
+          nameAr={labelItem.nameAr}
+          subtitle={labelItem.category?.nameAr ?? undefined}
+          onClose={() => setLabelItem(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -489,7 +533,7 @@ function CreateItemModal({
     setBusy(true);
     setError(null);
     try {
-      await post('/items', {
+      const created = await post<Item>('/items', {
         code: code.trim(),
         nameAr: nameAr.trim(),
         nameEn: nameEn.trim() || undefined,
@@ -500,7 +544,6 @@ function CreateItemModal({
         minStock: Number(minStock) || 0,
         minSalePrice: minSalePrice.trim() === '' ? undefined : Number(minSalePrice),
         barcode: barcode.trim() || undefined,
-        imageUrl: imageUrl.trim() || undefined,
         trackBatch,
         itemUnits: unitRows
           .filter((r) => r.unitCode)
@@ -514,6 +557,7 @@ function CreateItemModal({
           })),
         attributes: attrs.filter((a) => a.key.trim()).map((a) => ({ key: a.key.trim(), value: a.value.trim() })),
       });
+      if (imageUrl) await post(`/items/${created.id}/image`, { dataUrl: imageUrl });
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل إنشاء الصنف');
@@ -583,8 +627,32 @@ function CreateItemModal({
         <Field label="باركود">
           <TextInput value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         </Field>
-        <Field label="رابط الصورة">
-          <TextInput value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
+        <Field label="صورة الصنف">
+          <div className="flex items-center gap-2">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="" className="h-10 w-10 rounded border object-cover" />
+            ) : null}
+            <input
+              type="file"
+              accept="image/*"
+              className="text-sm text-gray-600 file:me-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-1"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  setImageUrl(await fileToDataUrl(file));
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'تعذّر قراءة الصورة');
+                }
+              }}
+            />
+            {imageUrl ? (
+              <Button variant="ghost" onClick={() => setImageUrl('')}>
+                إزالة
+              </Button>
+            ) : null}
+          </div>
         </Field>
       </div>
       <label className="mb-2 flex items-center gap-2 text-sm text-gray-700">
@@ -637,7 +705,8 @@ function EditItemModal({
   const [minStock, setMinStock] = useState(item.minStock);
   const [minSalePrice, setMinSalePrice] = useState(item.minSalePrice ?? '');
   const [barcode, setBarcode] = useState(item.barcode ?? '');
-  const [imageUrl, setImageUrl] = useState(item.imageUrl ?? '');
+  const [imageDataUrl, setImageDataUrl] = useState('');
+  const [hasImage, setHasImage] = useState(!!item.imageUrl);
   const [trackBatch, setTrackBatch] = useState(item.trackBatch);
   const [active, setActive] = useState(item.active);
   const [parentItemId, setParentItemId] = useState(item.parentItemId ? String(item.parentItemId) : '');
@@ -670,7 +739,6 @@ function EditItemModal({
         minStock: Number(minStock) || 0,
         minSalePrice: minSalePrice.trim() === '' ? undefined : Number(minSalePrice),
         barcode: barcode.trim() || undefined,
-        imageUrl: imageUrl.trim() || undefined,
         trackBatch,
         active,
         parentItemId: parentItemId ? Number(parentItemId) : undefined,
@@ -686,6 +754,7 @@ function EditItemModal({
           })),
         attributes: attrs.filter((a) => a.key.trim()).map((a) => ({ key: a.key.trim(), value: a.value.trim() })),
       });
+      if (imageDataUrl) await post(`/items/${item.id}/image`, { dataUrl: imageDataUrl });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل تحديث الصنف');
@@ -752,8 +821,54 @@ function EditItemModal({
         <Field label="باركود">
           <TextInput value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         </Field>
-        <Field label="رابط الصورة">
-          <TextInput value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+        <Field label="صورة الصنف">
+          <div className="flex items-center gap-2">
+            {imageDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageDataUrl} alt="" className="h-10 w-10 rounded border object-cover" />
+            ) : hasImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`${API_URL}/items/${item.id}/image`}
+                alt=""
+                className="h-10 w-10 rounded border object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : null}
+            <input
+              type="file"
+              accept="image/*"
+              className="text-sm text-gray-600 file:me-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-1"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  setImageDataUrl(await fileToDataUrl(file));
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'تعذّر قراءة الصورة');
+                }
+              }}
+            />
+            {hasImage || imageDataUrl ? (
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  setImageDataUrl('');
+                  if (!hasImage) return;
+                  try {
+                    await del(`/items/${item.id}/image`);
+                    setHasImage(false);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'تعذّر إزالة الصورة');
+                  }
+                }}
+              >
+                إزالة
+              </Button>
+            ) : null}
+          </div>
         </Field>
       </div>
       <div className="mb-2 flex flex-wrap gap-4 text-sm text-gray-700">

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
@@ -236,4 +237,17 @@ export class QueryItemsDto {
   @Min(1)
   @IsPositive()
   limit?: number;
+}
+
+/** رفع صورة صنف (§5.1 صور للأصناف) — data URL base64، يُخزّن في ObjectStorage. */
+export class UploadItemImageDto {
+  @ApiProperty({
+    description: 'data URL لصورة الصنف (png/jpeg/webp/gif، ≤5MB بعد فك base64)',
+    example: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ…',
+  })
+  @IsString()
+  @Matches(/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+=*$/, {
+    message: 'dataUrl must be a base64 image data URL (png/jpeg/webp/gif)',
+  })
+  dataUrl!: string;
 }

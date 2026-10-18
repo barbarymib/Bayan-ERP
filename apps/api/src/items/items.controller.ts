@@ -4,16 +4,19 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CurrentUser, Permissions, type AuthUser } from '../auth/auth.decorators.js';
 import { ItemsService } from './items.service.js';
-import { CreateItemDto, QueryItemsDto, UpdateItemDto } from './items.dto.js';
+import { CreateItemDto, QueryItemsDto, UpdateItemDto, UploadItemImageDto } from './items.dto.js';
 
 @ApiTags('items')
 @ApiBearerAuth()
@@ -46,6 +49,32 @@ export class ItemsController {
   @ApiOkResponse({ description: 'تنويعات الصنف الأساسي' })
   variants(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
     return this.items.variants(id, user.companyId ?? null);
+  }
+
+  @Post(':id/image')
+  @Permissions('item.manage')
+  @ApiCreatedResponse({ description: 'رفع صورة الصنف (data URL base64) — §5.1' })
+  uploadImage(@Param('id', ParseIntPipe) id: number, @Body() dto: UploadItemImageDto, @CurrentUser() user: AuthUser) {
+    return this.items.uploadImage(id, dto.dataUrl, user.companyId ?? null, user.id);
+  }
+
+  @Delete(':id/image')
+  @Permissions('item.manage')
+  @ApiOkResponse({ description: 'إزالة صورة الصنف' })
+  removeImage(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+    return this.items.clearImage(id, user.companyId ?? null, user.id);
+  }
+
+  @Get(':id/image')
+  @Header('Cache-Control', 'private, max-age=300')
+  @ApiOkResponse({ description: 'صورة الصنف (تمرير data URL، تحويل روابط http، أو تحميل من التخزين)' })
+  async image(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser, @Res() res: Response) {
+    const src = await this.items.getImageSource(id, user.companyId ?? null);
+    if (src.kind === 'redirect') {
+      res.redirect(src.url);
+      return;
+    }
+    res.header('Content-Type', src.mime).send(src.buffer);
   }
 
   @Get(':id')
