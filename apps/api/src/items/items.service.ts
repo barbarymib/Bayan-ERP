@@ -82,7 +82,7 @@ export class ItemsService {
           : undefined,
         itemUnits: unitRows ? { create: unitRows } : undefined,
       },
-      include: { category: true, baseUnit: true, brand: true, itemUnits: true, attributes: true },
+      include: { category: true, baseUnit: true, brand: true, itemUnits: { include: { unit: true } }, attributes: true },
     });
 
     await this.audits.write({
@@ -196,7 +196,7 @@ export class ItemsService {
         itemUnits: unitRows ? { deleteMany: {}, create: unitRows } : undefined,
         attributes: attrRows ? { deleteMany: {}, create: attrRows } : undefined,
       },
-      include: { category: true, baseUnit: true, brand: true, itemUnits: true, attributes: true },
+      include: { category: true, baseUnit: true, brand: true, itemUnits: { include: { unit: true } }, attributes: true },
     });
 
     await this.audits.write({
