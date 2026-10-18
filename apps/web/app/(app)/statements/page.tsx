@@ -67,6 +67,7 @@ export default function StatementsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [status, setStatus] = useState('');
+  const [staleDraftDays, setStaleDraftDays] = useState(3);
   const [notice, setNotice] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [viewRow, setViewRow] = useState<PriceStatement | null>(null);
@@ -78,6 +79,7 @@ export default function StatementsPage() {
       .then((d) => {
         if (!cancelled) {
           setRows(d.items);
+          setStaleDraftDays(d.staleDraftDays ?? 3);
           setError(null);
         }
       })
@@ -91,6 +93,8 @@ export default function StatementsPage() {
       cancelled = true;
     };
   }, [status, refresh]);
+
+  const staleDrafts = rows.filter((s) => s.isStaleDraft);
 
   return (
     <div>
@@ -106,6 +110,13 @@ export default function StatementsPage() {
       {notice ? (
         <div className="mb-3">
           <Notice type="success">{notice}</Notice>
+        </div>
+      ) : null}
+
+      {staleDrafts.length > 0 ? (
+        <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          تنبيه: {staleDrafts.length} بيان مسودة مضى عليه أكثر من {staleDraftDays} يوم دون اعتماد — راجع
+          الأسعار فقد تكون تغيّرت.
         </div>
       ) : null}
 
@@ -164,7 +175,12 @@ export default function StatementsPage() {
                   <Td className="font-bold">{formatMoney(s.net)}</Td>
                   <Td>{s._count?.lines ?? '—'}</Td>
                   <Td>
-                    <Badge color={statusColor[s.status]}>{statusLabel[s.status]}</Badge>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge color={statusColor[s.status]}>{statusLabel[s.status]}</Badge>
+                      {s.isStaleDraft ? (
+                        <Badge color="amber">مسودة قديمة {s.ageDays} يوم</Badge>
+                      ) : null}
+                    </div>
                   </Td>
                   <Td className="flex gap-1">
                     <Button variant="ghost" onClick={() => setViewRow(s)}>
@@ -520,6 +536,12 @@ function StatementDetailModal({ statement, onClose }: { statement: PriceStatemen
         <span className="text-gray-500">دفع: {s.paymentTerm}</span>
         <span className="text-gray-500">المخزن: {s.warehouse.nameAr}</span>
       </div>
+
+      {s.isStaleDraft ? (
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          هذه مسودة مضى عليها {s.ageDays} يوم دون اعتماد — تحقق من الأسعار قبل الاعتماد.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mb-3">

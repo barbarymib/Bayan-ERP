@@ -1,6 +1,11 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { PriceStatementsService } from '../src/price-statements/price-statements.service.js';
+import {
+  computeStaleDraft,
+  isDraftStatementStatus,
+  PriceStatementsService,
+  statementAgeDays,
+} from '../src/price-statements/price-statements.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
 import type { NumberingService } from '../src/numbering.service.js';
 import type { PeriodsService } from '../src/common/periods.service.js';
@@ -46,6 +51,8 @@ function makeStatement(overrides: Record<string, unknown> = {}) {
     repId: null,
     number: 'BP-000007',
     date: new Date('2026-10-01'),
+    createdAt: new Date('2026-10-01'),
+    updatedAt: new Date('2026-10-01'),
     paymentTerm: 'CREDIT',
     paid: 0,
     net: 100,
@@ -83,9 +90,14 @@ function harness(
   stOverrides: Record<string, unknown> = {},
   maxRevision: number | null = null,
   itemOverrides: Record<string, unknown> = {},
-  opts: { customer?: Record<string, unknown>; blockCredit?: boolean; assignments?: number[] } = {},
-): Harness {
-  const st = makeStatement(stOverrides);
+  opts: {
+    customer?: Record<string, unknown>;
+    blockCredit?: boolean;
+    assignments?: number[];
+    staleDays?: number;
+    listRows?: Record<string, unknown>[];
+  } = {},
+): Harness {  const st = makeStatement(stOverrides);
   const calls: Harness['calls'] = {
     revisions: [],
     restock: [],
@@ -137,7 +149,7 @@ function harness(
       findUnique: async () => st,
       findMany: async (args: { where: Record<string, unknown> }) => {
         calls.statementFindMany.push(args);
-        return [];
+        return opts.listRows ?? [];
       },
       count: async () => 0,
       create: async () => ({ ...st, id: 99, lines: [] }),
@@ -162,14 +174,19 @@ function harness(
     },
     unit: { findUnique: async () => ({ id: 6, code: 'PCS' }) },
     itemUnit: { findUnique: async () => null },
-    approval: { findMany: async () => [] },
-    customerRepAssignment: {
+    approval: { findMany: async () => [] },    customerRepAssignment: {
       findMany: async () => (opts.assignments ?? []).map((customerId) => ({ customerId })),
       findFirst: async (args: { where?: { customerId?: number } } = {}) =>
         (opts.assignments ?? []).includes(args.where?.customerId ?? -1) ? { id: 1 } : null,
     },
     statementRevision: {
       findMany: async () => calls.revisions.map((r, i) => ({ id: i + 1, ...r.data, createdAt: new Date() })),
+    },
+    systemSetting: {
+      findUnique: async () =>
+        opts.staleDays != null
+          ? { key: 'statement.stale_draft_days', value: String(opts.staleDays) }
+          : null,
     },
     $transaction: async (fn: (t: unknown) => Promise<unknown>) => fn(tx),
   } as unknown as PrismaService;
@@ -562,5 +579,57 @@ describe('PriceStatementsService weight note (R3-A6 §5.2)', () => {
         editor,
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('stale draft helpers (R3-E4 §11)', () => {
+  const now = new Date('2026-10-18T00:00:00Z');
+
+  it('يعرف حالات المسودة', () => {
+    expect(isDraftStatementStatus('DRAFT')).toBe(true);
+    expect(isDraftStatementStatus('PENDING_REVIEW')).toBe(true);
+    expect(isDraftStatementStatus('APPROVED')).toBe(false);
+    expect(isDraftStatementStatus('ARCHIVED')).toBe(false);
+  });
+
+  it('يحسب العمر بالأيام من آخر تعديل', () => {
+    expect(statementAgeDays('2026-10-15T00:00:00Z', now)).toBe(3);
+    expect(statementAgeDays('2026-10-18T00:00:00Z', now)).toBe(0);
+    expect(statementAgeDays('2026-10-20T00:00:00Z', now)).toBe(0);
+  });
+
+  it('يعدّ المسودة قديمة عند بلوغ العتبة', () => {
+    expect(computeStaleDraft('DRAFT', '2026-10-14T00:00:00Z', 3, now).isStaleDraft).toBe(true);
+    expect(computeStaleDraft('DRAFT', '2026-10-16T00:00:00Z', 3, now).isStaleDraft).toBe(false);
+  });
+
+  it('لا يعدّ البيان المعتمد قديماً مهما طال عمره', () => {
+    expect(computeStaleDraft('APPROVED', '2026-01-01T00:00:00Z', 3, now).isStaleDraft).toBe(false);
+  });
+});
+
+describe('PriceStatementsService stale draft in list/get (R3-E4 §11)', () => {
+  const now = new Date();
+  const oldDraft = { ...makeStatement({ status: 'DRAFT' }), updatedAt: new Date(now.getTime() - 5 * 86_400_000) };
+
+  it('يوسم المسودة القديمة في القائمة ويرجع العتبة', async () => {
+    const { service } = harness({}, null, {}, { staleDays: 3, listRows: [oldDraft] });
+    const res = await service.list({}, approver);
+    expect(res.staleDraftDays).toBe(3);
+    expect(res.items[0]!.isStaleDraft).toBe(true);
+    expect(res.items[0]!.ageDays).toBe(5);
+  });
+
+  it('يرجع العتبة الافتراضية 3 عند غياب الإعداد', async () => {
+    const { service } = harness({}, null, {}, { listRows: [oldDraft] });
+    const res = await service.list({}, approver);
+    expect(res.staleDraftDays).toBe(3);
+  });
+
+  it('يوسم البيان القديم في get أيضاً', async () => {
+    const { service } = harness({ status: 'DRAFT', updatedAt: new Date(now.getTime() - 4 * 86_400_000) }, null, {}, { staleDays: 3 });
+    const res = await service.get(7, approver);
+    expect(res.isStaleDraft).toBe(true);
+    expect(res.ageDays).toBe(4);
   });
 });

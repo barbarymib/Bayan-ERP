@@ -30,6 +30,38 @@ import type { CancelStatementDto, CreateStatementDto, QueryStatementsDto, Update
 const toDbDiscountType = (t?: 'percent' | 'amount'): 'PERCENT' | 'AMOUNT' | null =>
   t === 'percent' ? 'PERCENT' : t === 'amount' ? 'AMOUNT' : null;
 
+/** الحالات التي تُعدّ «مسودة قديمة» إن طالت إقامتها (§11: تحذير للبيانات المسودة القديمة). */
+export const DRAFT_STATEMENT_STATUSES = ['DRAFT', 'PENDING_REVIEW'] as const;
+
+/** الإعداد: عدد الأيام التي بعدها يُعدّ البيان المسودة قديماً (افتراضي 3). */
+export const STALE_DRAFT_SETTING_KEY = 'statement.stale_draft_days';
+export const STALE_DRAFT_DEFAULT_DAYS = 3;
+
+export function isDraftStatementStatus(status: string): boolean {
+  return (DRAFT_STATEMENT_STATUSES as readonly string[]).includes(status);
+}
+
+/** عُمر البيان بالأيام (من آخر تعديل) — لا يقلّ عن صفر. */
+export function statementAgeDays(updatedAt: Date | string, now: Date = new Date()): number {
+  const at = updatedAt instanceof Date ? updatedAt : new Date(updatedAt);
+  const ms = now.getTime() - at.getTime();
+  return ms <= 0 ? 0 : Math.floor(ms / 86_400_000);
+}
+
+/** يحسب هل البيان مسودة قديمة بحسب حالته وعُمره وعتبة الأيام. */
+export function computeStaleDraft(
+  status: string,
+  updatedAt: Date | string,
+  staleDays: number,
+  now: Date = new Date(),
+): { ageDays: number; isStaleDraft: boolean } {
+  const ageDays = statementAgeDays(updatedAt, now);
+  return {
+    ageDays,
+    isStaleDraft: isDraftStatementStatus(status) && ageDays >= Math.max(0, staleDays),
+  };
+}
+
 interface ResolvedLine {
   item: { id: number; code: string; baseUnitId: number; lastPurchaseCost: number | null };
   unitId: number;
@@ -532,7 +564,9 @@ export class PriceStatementsService {
         ...(query.status ? { status: query.status } : {}),
       },
     });
-    return { total, items: rows };
+    const staleDays = await this.staleDraftDays();
+    const items = rows.map((r) => ({ ...r, ...computeStaleDraft(r.status, r.updatedAt, staleDays) }));
+    return { total, items, staleDraftDays: staleDays };
   }
 
   async get(id: number, user: AuthUser) {
@@ -554,7 +588,14 @@ export class PriceStatementsService {
       orderBy: { revisionNo: 'desc' },
       select: { id: true, revisionNo: true, reason: true, changedById: true, createdAt: true },
     });
-    return { ...this.stripCost(st, user), approvals, revisions };
+    const staleDays = await this.staleDraftDays();
+    return {
+      ...this.stripCost(st, user),
+      ...computeStaleDraft(st.status, st.updatedAt, staleDays),
+      staleDraftDays: staleDays,
+      approvals,
+      revisions,
+    };
   }
 
   async cancel(id: number, dto: CancelStatementDto, user: AuthUser) {
@@ -907,5 +948,19 @@ export class PriceStatementsService {
     const discount: Discount =
       dbType === 'PERCENT' ? { type: 'percent', value: Number(value) } : { type: 'amount', value: Number(value) };
     return discountToPercent(discount, base);
+  }
+
+  /** عتبة «المسودة القديمة» بالأيام من الإعدادات (افتراضي 3) (§11). */
+  private async staleDraftDays(): Promise<number> {
+    try {
+      const setting = await this.prisma.systemSetting.findUnique({
+        where: { key: STALE_DRAFT_SETTING_KEY },
+      });
+      if (!setting) return STALE_DRAFT_DEFAULT_DAYS;
+      const n = Number(String(setting.value).trim());
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : STALE_DRAFT_DEFAULT_DAYS;
+    } catch {
+      return STALE_DRAFT_DEFAULT_DAYS;
+    }
   }
 }

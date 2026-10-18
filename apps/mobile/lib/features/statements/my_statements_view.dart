@@ -79,3 +79,24 @@ String statementStatusLabel(String status) {
       return status;
   }
 }
+
+/// عتبة «المسودة القديمة» بالأيام — تحذير بتغيّر الأسعار (§11).
+const int kStaleDraftDays = 3;
+
+/// هل الحالة مسودة/بانتظار مراجعة؟
+bool isDraftStatus(String status) => status == 'DRAFT' || status == 'PENDING_REVIEW';
+
+/// هل الكشف مسودة قديمة (مضى على تاريخه [days] يوماً دون اعتماد)؟
+bool isStaleDraft(
+  StatementSummary s, {
+  DateTime? now,
+  int days = kStaleDraftDays,
+}) {
+  if (!isDraftStatus(s.status)) return false;
+  final ref = now ?? DateTime.now();
+  return ref.difference(s.date).inDays >= days;
+}
+
+/// عدد الكشوفات المسودّة القديمة في القائمة.
+int staleDraftCount(List<StatementSummary> statements, {DateTime? now, int days = kStaleDraftDays}) =>
+    statements.where((s) => isStaleDraft(s, now: now, days: days)).length;

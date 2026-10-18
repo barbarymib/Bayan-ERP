@@ -38,6 +38,10 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _summaryCards(store.statements, store.customers),
+          if (staleDraftCount(store.statements) > 0) ...[
+            const SizedBox(height: 8),
+            _staleBanner(staleDraftCount(store.statements)),
+          ],
           const SizedBox(height: 12),
           TextField(
             decoration: const InputDecoration(
@@ -138,6 +142,7 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
           children: [
             Text(fmtMoney(s.net), style: const TextStyle(fontWeight: FontWeight.w600)),
             _statusChip(context, s.status),
+            if (isStaleDraft(s)) _staleChip(context),
           ],
         ),
       ),
@@ -154,6 +159,38 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
         child: Text(
           statementStatusLabel(status),
           style: TextStyle(fontSize: 11, color: _statusColor(context, status)),
+        ),
+      );
+
+  Widget _staleChip(BuildContext context) => Container(
+        margin: const EdgeInsets.only(top: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade100,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          'مسودة قديمة',
+          style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+        ),
+      );
+
+  Widget _staleBanner(int count) => Card(
+        color: Colors.amber.shade50,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'تنبيه: $count كشف مسودّة مضى عليه أكثر من $kStaleDraftDays أيام — راجع الأسعار.',
+                  style: TextStyle(color: Colors.amber.shade900),
+                ),
+              ),
+            ],
+          ),
         ),
       );
 

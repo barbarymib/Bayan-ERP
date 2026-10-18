@@ -118,4 +118,41 @@ void main() {
       expect(statementStatusLabel('WEIRD'), 'WEIRD');
     });
   });
+
+  group('isStaleDraft (R3-E4 §11)', () {
+    StatementSummary at(String status, DateTime date) => StatementSummary(
+          id: 1,
+          number: 'BP-1',
+          customerId: 1,
+          date: date,
+          status: status,
+          net: 0,
+        );
+    final now = DateTime(2026, 10, 18);
+
+    test('مسودة مضى عليها 5 أيام تُعدّ قديمة', () {
+      expect(isStaleDraft(at('DRAFT', DateTime(2026, 10, 13)), now: now), isTrue);
+    });
+
+    test('مسودة حديثة لا تُعدّ قديمة', () {
+      expect(isStaleDraft(at('DRAFT', DateTime(2026, 10, 17)), now: now), isFalse);
+    });
+
+    test('كشف معتمد لا يُعدّ قديماً مهما مضى', () {
+      expect(isStaleDraft(at('APPROVED', DateTime(2026, 1, 1)), now: now), isFalse);
+    });
+
+    test('العتبة قابلة للتخصيص', () {
+      expect(isStaleDraft(at('DRAFT', DateTime(2026, 10, 16)), now: now, days: 2), isTrue);
+    });
+
+    test('staleDraftCount يحصر المسودات القديمة فقط', () {
+      final list = [
+        at('DRAFT', DateTime(2026, 10, 13)),
+        at('APPROVED', DateTime(2026, 10, 13)),
+        at('DRAFT', DateTime(2026, 10, 18)),
+      ];
+      expect(staleDraftCount(list, now: now), 1);
+    });
+  });
 }

@@ -205,12 +205,18 @@ export interface PriceStatement {
   approvals?: Approval[];
   creditWarning?: { creditLimit: number; projectedBalance: number; exceeded?: boolean } | null;
   freezeWarning?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  ageDays?: number;
+  isStaleDraft?: boolean;
+  staleDraftDays?: number;
   _count?: { lines: number };
 }
 
 export interface StatementsPage {
   total: number;
   items: PriceStatement[];
+  staleDraftDays?: number;
 }
 
 export type ReturnStatus = 'DRAFT' | 'APPROVED' | 'CANCELLED';
