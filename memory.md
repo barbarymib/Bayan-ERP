@@ -29,6 +29,15 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B8: customer rep-transfer history UI (2026-10-18)
+- **Spec §5.4 (GAP R3-B8, was PARTIAL):** backend tracked `CustomerRepAssignment` (auto-managed by `syncAssignment` on rep change) but there was no UI to view the transfer history.
+- **Schema fact:** `CustomerRepAssignment` has `repId` as a **bare scalar** (no `rep User @relation`), so rep names are resolved in the service — avoided a FK migration.
+- **API** `customers.service.ts findOne`: `assignments` `take` 5→**50**; after fetch, batch `prisma.user.findMany({id in repIds})`, map → `assignments[].rep = {id,name,repCode}|null`; returns `{...customer, assignments}`.
+- **Web:** `lib/api.ts` +`CustomerRepAssignment {id, repId, fromDate, toDate, rep}` + `Customer.assignments?`. `customers/page.tsx` `CustomerModal`: `editCustomerId = customer?.id`; effect fetches `get<Customer>('/customers/:id')` (dep `[editCustomerId]` to satisfy eslint); renders "سجل نقل المندوب" section (only when editing && assignments non-empty) listing rep name+code and `formatDate(fromDate) → toDate ? formatDate(toDate) : 'حتى الآن'`. `formatDate` added to ui imports.
+- **Spec-fix note:** `tests/customers.service.spec.ts` mock lacked `assignments`/`user.findMany` → 4 then 1 failures. Fixed harness: `user.findMany: async()=>[]`, and `customer.findUnique` returns `{assignments:[], ...base}` but **returns `null` when `options.customer===null`** (spreading null would otherwise yield `{assignments:[]}` and break the not-found test). → **api 425/425**.
+- **Live-verify 2026-10-18:** cloned rep M04 (id6) via psql (quoted camelCase columns — unquoted folds to lowercase and errors); PATCH cust1 repCode M03 then M04 → `GET /customers/1` returned 2 assignments with resolved names (M04 `toDate=null`, M03 `toDate` set). Cleaned up (deleted assignments, repId→NULL, deleted M04). Commit `87555ec`.
+- **psql gotcha:** always double-quote camelCase identifiers (`"passwordHash"`); unquoted → `passwordhash` → "column does not exist".
+- **Next:** R3-B9 (supplier statement web page) → B12 (creditDays due-date/overdue) → P3/P4.
 ### Completed — R3-B5: live %↔value discount equivalence hints (2026-10-18)
 - **Spec §5.6/§5.3 (GAP R3-B5, was PARTIAL):** server converted discount %↔value but clients never displayed the equivalent during entry.
 - **Shared truth:** `packages/shared/src/discount.ts` → `convertDiscount(discount, base) → {amount, percent}` (and `discountToAmount`/`discountToPercent`); Dart port `apps/mobile/lib/core/calc/discount.dart` has `calcLineDiscount` (mobile line+header discounts are **percent-only** — `_Line.discountType` fixed, header uses `DiscountType.percent`).
