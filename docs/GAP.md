@@ -48,7 +48,7 @@
 - `G15` `FIXED` — §12.3/§12.4 **feature-flag UI hiding**: mobile gates retail print (`printing.retail`); web consumes `GET /auth/features` via `useAuth().featureEnabled` and hides nav (`/geo`→`geotracking.fleet`, `/archives`→`archiving.core`) + in-page tabs (reports valuation→`reports.valuation`, prices bulk→`pricing.bulk`). Commit `78ce01e`.
 - `G16` `FIXED` — §8.1 web **Settings screen**: `/settings` company profile (nameAr/phone/email/contactName via `PATCH /company`) + tax + feature flags. Commit `cdaf82f`.
 - `G17` `FIXED` — §12.3/§12.4 tenant-side **per-user / per-company feature-flag management** (web): `GET/PUT/DELETE /company/features`, per-user overrides, Settings section. Commit `392efa5`.
-- `G18` `PARTIAL` — §5.16 **WhatsApp sharing** (API deep-link `wa.me` exists; web/mobile PDF-attach sharing absent).
+- `G18` `FIXED` — §5.16/§5.6 **WhatsApp sharing** (statement): web print page gets «مشاركة واتساب» — fetches `GET /whatsapp/statement/:id` (was unconsumed), builds PDF blob (`statementPdfBlob` via pdfmake `getBlob`), Web Share API with PDF file when `navigator.canShare` (mobile/Win), else downloads PDF + renders «فتح واتساب» anchor to `wa.me` text link; statements list gets per-row «طباعة» link (print page was unreachable). Mobile PDF share already done (E3 `share_plus` system sheet). commit `a046732`.
 - `G21` `FIXED` — §4.2 **permission-cell mismatches**: removed `rep.track` from `SALES_REP` and `stocktake.view` from `REP_SUPERVISOR`; self geo-reporting split into a new `geo.report` permission (rep/supervisor keep their own shift/location/visit + mobile intact) while fleet-view endpoints stay on `rep.track`/`geo.fleet`. Matrix extracted to `apps/api/src/auth/role-permissions.ts` (single source) + §4.2 regression test. Seed now revokes known perms absent from the matrix. Was: `apps/api/prisma/seed.ts:123`.
 - `G26` `FIXED` — §9 **Hijri dates + Arabic-Indic numerals**: web `formatDateHijri` (Intl `ar-SA-u-ca-islamic-nu-arab`) + `formatDateGregorian` + `formatMoney` (`ar-EG-u-nu-arab`) + `toArabicNumerals`; commit `1ae9732`.
 
@@ -106,7 +106,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 16. **G15** Feature-flag UI hiding. ✅ done (modules: web `useAuth().featureEnabled` from `/auth/features`; nav + reports/prices tabs gated; mobile retail print gate; commit `78ce01e`)
 17. **G16** Web Settings screen. ✅ done (`/settings`: company profile name/phone/email/contact + tax + feature flags; `PATCH /company`; commit `cdaf82f`)
 18. **G17** Tenant-side feature-flag management. ✅ done (company module `GET/PUT/DELETE /company/features`, per-user overrides, web Settings section; commit `392efa5`)
-19. **G18** WhatsApp sharing with PDF.
+19. **G18** WhatsApp sharing with PDF. ✅ done (web statement print page share + wa.me fallback + list print link; mobile via E3; commit `a046732`)
 17. **G19** Item images/variants/QR labels.  `G12` mixed-unit display. **G20** stocktake scoping.
 18. **G26** Hijri + Arabic-Indic numerals (i18n). ✅ done (`ui.tsx` `formatMoney` uses `ar-EG-u-nu-arab`, `formatDateGregorian`/`formatDateHijri` (Intl `ar-SA-u-ca-islamic`), `toArabicNumerals`; commit `1ae9732`)
 
@@ -312,7 +312,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 34. **G15/A3** feature-flag-driven UI hiding (mobile + web) + client flag endpoint. — ✅ FIXED (mobile retail-print gate + web nav/tab gating via `/auth/features`; web typecheck/lint/build 0; live verify commit `78ce01e`)
 35. **G16** web Settings screen. — ✅ FIXED (company profile + tax + features; api 435 tests; web typecheck/lint/build 0; live verify commit `cdaf82f`)
 36. **G17** tenant-side per-user/company feature-flag management (non-global-admin). — ✅ FIXED (api typecheck/433 tests; web typecheck/lint/build 0; live verify commit `392efa5`)
-37. **G18** web WhatsApp/PDF share.
+37. **G18** web WhatsApp/PDF share. — ✅ FIXED (statement share button: API link + PDF blob + Web Share/wa.me fallback; web tc/lint/build 0; live verify: `/whatsapp/statement/1` → `wa.me/20100000001` + Arabic text, pages 200, button+endpoint in served chunks; commit `a046732`)
 38. **R3-F1/F2/F3/F4/F5/F6** mobile screens: my-customers (search/filter/distance), item balances, home KPIs, payment step, settings screen, unified "بياناتي".
 39. **G19** item images/variants/QR labels in web UI.
 40. **R3-B12/B13/B14/B15** credit days usage, customer map picker, `statement.cancel` perm, tax setting. — ✅ ALL FIXED (B15 `444de54`/`19dbadc`; B13 `e23f90c`; B14 `5b3b7a7`; B12 due-date/overdue `f2bd428`)
