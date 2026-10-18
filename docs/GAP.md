@@ -46,8 +46,8 @@
 - `G13` `MISSING` — §5.1/§9 mobile **barcode/QR scanning** (no scanner package in `apps/mobile/lib`).
 - `G14` `PARTIAL` — §5.12 mobile per-line **unit + qty selection**.
 - `G15` `FIXED` — §12.3/§12.4 **feature-flag UI hiding**: mobile gates retail print (`printing.retail`); web consumes `GET /auth/features` via `useAuth().featureEnabled` and hides nav (`/geo`→`geotracking.fleet`, `/archives`→`archiving.core`) + in-page tabs (reports valuation→`reports.valuation`, prices bulk→`pricing.bulk`). Commit `78ce01e`.
-- `G16` `MISSING` — §8.1 web **Settings screen**.
-- `G17` `MISSING` — §12.3/§12.4 tenant-side **per-user / per-company feature-flag management** (web).
+- `G16` `FIXED` — §8.1 web **Settings screen**: `/settings` company profile (nameAr/phone/email/contactName via `PATCH /company`) + tax + feature flags. Commit `cdaf82f`.
+- `G17` `FIXED` — §12.3/§12.4 tenant-side **per-user / per-company feature-flag management** (web): `GET/PUT/DELETE /company/features`, per-user overrides, Settings section. Commit `392efa5`.
 - `G18` `PARTIAL` — §5.16 **WhatsApp sharing** (API deep-link `wa.me` exists; web/mobile PDF-attach sharing absent).
 - `G21` `FIXED` — §4.2 **permission-cell mismatches**: removed `rep.track` from `SALES_REP` and `stocktake.view` from `REP_SUPERVISOR`; self geo-reporting split into a new `geo.report` permission (rep/supervisor keep their own shift/location/visit + mobile intact) while fleet-view endpoints stay on `rep.track`/`geo.fleet`. Matrix extracted to `apps/api/src/auth/role-permissions.ts` (single source) + §4.2 regression test. Seed now revokes known perms absent from the matrix. Was: `apps/api/prisma/seed.ts:123`.
 - `G26` `FIXED` — §9 **Hijri dates + Arabic-Indic numerals**: web `formatDateHijri` (Intl `ar-SA-u-ca-islamic-nu-arab`) + `formatDateGregorian` + `formatMoney` (`ar-EG-u-nu-arab`) + `toArabicNumerals`; commit `1ae9732`.
@@ -58,7 +58,7 @@
 - `G20` — Stocktakes lack category/brand scoping.
 - `G22` `FIXED` — `helmet` added (`apps/api/src/main.ts`): full policies in production; CSP disabled in dev so Swagger UI keeps working.
 - `G23` — Redis/BullMQ configured but unused (no background queues).
-- `G24` — No `prisma migrate` check/guard on boot.
+- `G24` `FIXED` — §12.5 **boot-time migration check**: `apps/api/src/migrations-check/migrations-check.ts` compares `prisma/migrations` folders vs applied `_prisma_migrations` rows; `main.ts` fails boot listing pending (skip: `SKIP_MIGRATION_CHECK=1`); `GET /api/health` reports `migrations: {total, applied, pending}` (`ok`/`degraded`). Commit `fdccb5d`.
 - `G25` — No 50k-row performance benchmark (§9).
 - `G27` `FIXED` — §7.4 **stock-valuation equation** ported to `packages/shared` (`valuation.ts`: `calcStockLineValue`/`calcStockValue`/`weightedAverageCost`/`resolveUnitCost`, methods `LAST`/`WEIGHTED`/`SALES` mirroring `ReportsService.stockValues`) + Dart clone (`apps/mobile/lib/core/calc/valuation.dart`). Was server-only.
 - `G28` — No Dockerfiles.
@@ -112,7 +112,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 
 ### Batch D+ — Infra & ops
 19. **G23** Background queues (Redis/BullMQ) for archive/notifications/reminders.
-20. **G24** Boot-time migration check.
+20. **G24** Boot-time migration check. ✅ done (migrations-check module + boot guard + health migration status; commit `fdccb5d`)
 21. **G25** 50k performance benchmark.
 22. **G28** Dockerfiles.
 
@@ -323,7 +323,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 
 ### Phase P4 — Infra, i18n & NFRs (Low/Medium)
 45. **G23** BullMQ background queues (archive/notifications/reminders) — **R3-E6** restore-test job.
-46. **G24** boot-time migration check.
+46. **G24** boot-time migration check. — ✅ FIXED (api typecheck/lint/440 tests; live verify: healthy boot `35/35`, health `status:ok`, failure path exits non-zero listing pending; commit `fdccb5d`)
 47. **G25/R3-E8** 50k-item + 50-concurrent performance benchmark.
 48. **G26** Hijri calendar + Arabic-Indic numerals. — ✅ FIXED (web `formatDateHijri` via `Intl` `ar-SA-u-ca-islamic` + `formatMoney` Arabic-Indic `ar-EG-u-nu-arab` + `toArabicNumerals`; web typecheck/lint/build 0; commit `1ae9732`)
 49. **G28** Dockerfiles.

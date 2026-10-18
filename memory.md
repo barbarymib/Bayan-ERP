@@ -29,6 +29,14 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — G24: boot-time migration check (2026-10-18)
+- **Spec §12.5 (GAP G24, was MISSING):** boot must verify Prisma schema matches DB (no pending migrations) before serving.
+- **New** `apps/api/src/migrations-check/migrations-check.ts`: `MigrationStatus`, `readMigrationFolders`, `hasSql`, `checkMigrations(migrationsDir, appliedNames)`, `fetchAppliedMigrations(queryRaw)` (tolerates missing `_prisma_migrations` → `[]`), `resolveMigrationsDir()` (tries `cwd/prisma/migrations` then `cwd/../prisma/migrations`; throws if neither). **Gotcha:** API builds CommonJS — `import.meta`/`fileURLToPath` NOT allowed (TS1470); use cwd-based resolution.
+- **`main.ts`:** `assertMigrationsApplied(app)` just before `app.listen`; skips on `SKIP_MIGRATION_CHECK=1`; throws (fails boot, non-zero exit) listing pending migrations; logs `[boot] migrations ok (N/M applied)`.
+- **`health.controller.ts`:** injects `PrismaService`, `async check()` → `status: 'ok'|'degraded'` + `migrations: {total, applied, pending}` (`HealthResponse.migrations?`).
+- **Gates:** api typecheck/lint/440 tests (5 new in `tests/migrations-check.spec.ts`). **Live-verify 2026-10-18:** healthy boot logs `[boot] migrations ok (35/35 applied)`; `GET /api/health` → `status:ok`, `migrations.pending:[]`; failure path (temp unapplied migration folder) exits non-zero with `[boot] Pending Prisma migrations (1/36): …`. Commit `fdccb5d`.
+- **Next:** G28 Dockerfiles, G18 web WhatsApp/PDF share, G19 item images/variants/QR, G29 print templates, G12 mixed-unit display, mobile G26 helper. Then full audit. Blocked: FCM.
+
 ### Completed — G26: Hijri dates + Arabic-Indic numerals (2026-10-18)
 - **Spec §9 (GAP G26, was MISSING):** "RTL, Gregorian with optional Hijri, optional Arabic/Hindi numerals."
 - **Web** `components/ui.tsx`: `formatMoney` now `ar-EG-u-nu-arab` (Arabic-Indic digits); added `formatDateGregorian`, `formatDateHijri` (`Intl.DateTimeFormat('ar-SA-u-ca-islamic-nu-arab')`, catch→Gregorian), `toArabicNumerals` (0-9→٠-٩). `formatDate` delegates to Gregorian (back-compat). No deps needed (native `Intl`).
