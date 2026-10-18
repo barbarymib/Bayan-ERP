@@ -115,6 +115,8 @@ export interface Customer {
   paymentNotes: string | null;
   priceList: PriceList | null;
   rep: UserBrief | null;
+  lat: number | null;
+  lng: number | null;
   active: boolean;
 }
 

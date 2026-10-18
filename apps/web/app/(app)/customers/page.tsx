@@ -299,6 +299,8 @@ function CustomerModal({
   const [creditDays, setCreditDays] = useState(customer?.creditDays ? String(customer.creditDays) : '30');
   const [classification, setClassification] = useState(customer?.classification ?? 'C');
   const [repCode, setRepCode] = useState(customer?.rep?.repCode ?? '');
+  const [lat, setLat] = useState(customer?.lat == null ? '' : String(customer.lat));
+  const [lng, setLng] = useState(customer?.lng == null ? '' : String(customer.lng));
   const [active, setActive] = useState(customer?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -317,6 +319,8 @@ function CustomerModal({
       creditDays: Number(creditDays) || 0,
       classification,
       repCode: repCode.trim() || undefined,
+      lat: lat.trim() === '' ? null : Number(lat),
+      lng: lng.trim() === '' ? null : Number(lng),
       ...(customer ? { active } : {}),
     };
     try {
@@ -328,6 +332,22 @@ function CustomerModal({
       setBusy(false);
     }
   }
+
+  function fillCurrentLocation() {
+    if (!navigator.geolocation) {
+      setError('تحديد الموقع غير مدعوم في هذا المتصفح');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(7));
+        setLng(pos.coords.longitude.toFixed(7));
+      },
+      () => setError('تعذر الحصول على الموقع الحالي'),
+    );
+  }
+
+  const hasLocation = lat.trim() !== '' && lng.trim() !== '';
 
   return (
     <Modal title={customer ? `تعديل ${customer.code}` : 'عميل جديد'} onClose={onClose}>
@@ -372,6 +392,12 @@ function CustomerModal({
         <Field label="كود المندوب">
           <TextInput value={repCode} onChange={(e) => setRepCode(e.target.value)} placeholder="M01" />
         </Field>
+        <Field label="خط العرض">
+          <TextInput value={lat} onChange={(e) => setLat(e.target.value)} type="number" step="any" dir="ltr" placeholder="30.0444200" />
+        </Field>
+        <Field label="خط الطول">
+          <TextInput value={lng} onChange={(e) => setLng(e.target.value)} type="number" step="any" dir="ltr" placeholder="31.2357120" />
+        </Field>
         {customer ? (
           <Field label="الحالة">
             <Select value={active ? '1' : '0'} onChange={(e) => setActive(e.target.value === '1')}>
@@ -379,6 +405,21 @@ function CustomerModal({
               <option value="0">موقوف</option>
             </Select>
           </Field>
+        ) : null}
+      </div>
+      <div className="mb-3 flex items-center gap-2">
+        <Button variant="secondary" type="button" onClick={fillCurrentLocation}>
+          تحديد من الموقع الحالي
+        </Button>
+        {hasLocation ? (
+          <a
+            className="text-sm text-blue-600 underline"
+            href={`https://www.google.com/maps?q=${lat},${lng}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            عرض على الخريطة
+          </a>
         ) : null}
       </div>
       {!customer ? <div className="mb-3 text-xs text-gray-400">يُولَّد كود العميل تلقائياً (C0001, …).</div> : null}
