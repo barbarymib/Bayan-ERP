@@ -403,6 +403,8 @@ model Item {
   trackBatch       Boolean  @default(false)
   minStock         Decimal  @default(0) @db.Decimal(18, 3)
   lastPurchaseCost Decimal? @db.Decimal(18, 4)
+  // تاريخ آخر سعر شراء (§5.3)
+  lastPurchaseAt   DateTime?
   // حد أدنى لسعر البيع للوحدة الأساسية (§5.3) — البيع دونه يتطلب موافقة استثناء
   minSalePrice     Decimal? @db.Decimal(18, 4)
   active           Boolean  @default(true)

@@ -199,7 +199,7 @@ export class PurchasesService {
         if (await this.getAutoUpdateLastCostSetting(tx)) {
           await tx.item.update({
             where: { id: line.itemId },
-            data: { lastPurchaseCost: cost },
+            data: { lastPurchaseCost: cost, lastPurchaseAt: new Date() },
           });
         }
       }

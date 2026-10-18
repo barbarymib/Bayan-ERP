@@ -69,6 +69,8 @@ export interface Item {
   attributes: ItemAttribute[];
   minStock: string;
   minSalePrice: string | null;
+  lastPurchaseCost: string | null;
+  lastPurchaseAt: string | null;
   imageUrl: string | null;
   parentItemId: number | null;
   trackBatch: boolean;
