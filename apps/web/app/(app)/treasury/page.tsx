@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   can,
   get,
@@ -279,6 +280,7 @@ export default function TreasuryPage() {
                   <Th>عهد</Th>
                   <Th>ختامي</Th>
                   <Th>فرق</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
@@ -296,6 +298,14 @@ export default function TreasuryPage() {
                       <Td>{formatMoney(c.handoversTotal)}</Td>
                       <Td className="font-bold">{formatMoney(c.closingBalance)}</Td>
                       <Td>{c.difference === null ? '—' : formatMoney(c.difference)}</Td>
+                      <Td>
+                        <Link
+                          href={`/treasury/daily-close/print?date=${c.date.slice(0, 10)}`}
+                          className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                        >
+                          طباعة
+                        </Link>
+                      </Td>
                     </tr>
                   ))
                 )}

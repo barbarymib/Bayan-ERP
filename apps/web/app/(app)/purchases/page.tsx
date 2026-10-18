@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   can,
   get,
@@ -131,9 +132,17 @@ export default function PurchasesPage() {
                     <Badge color="green">معتمد</Badge>
                   </Td>
                   <Td>
-                    <Button variant="ghost" onClick={() => setViewRow(p)}>
-                      عرض
-                    </Button>
+                    <div className="flex flex-wrap gap-1">
+                      <Button variant="ghost" onClick={() => setViewRow(p)}>
+                        عرض
+                      </Button>
+                      <Link
+                        href={`/purchases/${p.id}/print`}
+                        className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                      >
+                        طباعة
+                      </Link>
+                    </div>
                   </Td>
                 </tr>
               ))

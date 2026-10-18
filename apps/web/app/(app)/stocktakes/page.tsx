@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   can,
   get,
@@ -152,9 +153,17 @@ function ListPane({ canExecute, canApprove }: { canExecute: boolean; canApprove:
                   <Td dir="ltr">{r.summary ? formatMoney(r.summary.totalDiffQty) : '—'}</Td>
                   <Td>{r.summary ? formatMoney(r.summary.totalDiffValue) : '—'}</Td>
                   <Td>
-                    <Button variant="ghost" onClick={() => setSelected(r.id)}>
-                      فتح
-                    </Button>
+                    <div className="flex flex-wrap gap-1">
+                      <Button variant="ghost" onClick={() => setSelected(r.id)}>
+                        فتح
+                      </Button>
+                      <Link
+                        href={`/stocktakes/${r.id}/print`}
+                        className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                      >
+                        طباعة
+                      </Link>
+                    </div>
                   </Td>
                 </tr>
               ))

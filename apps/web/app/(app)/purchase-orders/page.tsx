@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   can,
   get,
@@ -171,6 +172,12 @@ export default function PurchaseOrdersPage() {
                         <Button variant="ghost" onClick={() => setViewRow(o)}>
                           عرض
                         </Button>
+                        <Link
+                          href={`/purchase-orders/${o.id}/print`}
+                          className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                        >
+                          طباعة
+                        </Link>
                         {canApprove && o.status === 'DRAFT' ? (
                           <Button variant="primary" disabled={busyId === o.id} onClick={() => approve(o)}>
                             اعتماد

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   can,
   del,
@@ -166,10 +167,16 @@ export default function ReturnsPage() {
                   <Td>
                     <Badge color={returnStatusColor[r.status]}>{returnStatusLabel[r.status]}</Badge>
                   </Td>
-                  <Td className="flex gap-1">
+                  <Td className="flex flex-wrap gap-1">
                     <Button variant="ghost" onClick={() => setViewRow(r)}>
                       عرض
                     </Button>
+                    <Link
+                      href={`/returns/${r.id}/print`}
+                      className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      طباعة
+                    </Link>
                     {canCreate && r.status === 'DRAFT' ? (
                       <Button variant="ghost" onClick={() => setCancelRow(r)}>
                         إلغاء

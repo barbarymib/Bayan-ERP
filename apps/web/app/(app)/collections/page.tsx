@@ -181,6 +181,7 @@ function ReceiptsPane({ canCreate, onDone }: { canCreate: boolean; onDone: (m: s
               <Th>الطريقة</Th>
               <Th>البيان المرتبط</Th>
               <Th></Th>
+              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -215,6 +216,14 @@ function ReceiptsPane({ canCreate, onDone }: { canCreate: boolean; onDone: (m: s
                     )}
                   </Td>
                   <Td>{r.cheque ? <Badge color="blue">شيك #{r.cheque.number}</Badge> : null}</Td>
+                  <Td>
+                    <Link
+                      href={`/collections/receipts/${r.id}/print`}
+                      className="rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      طباعة
+                    </Link>
+                  </Td>
                 </tr>
               ))
             )}
