@@ -29,6 +29,16 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B15: company default tax setting + tenant /company + web settings page (2026-10-18)
+- **Spec §5.6 (GAP R3-B15, was DEVIATION):** tax was per-statement only (web hard-coded `'0'`), no company-wide default. User chose **full scope**: company default + tenant write endpoint + web settings page.
+- **Schema:** `Company.taxPercent Decimal @default(0) @db.Decimal(5,2)`; migration `20261018020000_company_tax_percent`.
+- **Permission:** `company.manage` (.EXTRA_PERMISSIONS) granted ADMIN(auto)/OWNER only; migration `20261018030000_company_manage_permission`. role-matrix test locks grant (absent for ACCOUNTANT/SALES_*/WAREHOUSEKEEPER/REP_SUPERVISOR).
+- **API:** new `src/company/` module — `CompanyService` (`getSettings`/`updateSettings`/`defaultTaxPercent`) + `CompanyController` (`GET /company` any authed; `PATCH /company` `@Permissions('company.manage')`); audit `company.update`. Registered in `app.module`. `UpdateCompanyDto`+`patchCompany` accept `taxPercent` (global-admin parity).
+- **Statement inheritance:** `PriceStatementsService.create()` → `effectiveTaxPercent = dto.taxPercent ?? (await company.defaultTaxPercent(tenant)) ?? 0`, used in `calcStatementTotals` + persisted. `PriceStatementsModule` imports `CompanyModule`.
+- **Web:** new `/settings` page (nav link in `layout.tsx` gated `can(user,'company.manage')`, `links: NavLink[]` typed) shows company + tax input (read-only without perm). `lib/api.ts` +`CompanySettings` type. Statement `CreateStatementModal` pre-fills `taxPercent` from `GET /company` (separate effect).
+- **Tests:** `price-statements.service.spec.ts` +3 (inherit 15 / explicit 5 wins / none→0) — added `statementCreate` call-capture + `taxDefault` harness opt + `company` stub (10th ctor arg); role-matrix +1 → **api 425/425** (45 files). web typecheck/lint 0.
+- **Live-verify 2026-10-18:** `db:deploy` (2 migrations), build+restart; `GET /company` tax0; `PATCH {14}`→14; re-GET 14; SALES_REP PATCH→**403**/GET→**200**; statement create **omit tax→14**, **explicit→5**; cleaned up (reset tax0, cancelled 2 test statements). Commit `444de54`.
+- **Next:** R3-B12 (creditDays → due-date/overdue) is the last open R3-B item; then run the **full spec-vs-system audit** (per user directive) and close remaining gaps to 100%.
 ### Completed — R3-B14: dedicated statement.cancel permission + data migration (2026-10-18)
 - **Spec §5.6 (GAP R3-B14, was DEVIATION):** cancel route was gated by `statement.edit`; no dedicated `statement.cancel` permission.
 - **Permissions flow in this app:** permissions live in DB (`Permission` + `RolePermission`), are queried at login (`user.role.permissions → rp.permission.code`), baked into the **JWT `payload`**, and the guard checks `payload.permissions.includes(...)` (`auth.guard.ts:99-106`). So a new perm needs a DB row + role grant (else non-ADMIN JWTs lack it → 403).
