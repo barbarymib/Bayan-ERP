@@ -80,31 +80,18 @@ export default function UsersPage() {
       ) : null}
 
       {me ? (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          حدود الخصم الخاصة بك: أقصى خصم صنف{' '}
-          <b>
-            {Number(
-              me.maxItemDiscountPct == null
-                ? me.roleCode === 'ADMIN'
-                  ? 100
-                  : 0
-                : me.maxItemDiscountPct,
-            ).toLocaleString('ar-EG')}
-            %
-          </b>{' '}
-          — أقصى خصم فاتورة{' '}
-          <b>
-            {Number(
-              me.maxInvoiceDiscountPct == null
-                ? me.roleCode === 'ADMIN'
-                  ? 100
-                  : 0
-                : me.maxInvoiceDiscountPct,
-            ).toLocaleString('ar-EG')}
-            %
-          </b>{' '}
-          — تُضبط لكل مستخدم من صفحة المستخدمين
-        </div>
+        (() => {
+          const myRow = rows.find((u) => u.id === me.id);
+          const itemPct = myRow?.maxItemDiscountPct ?? (me.roleCode === 'ADMIN' ? 100 : 0);
+          const invoicePct = myRow?.maxInvoiceDiscountPct ?? (me.roleCode === 'ADMIN' ? 100 : 0);
+          return (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              حدود الخصم الخاصة بك: أقصى خصم صنف{' '}
+              <b>{Number(itemPct).toLocaleString('ar-EG')}%</b> — أقصى خصم فاتورة{' '}
+              <b>{Number(invoicePct).toLocaleString('ar-EG')}%</b> — تُضبط لكل مستخدم من صفحة المستخدمين
+            </div>
+          );
+        })()
       ) : null}
 
       <div>
