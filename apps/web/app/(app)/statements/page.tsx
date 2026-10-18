@@ -18,6 +18,7 @@ import {
   type StatementsPage,
   type Warehouse,
 } from '@/lib/api';
+import { calcStatementTotals, convertDiscount } from '@bayan/shared';
 import { isLineQtyAllowed } from '@/lib/units';
 import { useAuth } from '@/lib/auth';
 import {
@@ -381,6 +382,20 @@ function CreateStatementModal({
     }
   }
 
+  const previewLines = lines.map((l) => ({
+    qty: Number(l.qty) || 0,
+    unitPrice: Number(l.unitPrice) || 0,
+    ...(l.discType && Number(l.discValue) > 0
+      ? { discount: { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) } }
+      : {}),
+  }));
+  let previewSubtotal = 0;
+  try {
+    previewSubtotal = calcStatementTotals({ lines: previewLines }).subtotal;
+  } catch {
+    previewSubtotal = 0;
+  }
+
   return (
     <Modal title="بيان أسعار جديد" onClose={onClose}>
       <div className="mb-4 grid grid-cols-2 gap-3">
@@ -422,7 +437,16 @@ function CreateStatementModal({
           </Select>
         </Field>
         {discType ? (
-          <Field label="قيمة الخصم">
+          <Field
+            label="قيمة الخصم"
+            hint={
+              discType && Number(discValue) > 0
+                ? discType === 'percent'
+                  ? `القيمة المكافئة ≈ ${formatMoney(convertDiscount({ type: 'percent', value: Number(discValue) }, previewSubtotal).amount)} ج`
+                  : `النسبة المكافئة ≈ ${convertDiscount({ type: 'amount', value: Number(discValue) }, previewSubtotal).percent} %`
+                : undefined
+            }
+          >
             <TextInput value={discValue} onChange={(e) => setDiscValue(e.target.value)} type="number" min="0" step="any" />
           </Field>
         ) : null}
@@ -501,7 +525,17 @@ function CreateStatementModal({
                     </div>
                     {l.discType ? (
                       <div className="col-span-1">
-                        <Field label="القيمة">
+                        <Field
+                          label="القيمة"
+                          hint={
+                            Number(l.discValue) > 0 &&
+                            (Number(l.qty) || 0) * (Number(l.unitPrice) || 0) > 0
+                              ? l.discType === 'percent'
+                                ? `≈ ${formatMoney(convertDiscount({ type: 'percent', value: Number(l.discValue) }, (Number(l.qty) || 0) * (Number(l.unitPrice) || 0)).amount)} ج`
+                                : `≈ ${convertDiscount({ type: 'amount', value: Number(l.discValue) }, (Number(l.qty) || 0) * (Number(l.unitPrice) || 0)).percent} %`
+                              : undefined
+                          }
+                        >
                           <TextInput value={l.discValue} onChange={(e) => updateLine(i, { discValue: e.target.value })} type="number" min="0" step="any" />
                         </Field>
                       </div>

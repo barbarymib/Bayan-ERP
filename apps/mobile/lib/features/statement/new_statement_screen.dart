@@ -251,6 +251,15 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
             decoration: const InputDecoration(labelText: 'خصم البيان %'),
             onChanged: (_) => setState(() {}),
           ),
+          if (_num(_headerDiscount) > 0 && totals.subtotal > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'القيمة المكافئة ≈ '
+                '${calcLineDiscount(totals.subtotal, Discount(DiscountType.percent, _num(_headerDiscount))).toStringAsFixed(2)} ج',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           const SizedBox(height: 24),
           Card(
             child: Padding(
@@ -349,6 +358,15 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
                 ),
               ],
             ),
+            if (_num(l.discountValue) > 0 && _num(l.qty) * _num(l.price) > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'القيمة المكافئة ≈ '
+                  '${calcLineDiscount(_num(l.qty) * _num(l.price), Discount(DiscountType.percent, _num(l.discountValue))).toStringAsFixed(2)} ج',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             if (l.isSteel) ...[
               const SizedBox(height: 8),
               TextField(
