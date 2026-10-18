@@ -29,6 +29,15 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B3: payment term + paid amount end-to-end (2026-10-18)
+- **Spec §5.6 (GAP R3-B3, was PARTIAL):** mobile push sent no `paymentTerm`/`paid` → all rep sales forced CREDIT, MIXED unusable; web form had no `paid` input.
+- **Mobile** `new_statement_screen.dart`: added `String _paymentTerm='CREDIT'` + `_paid` controller (disposed), payment-term `DropdownButtonFormField` (نقدي/آجل/مختلط) + paid `TextField`, payload now `'paymentTerm'`/`'paid'`.
+- **API** `sync.service.ts pushPriceStatement`: parses `payload['paymentTerm']` (validates CASH/CREDIT/MIXED) → spreads into `CreateStatementDto` (was never read → default CREDIT). `paid` was already read.
+- **Web** `statements/page.tsx`: added `paid` state + `Field label="المدفوع نقداً (ج)"` + `paid: Number(paid)||0` in POST (paymentTerm select already had MIXED).
+- **Gates:** api typecheck 0 + tests **425/425** (45 files); web typecheck/lint 0; mobile `flutter analyze` clean (184s).
+- **Live-verify 2026-10-18:** build+start; create `paymentTerm=MIXED, paid=50` → stored (id204); **sync push** (`POST /sync/push`, device `test-device-1` registered first, `x-device-id` header required) `paymentTerm=CASH, paid=25` → stored `CASH`/`25` (id205) — proves regression fix; cancelled both test statements. Commit `dcbc7c8`.
+- **Sync-push notes:** `POST /api/sync/push` requires `x-device-id` header + prior `POST /api/sync/device/register` (else 403 "Device not authorized"); `PushDto { items:[{clientUuid,type:'price_statement',payload,number?}] }`.
+- **Next:** R3-B4 (GPS capture/send) — shares mobile payload + API sync dto; then B5, B8, B9, B12, then P3/P4 items.
 ### Completed — R3-B15: company default tax setting + tenant /company + web settings page (2026-10-18)
 - **Spec §5.6 (GAP R3-B15, was DEVIATION):** tax was per-statement only (web hard-coded `'0'`), no company-wide default. User chose **full scope**: company default + tenant write endpoint + web settings page.
 - **Schema:** `Company.taxPercent Decimal @default(0) @db.Decimal(5,2)`; migration `20261018020000_company_tax_percent`.
