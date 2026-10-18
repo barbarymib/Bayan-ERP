@@ -170,6 +170,7 @@ export default function ItemsPage() {
               <Th>وحدات التحويل</Th>
               <Th>حد أدنى</Th>
               <Th>حد البيع</Th>
+              <Th>آخر شراء</Th>
               <Th>الحالة</Th>
               <Th></Th>
             </tr>
