@@ -21,12 +21,16 @@ class PushResultItem {
   final String? number;
   final String? error;
 
+  /// تنبيهات التسعير (§5.3) المعادة من الخادم بعد رفع بيان سعر.
+  final List<PricingAlert> pricingAlerts;
+
   const PushResultItem({
     required this.clientUuid,
     required this.status,
     this.serverId,
     this.number,
     this.error,
+    this.pricingAlerts = const [],
   });
 
   factory PushResultItem.fromJson(Map<String, dynamic> j) => PushResultItem(
@@ -35,6 +39,9 @@ class PushResultItem {
         serverId: (j['serverId'] as num?)?.toInt(),
         number: j['number'] as String?,
         error: j['error'] as String?,
+        pricingAlerts: ((j['pricingAlerts'] as List?) ?? const [])
+            .map((e) => PricingAlert.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
       );
 }
 

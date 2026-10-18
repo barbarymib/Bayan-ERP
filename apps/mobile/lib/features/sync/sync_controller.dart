@@ -17,6 +17,9 @@ class SyncState {
   final DateTime? lastSyncAt;
   final String? error;
 
+  /// تنبيهات التسعير (§5.3) المعادة من الخادم مع آخر رفع لبيانات سعر.
+  final List<PricingAlert> pricingAlerts;
+
   const SyncState({
     this.running = false,
     this.pending = 0,
@@ -26,6 +29,7 @@ class SyncState {
     this.total = 0,
     this.lastSyncAt,
     this.error,
+    this.pricingAlerts = const [],
   });
 }
 
@@ -52,6 +56,7 @@ class SyncController extends Notifier<SyncState> {
     DateTime? lastSyncAt,
     bool running = false,
     String? error,
+    List<PricingAlert> pricingAlerts = const [],
   }) =>
       SyncState(
         running: running,
@@ -62,6 +67,7 @@ class SyncController extends Notifier<SyncState> {
         total: outbox.length,
         lastSyncAt: lastSyncAt,
         error: error,
+        pricingAlerts: pricingAlerts,
       );
 
   void refresh() {
@@ -119,6 +125,7 @@ class SyncController extends Notifier<SyncState> {
 
     try {
       final ready = outbox.ready(now);
+      var collectedAlerts = <PricingAlert>[];
       if (ready.isNotEmpty) {
         for (final i in ready) {
           outbox.markUploading(i.clientUuid);
@@ -130,6 +137,7 @@ class SyncController extends Notifier<SyncState> {
           } else {
             outbox.markSuccess(r.clientUuid, status: r.status, serverId: r.serverId);
           }
+          collectedAlerts.addAll(r.pricingAlerts);
         }
         // أي عنصر لم يرد عنه خبر ⇒ أعد المحاولة لاحقاً.
         for (final i in ready) {
@@ -153,7 +161,7 @@ class SyncController extends Notifier<SyncState> {
       await session.saveLastSync(at);
       await _persist();
 
-      state = _snapshot(outbox, lastSyncAt: at);
+      state = _snapshot(outbox, lastSyncAt: at, pricingAlerts: collectedAlerts);
     } catch (e) {
       _resetUploading();
       await _persist();

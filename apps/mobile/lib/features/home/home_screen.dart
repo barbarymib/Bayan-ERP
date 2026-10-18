@@ -336,6 +336,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 text: 'توقفت المحاولات بعد بلوغ الحد — أعد المحاولة',
               ),
             ],
+            if (sync.pricingAlerts.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _syncInfo(
+                context,
+                icon: Icons.warning_amber_rounded,
+                color: Colors.amber.shade800,
+                text: '${sync.pricingAlerts.length} تنبيه تسعير — راجع الأسعار',
+              ),
+              const SizedBox(height: 4),
+              for (final a in sync.pricingAlerts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    'الصنف ${a.itemCode}: ${a.unitPrice.toStringAsFixed(2)} '
+                    '${_pricingAlertLabel(a.type)} (الحد ${a.threshold.toStringAsFixed(2)})',
+                    style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                  ),
+                ),
+            ],
             const SizedBox(height: 8),
             Text(
               sync.lastSyncAt == null
@@ -399,6 +418,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       );
+
+  String _pricingAlertLabel(String type) {
+    switch (type) {
+      case 'below_cost':
+        return 'أقل من التكلفة';
+      case 'below_min_price':
+        return 'أقل من حد السعر الأدنى';
+      default:
+        return type;
+    }
+  }
 
   Widget _customerTile(CustomerSummary c) => Card(
         child: ListTile(

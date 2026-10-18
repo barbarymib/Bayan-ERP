@@ -75,3 +75,80 @@ describe('SyncService.push — رفع عدّات الجرد (§5.8/§5.12)', () 
     expect(r2.results[0]!.status).toBe('PENDING_REVIEW');
   });
 });
+
+function pushStatementDto(payload: Record<string, unknown>): PushDto {
+  return { items: [{ clientUuid: 'u1', type: 'price_statement', payload }] } as PushDto;
+}
+
+describe('SyncService.push — تنبيهات التسعير مع رفع بيان سعر (R3-A8 §5.3)', () => {
+  const repUser = {
+    ...baseUser,
+    roleCode: 'SALES_REP',
+    repCode: 'M03',
+    permissions: ['statement.create'],
+  } as unknown as AuthUser;
+
+  function harnessWithStatement(result: Record<string, unknown>) {
+    const prisma = {
+      priceStatement: {
+        findFirst: async () => null,
+        findMany: async () => [],
+      },
+      item: { findFirst: async () => null },
+      unit: { findUnique: async () => null },
+      itemUnit: { findUnique: async () => null },
+      customer: { findUnique: async () => ({ id: 2, nameAr: 'عميل', companyId: 1 }) },
+      customerRepAssignment: { findMany: async () => [], findFirst: async () => ({ id: 1 }) },
+      deviceBlockReservation: { findFirst: async () => null },
+      numberSequence: { findUnique: async () => null, update: async () => ({}) },
+      $transaction: async (fn: (t: unknown) => Promise<unknown>) => fn({}),
+    } as unknown as PrismaService;
+    const statements = {
+      create: vi.fn(async () => result),
+    };
+    const service = new SyncService(
+      prisma,
+      statements as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { holdForReview: async () => {} } as never,
+      {} as never,
+      { write: async () => {} } as never,
+    );
+    return { service, statements };
+  }
+
+  const payload = {
+    customerId: 2,
+    paymentTerm: 'CREDIT',
+    net: 100,
+    lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }],
+  };
+
+  it('يُعيد pricingAlerts مع نتيجة رفع بيان السعر', async () => {
+    const alerts = [
+      { type: 'below_cost', itemCode: 'IR', unitPrice: 50, threshold: 40 },
+    ];
+    const { service } = harnessWithStatement({
+      id: 31,
+      net: 100,
+      status: 'DRAFT',
+      number: 'BP-000031',
+      pricingAlerts: alerts,
+    });
+    const res = await service.push(repUser, pushStatementDto(payload));
+    expect((res.results[0] as { pricingAlerts?: unknown[] }).pricingAlerts).toEqual(alerts);
+  });
+
+  it('لا يُعيد pricingAlerts عند عدم وجودها', async () => {
+    const { service } = harnessWithStatement({
+      id: 32,
+      net: 100,
+      status: 'APPROVED',
+      number: 'BP-000032',
+    });
+    const res = await service.push(repUser, pushStatementDto(payload));
+    expect((res.results[0] as { pricingAlerts?: unknown[] }).pricingAlerts).toBeUndefined();
+  });
+});

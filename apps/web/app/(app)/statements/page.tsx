@@ -12,6 +12,7 @@ import {
   type Item,
   type ItemsPage,
   type PriceStatement,
+  type PricingAlert,
   type StatementStatus,
   type StatementsPage,
   type Warehouse,
@@ -51,6 +52,11 @@ const statusColor: Record<StatementStatus, string> = {
   CANCELLED: 'red',
 };
 
+const pricingAlertLabel: Record<PricingAlert['type'], string> = {
+  below_cost: 'أقل من التكلفة',
+  below_min_price: 'أقل من حد السعر الأدنى',
+};
+
 function unitOptions(item: Item | undefined) {
   if (!item) return [] as { code: string; nameAr: string | null }[];
   const opts = [item.baseUnit, ...item.itemUnits.map((iu) => iu.unit)];
@@ -72,6 +78,7 @@ export default function StatementsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [viewRow, setViewRow] = useState<PriceStatement | null>(null);
   const [cancelRow, setCancelRow] = useState<PriceStatement | null>(null);
+  const [pricingAlerts, setPricingAlerts] = useState<PricingAlert[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +124,22 @@ export default function StatementsPage() {
         <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           تنبيه: {staleDrafts.length} بيان مسودة مضى عليه أكثر من {staleDraftDays} يوم دون اعتماد — راجع
           الأسعار فقد تكون تغيّرت.
+        </div>
+      ) : null}
+
+      {pricingAlerts.length > 0 ? (
+        <div className="mb-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="mb-1 font-semibold">
+            تنبيهات تسعير ({pricingAlerts.length}) — يحتاج إقراراً:
+          </div>
+          <ul className="list-disc space-y-1 ps-5">
+            {pricingAlerts.map((a, i) => (
+              <li key={`${a.itemCode}-${a.type}-${i}`}>
+                الصنف {a.itemCode}: سعر الوحدة {formatMoney(a.unitPrice)} {pricingAlertLabel[a.type]}{' '}
+                (الحد {formatMoney(a.threshold)})
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -202,9 +225,10 @@ export default function StatementsPage() {
       {createOpen ? (
         <CreateStatementModal
           onClose={() => setCreateOpen(false)}
-          onSaved={(msg) => {
+          onSaved={(msg, alerts) => {
             setCreateOpen(false);
             setNotice(msg);
+            setPricingAlerts(alerts ?? []);
             setRefresh((r) => r + 1);
           }}
         />
@@ -234,7 +258,7 @@ function CreateStatementModal({
   onSaved,
 }: {
   onClose: () => void;
-  onSaved: (msg: string) => void;
+  onSaved: (msg: string, alerts?: PricingAlert[]) => void;
 }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -329,7 +353,10 @@ function CreateStatementModal({
         ? ` (تحذير: الرصيد المتوقع ${formatMoney(res.creditWarning.projectedBalance)} ج مقابل حد ${formatMoney(res.creditWarning.creditLimit)} ج)`
         : '';
       const freeze = res.freezeWarning ? ` [${res.freezeWarning}]` : '';
-      onSaved(`تم إنشاء ${res.number} برقم مرجعي ${res.id}${warning}${freeze}`);
+      onSaved(
+        `تم إنشاء ${res.number} برقم مرجعي ${res.id}${warning}${freeze}`,
+        res.pricingAlerts ?? [],
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل إنشاء البيان');
       setBusy(false);

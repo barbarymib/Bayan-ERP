@@ -469,6 +469,7 @@ export class SyncService {
       net: string | number;
       status: string;
       number: string;
+      pricingAlerts?: { type: 'below_cost' | 'below_min_price'; itemCode: string; unitPrice: number; threshold: number }[];
     };
     const net = num(payload['net']);
     if (net !== undefined && Math.abs(Number(s.net) - net) > 0.01) {
@@ -480,6 +481,7 @@ export class SyncService {
         serverId: s.id,
         number: s.number,
         error: 'net_mismatch',
+        ...(s.pricingAlerts ? { pricingAlerts: s.pricingAlerts } : {}),
       };
     }
     return {
@@ -487,6 +489,7 @@ export class SyncService {
       status: mapStatementStatus(String(s.status)) as 'UPLOADED',
       serverId: s.id,
       number: s.number,
+      ...(s.pricingAlerts ? { pricingAlerts: s.pricingAlerts } : {}),
     };
   }
 

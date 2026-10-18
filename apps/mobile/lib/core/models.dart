@@ -43,6 +43,28 @@ enum SyncStatus {
       this == SyncStatus.rejected;
 }
 
+/// تنبيه تسعير (§5.3): سعر تحت التكلفة أو تحت حد السعر الأدنى — يعيده الخادم مع رفع البيان.
+class PricingAlert {
+  final String type; // below_cost | below_min_price
+  final String itemCode;
+  final double unitPrice;
+  final double threshold;
+
+  const PricingAlert({
+    required this.type,
+    required this.itemCode,
+    required this.unitPrice,
+    required this.threshold,
+  });
+
+  factory PricingAlert.fromJson(Map<String, dynamic> j) => PricingAlert(
+        type: j['type'] as String? ?? '',
+        itemCode: j['itemCode'] as String? ?? '',
+        unitPrice: ((j['unitPrice'] as num?) ?? 0).toDouble(),
+        threshold: ((j['threshold'] as num?) ?? 0).toDouble(),
+      );
+}
+
 /// هوية المستخدم كما يعيدها `/auth/login` (مطابقة لـ AuthUser في الـ API).
 class AuthUser {
   final int id;

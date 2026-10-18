@@ -131,6 +131,22 @@ void main() {
                 'error': 'net_mismatch',
               };
             }
+            if (payload['force_alerts'] == true) {
+              return {
+                'clientUuid': it['clientUuid'],
+                'status': 'APPROVED',
+                'serverId': 2,
+                'number': 'BP-M03-000002',
+                'pricingAlerts': [
+                  {
+                    'type': 'below_cost',
+                    'itemCode': 'IR',
+                    'unitPrice': 50,
+                    'threshold': 40,
+                  },
+                ],
+              };
+            }
             return {
               'clientUuid': it['clientUuid'],
               'status': 'APPROVED',
@@ -295,6 +311,34 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(log.any((r) => r.url.path == '/sync/push'), isFalse);
+    });
+
+    test('يجمع تنبيهات التسعير المعادة من الخادم (R3-A8)', () async {
+      await setUpContainer();
+      controller();
+      controller().enqueue(
+        type: 'price_statement',
+        payload: const {'force_alerts': true},
+      );
+
+      await controller().syncNow();
+
+      final alerts = state().pricingAlerts;
+      expect(alerts, hasLength(1));
+      expect(alerts.single.type, 'below_cost');
+      expect(alerts.single.itemCode, 'IR');
+      expect(alerts.single.unitPrice, 50);
+      expect(alerts.single.threshold, 40);
+    });
+
+    test('لا تنبيهات تُجمع حين لا يُعيدها الخادم', () async {
+      await setUpContainer();
+      controller();
+      controller().enqueue(type: 'price_statement', payload: const {});
+
+      await controller().syncNow();
+
+      expect(state().pricingAlerts, isEmpty);
     });
   });
 }

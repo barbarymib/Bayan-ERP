@@ -179,6 +179,14 @@ export interface Approval {
   refJson?: unknown;
 }
 
+/** تنبيه تسعير (§5.3): سعر تحت التكلفة أو تحت حد السعر الأدنى. */
+export interface PricingAlert {
+  type: 'below_cost' | 'below_min_price';
+  itemCode: string;
+  unitPrice: number;
+  threshold: number;
+}
+
 export interface PriceStatement {
   id: number;
   number: string;
@@ -205,6 +213,7 @@ export interface PriceStatement {
   approvals?: Approval[];
   creditWarning?: { creditLimit: number; projectedBalance: number; exceeded?: boolean } | null;
   freezeWarning?: string | null;
+  pricingAlerts?: PricingAlert[];
   createdAt?: string;
   updatedAt?: string;
   ageDays?: number;
