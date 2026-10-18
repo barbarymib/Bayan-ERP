@@ -29,6 +29,13 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — G15: web feature-flag-driven UI hiding (2026-10-18)
+- **Spec §12.3/§12.4 (GAP G15, was PARTIAL):** flags evaluated but not used to hide UI. Mobile already gated retail print (R3-A3); web gate added.
+- **Web** `lib/auth.tsx`: `AuthProvider` now fetches `GET /auth/features` on boot + login, exposes `features: Record<string,boolean>` and `featureEnabled(code)` (`features[code] !== false`, so missing/failed = visible). `logout` clears flags. `app/(app)/layout.tsx`: `NavLink.feature?` + filter `(!l.feature || featureEnabled(l.feature))`; `/geo`→`geotracking.fleet`, `/archives`→`archiving.core`. `reports/page.tsx`: valuation tab gated by `reports.valuation`; `prices/page.tsx`: bulk tab gated by `pricing.bulk` (in addition to `price.manage`).
+- **Flag codes** (must match seeded `SystemFeature`): `reports.valuation`, `pricing.bulk`, `geotracking.fleet`, `printing.retail`, `archiving.core`.
+- **Gates:** web typecheck/lint/build 0. **Live-verify 2026-10-18:** `GET /auth/features` returns all 5 codes; `PUT /company/features/geotracking.fleet {enabled:false}` → `/auth/features` false (nav hides); DELETE resets. Commit `78ce01e`.
+- **Next:** G26 Hijri/Arabic-Indic, G24 boot migration check, G28 Dockerfiles, G18 web WhatsApp/PDF share, G19 item images/variants/QR, G29 print templates, G12 mixed-unit display. Then full audit. Blocked: FCM.
+
 ### Completed — G16: web Settings screen (company profile + tax + features) (2026-10-18)
 - **Spec §8.1 (GAP G16, was open):** the web panel's "الإعدادات" area. R3-B15 had created a partial `/settings` (tax only); G17 added feature flags. G16 completed it with a full company profile.
 - **API** `company.dto.ts` `UpdateCompanySettingsDto` extended with `nameAr`/`phone`/`email`/`contactName` (all optional, `@IsString`+`@MaxLength`; needed because global `forbidNonWhitelisted` rejects unknown body keys). `company.service.ts` `updateSettings` now applies all profile fields (`phone/email/contactName` empty string → `null`) + `taxPercent`, and audits before/after incl. profile. `getSettings` already returned all profile fields.

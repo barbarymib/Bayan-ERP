@@ -45,7 +45,7 @@
 - `G12` `PARTIAL` — §5.2 **mixed-unit decomposition display** ("3 كرتونة + 2 عبوة") not surfaced.
 - `G13` `MISSING` — §5.1/§9 mobile **barcode/QR scanning** (no scanner package in `apps/mobile/lib`).
 - `G14` `PARTIAL` — §5.12 mobile per-line **unit + qty selection**.
-- `G15` `PARTIAL` — §12.3/§12.4 **feature-flag UI hiding** on mobile (flags are evaluated but not used to hide UI).
+- `G15` `FIXED` — §12.3/§12.4 **feature-flag UI hiding**: mobile gates retail print (`printing.retail`); web consumes `GET /auth/features` via `useAuth().featureEnabled` and hides nav (`/geo`→`geotracking.fleet`, `/archives`→`archiving.core`) + in-page tabs (reports valuation→`reports.valuation`, prices bulk→`pricing.bulk`). Commit `78ce01e`.
 - `G16` `MISSING` — §8.1 web **Settings screen**.
 - `G17` `MISSING` — §12.3/§12.4 tenant-side **per-user / per-company feature-flag management** (web).
 - `G18` `PARTIAL` — §5.16 **WhatsApp sharing** (API deep-link `wa.me` exists; web/mobile PDF-attach sharing absent).
@@ -103,7 +103,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 ### Batch D — Client parity (web + mobile)
 16. **G13** Mobile barcode/QR scan.
 15. **G14** Mobile per-line unit/qty picker.
-16. **G15** Mobile feature-flag UI hiding.
+16. **G15** Feature-flag UI hiding. ✅ done (modules: web `useAuth().featureEnabled` from `/auth/features`; nav + reports/prices tabs gated; mobile retail print gate; commit `78ce01e`)
 17. **G16** Web Settings screen. ✅ done (`/settings`: company profile name/phone/email/contact + tax + feature flags; `PATCH /company`; commit `cdaf82f`)
 18. **G17** Tenant-side feature-flag management. ✅ done (company module `GET/PUT/DELETE /company/features`, per-user overrides, web Settings section; commit `392efa5`)
 19. **G18** WhatsApp sharing with PDF.
@@ -201,7 +201,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | ID | Gap | Spec | Status | Evidence |
 | -- | --- | ---- | ------ | -------- |
 | R3-A2 | Per-**role** discount limits absent — limits only per user (`Role` has no limit cols). | §4.2 note | ✅ FIXED | `Role.maxItemDiscountPct/maxInvoiceDiscountPct` (nullable, migration `20261016020000_role_discount_limits`); `common/discount-limits.ts` `effectiveDiscountLimit` (role limit else user); wired in `auth.service.ts:75-76,` + `auth.guard.ts`; `PUT /roles/:id/limits` (`users.service.ts` `updateRoleLimits`, ADMIN-protected, audit `role.limits`); web roles modal + card. Live-verified 2026-10-16 (22/0). |
-| R3-A3 | Feature flags **not applied on any client UI**; no client-facing flag endpoint (API `@Features` only). Refines G15/G16/G17. | §12.3 | ✅ FIXED (endpoint + mobile print; web still pending) | Endpoint blocker resolved by `GET /auth/features` (see R3-A12). Mobile now consumes flags (`ApiClient.features()` → `printing.retail` gates retail paper). Web still does not consume flags (no web UI gated yet) — remaining web consumption tracked separately. `auth.guard.ts` feature checks refactored onto `FeaturesService`. Commits `32dc38f`. |
+| R3-A3 | Feature flags **not applied on any client UI**; no client-facing flag endpoint (API `@Features` only). Refines G15/G16/G17. | §12.3 | ✅ FIXED (endpoint + mobile print + web UI) | Endpoint blocker resolved by `GET /auth/features` (see R3-A12). Mobile consumes flags (`ApiClient.features()` → `printing.retail` gates retail paper). Web consumes flags via `useAuth().featureEnabled` (nav `/geo`/`/archives` + reports valuation tab + prices bulk tab). `auth.guard.ts` feature checks refactored onto `FeaturesService`. Commits `32dc38f`, `78ce01e`. |
 | R3-A4 | Decimal-vs-integer measurement **never enforced** (`allowDecimal` check has zero production callers). | §5.2 | ✅ FIXED | `packages/shared/src/units.ts` `allowsDecimalByMeasurement`/`assertQtyAllowed` (+tests); `apps/api/src/common/units.ts` `assertLineQtyAllowed` (→ 400); enforced at line entry in `price-statements`, `purchases`, `quotations`, `returns`, `purchase-orders`, `supplier-returns` services; clients: web `lib/units.ts` + statements/purchases forms, mobile `core/calc/units.dart` mirror. Live-verified 2026-10-16 (11/0). |
 | R3-A5 | Batch **expiry date** missing (batch supported, no expiry field). | §5.1 | ✅ FIXED | New `Batch` registry model (`companyId?`, `itemId`, `code`, `productionDate? @db.Date`, `expiry? @db.Date`, `notes?`, `active`, `@@unique([companyId,itemId,code])`; migration `20261016040000_batch_expiry`, public-qualified); `PurchaseStatementLine.batchId` persisted; new `batches/` module (`GET/POST/PATCH/DELETE /batches`, `item.manage` to write, expiry filter hides expired by default); `purchases.service.ts` resolves/validates `batchId`+`expiry` (batch only for `trackBatch` items → 400, expiry requires `batchId` → 400) and `upsertBatch` on receive; web `items/page.tsx` batch modal (list/add/patch-expiry/delete + status badges) + `purchases/page.tsx` per-line batch/expiry inputs. Commits `9a7eb66`. Live-verified 2026-10-16 (29/0). |
 | R3-A6 | Steel **actual-weight note** field unused (no DTO/web/mobile) and no weight-difference report. | §5.2, §11 | ✅ FIXED | `StatementLineInputDto.weightNote?` (`@MaxLength(255)`); `price-statements.service.ts` `resolveLines` loads `item.category.code` and accepts the note only for `STEEL` (else 400 `ملاحظة الوزن الفعلي متاحة لأصناف الحديد فقط (§5.2)`; whitespace trimmed away), persisted on `PriceStatementLine` + snapshot; `sync.service.ts` delta items expose `categoryCode` + `pushPriceStatement` maps `weightNote`; new `GET /reports/weight-notes` (`report.view`, CSV) listing recorded notes (filters empty; status default not-CANCELLED); web statement line input (steel-only) + detail/print/PDF display, reports `weightnotes` tab; mobile `Items.categoryCode` (schema v2 + migration) → `ItemSummary.isSteel`, statement line field + sync payload. Commits `32c976d`. Live-verified 2026-10-16 (27/0). |
@@ -309,7 +309,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 31. **G12** mixed-unit composite display ("3 كرتونة + 2 عبوة") in ui/api.
 32. **G13** mobile barcode/QR scan (items+customers).
 33. **G14** mobile per-line unit picker.
-34. **G15/A3** feature-flag-driven UI hiding (mobile + web) + client flag endpoint.
+34. **G15/A3** feature-flag-driven UI hiding (mobile + web) + client flag endpoint. — ✅ FIXED (mobile retail-print gate + web nav/tab gating via `/auth/features`; web typecheck/lint/build 0; live verify commit `78ce01e`)
 35. **G16** web Settings screen. — ✅ FIXED (company profile + tax + features; api 435 tests; web typecheck/lint/build 0; live verify commit `cdaf82f`)
 36. **G17** tenant-side per-user/company feature-flag management (non-global-admin). — ✅ FIXED (api typecheck/433 tests; web typecheck/lint/build 0; live verify commit `392efa5`)
 37. **G18** web WhatsApp/PDF share.
