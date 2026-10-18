@@ -100,6 +100,14 @@ export interface BatchesPage {
   total: number;
 }
 
+export interface CustomerRepAssignment {
+  id: number;
+  repId: number;
+  fromDate: string;
+  toDate: string | null;
+  rep: UserBrief | null;
+}
+
 export interface Customer {
   id: number;
   code: string;
@@ -118,6 +126,7 @@ export interface Customer {
   lat: number | null;
   lng: number | null;
   active: boolean;
+  assignments?: CustomerRepAssignment[];
 }
 
 export interface Supplier {

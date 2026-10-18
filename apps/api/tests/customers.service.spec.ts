@@ -27,10 +27,15 @@ function makePrisma(options: { openAssignments?: Row[]; customer?: Row | null } 
       findUnique: async (a: { where: { repCode: string } }) =>
         ({ id: 42, name: 'مندوب', repCode: a.where.repCode }) as never,
       findFirst: async () => null,
+      findMany: async () => [],
     },
     customer: {
       findFirst: async () => null,
-      findUnique: async () => (options.customer === undefined ? ({ id: 1, companyId: 1 } as Row) : options.customer) as never,
+      findUnique: async () => {
+        if (options.customer === null) return null as never;
+        const base = options.customer === undefined ? ({ id: 1, companyId: 1 } as Row) : options.customer;
+        return { assignments: [], ...base } as never;
+      },
       create: async (a: { data: Row }) => {
         state.customerCreate.push(a.data);
         return { id: 1, ...a.data } as never;

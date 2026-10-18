@@ -15,6 +15,7 @@ import {
   Td,
   TextInput,
   Th,
+  formatDate,
   formatMoney,
 } from '@/components/ui';
 
@@ -304,6 +305,21 @@ function CustomerModal({
   const [active, setActive] = useState(customer?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [detail, setDetail] = useState<Customer | null>(null);
+  const editCustomerId = customer?.id;
+
+  useEffect(() => {
+    if (!editCustomerId) return;
+    let cancelled = false;
+    get<Customer>(`/customers/${editCustomerId}`)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [editCustomerId]);
 
   async function submit() {
     setBusy(true);
@@ -423,6 +439,21 @@ function CustomerModal({
         ) : null}
       </div>
       {!customer ? <div className="mb-3 text-xs text-gray-400">يُولَّد كود العميل تلقائياً (C0001, …).</div> : null}
+      {customer && (detail?.assignments?.length ?? 0) > 0 ? (
+        <div className="mb-3">
+          <div className="mb-1 text-sm font-bold text-gray-700">سجل نقل المندوب</div>
+          <div className="divide-y rounded-lg border border-gray-200">
+            {detail!.assignments!.map((a) => (
+              <div key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                <span>{a.rep ? `${a.rep.name}${a.rep.repCode ? ` (${a.rep.repCode})` : ''}` : `مندوب #${a.repId}`}</span>
+                <span className="text-gray-500">
+                  {formatDate(a.fromDate)} → {a.toDate ? formatDate(a.toDate) : 'حتى الآن'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <div className="mb-3">
           <ErrorBox message={error} />

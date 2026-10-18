@@ -120,14 +120,21 @@ export class CustomersService {
       include: {
         priceList: { select: { id: true, code: true, nameAr: true } },
         rep: { select: { id: true, name: true, repCode: true } },
-        assignments: { orderBy: { fromDate: 'desc' }, take: 5 },
+        assignments: { orderBy: { fromDate: 'desc' }, take: 50 },
         _count: { select: { statements: true, returns: true, receipts: true } },
       },
     });
     if (!customer || (customer.companyId != null && customer.companyId !== companyId)) {
       throw new NotFoundException(`Customer #${id} not found`);
     }
-    return customer;
+    // حلّ أسماء المناديب في سجل النقل (لا يوجد علاقة رسمية بين التعيين والمستخدم).
+    const repIds = [...new Set(customer.assignments.map((a) => a.repId))];
+    const reps = repIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: repIds } }, select: { id: true, name: true, repCode: true } })
+      : [];
+    const repById = new Map(reps.map((r) => [r.id, r]));
+    const assignments = customer.assignments.map((a) => ({ ...a, rep: repById.get(a.repId) ?? null }));
+    return { ...customer, assignments };
   }
 
   async update(id: number, dto: UpdateCustomerDto, companyId: number | null = null, userId?: number) {
