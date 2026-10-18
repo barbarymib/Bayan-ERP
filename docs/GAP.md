@@ -104,7 +104,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 16. **G13** Mobile barcode/QR scan.
 15. **G14** Mobile per-line unit/qty picker.
 16. **G15** Mobile feature-flag UI hiding.
-17. **G16** Web Settings screen.
+17. **G16** Web Settings screen. ✅ done (`/settings`: company profile name/phone/email/contact + tax + feature flags; `PATCH /company`; commit `cdaf82f`)
 18. **G17** Tenant-side feature-flag management. ✅ done (company module `GET/PUT/DELETE /company/features`, per-user overrides, web Settings section; commit `392efa5`)
 19. **G18** WhatsApp sharing with PDF.
 17. **G19** Item images/variants/QR labels.  `G12` mixed-unit display. **G20** stocktake scoping.
@@ -310,7 +310,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 32. **G13** mobile barcode/QR scan (items+customers).
 33. **G14** mobile per-line unit picker.
 34. **G15/A3** feature-flag-driven UI hiding (mobile + web) + client flag endpoint.
-35. **G16** web Settings screen.
+35. **G16** web Settings screen. — ✅ FIXED (company profile + tax + features; api 435 tests; web typecheck/lint/build 0; live verify commit `cdaf82f`)
 36. **G17** tenant-side per-user/company feature-flag management (non-global-admin). — ✅ FIXED (api typecheck/433 tests; web typecheck/lint/build 0; live verify commit `392efa5`)
 37. **G18** web WhatsApp/PDF share.
 38. **R3-F1/F2/F3/F4/F5/F6** mobile screens: my-customers (search/filter/distance), item balances, home KPIs, payment step, settings screen, unified "بياناتي".
