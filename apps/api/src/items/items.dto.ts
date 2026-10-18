@@ -188,6 +188,18 @@ export class UpdateItemDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemUnitDto)
+  itemUnits?: ItemUnitDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemAttributeDto)
+  attributes?: ItemAttributeDto[];
 }
 
 export class QueryItemsDto {

@@ -62,12 +62,23 @@ export interface Item {
   nameAr: string;
   nameEn: string | null;
   category: Category | null;
+  brand: Brand | null;
+  origin: string | null;
   baseUnit: Unit;
   itemUnits: ItemUnit[];
   attributes: ItemAttribute[];
   minStock: string;
+  minSalePrice: string | null;
+  imageUrl: string | null;
+  parentItemId: number | null;
   trackBatch: boolean;
   active: boolean;
+}
+
+export interface Brand {
+  id: number;
+  code: string;
+  nameAr: string;
 }
 
 // دفعة صنف (اختياري §5.1): كود + تواريخ الإنتاج/الصلاحية

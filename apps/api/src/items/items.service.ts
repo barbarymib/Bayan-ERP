@@ -15,6 +15,25 @@ export class ItemsService {
     private readonly audits: AuditLogsService,
   ) {}
 
+  /** يحوّل صفوف الوحدات (بأكواد الوحدات) إلى صفوف قابلة للكتابة بـ unitId. */
+  private async resolveUnitRows(rows?: UpdateItemDto['itemUnits']) {
+    if (!rows?.length) return undefined;
+    return Promise.all(
+      rows.map(async (u) => {
+        const unit = await this.prisma.unit.findUnique({ where: { code: u.unitCode } });
+        if (!unit) throw new NotFoundException(`Unit ${u.unitCode} not found`);
+        return {
+          unitId: unit.id,
+          factorToBase: u.factorToBase,
+          isSale: u.isSale ?? true,
+          isPurchase: u.isPurchase ?? true,
+          allowDecimal: u.allowDecimal ?? true,
+          barcode: u.barcode,
+        };
+      }),
+    );
+  }
+
   async create(dto: CreateItemDto, companyId: number | null = null, userId?: number) {
     const existing = await this.prisma.item.findFirst({ where: { code: dto.code, ...tenantWhere(companyId) } });
     if (existing) throw new ConflictException(`Item code ${dto.code} already exists`);
@@ -36,6 +55,12 @@ export class ItemsService {
       throw new NotFoundException(`Brand ${dto.brandCode} not found`);
     }
 
+    if (dto.brandCode && !brand) {
+      throw new NotFoundException(`Brand ${dto.brandCode} not found`);
+    }
+
+    const unitRows = await this.resolveUnitRows(dto.itemUnits);
+
     const created = await this.prisma.item.create({
       data: {
         code: dto.code,
@@ -55,28 +80,7 @@ export class ItemsService {
         attributes: dto.attributes?.length
           ? { create: dto.attributes.map((a) => ({ key: a.key, value: a.value })) }
           : undefined,
-        itemUnits: dto.itemUnits?.length
-          ? {
-              create: await Promise.all(
-                dto.itemUnits.map(async (u) => {
-                  const unit = await this.prisma.unit.findUnique({
-                    where: { code: u.unitCode },
-                  });
-                  if (!unit) {
-                    throw new NotFoundException(`Unit ${u.unitCode} not found`);
-                  }
-                  return {
-                    unitId: unit.id,
-                    factorToBase: u.factorToBase,
-                    isSale: u.isSale ?? true,
-                    isPurchase: u.isPurchase ?? true,
-                    allowDecimal: u.allowDecimal ?? true,
-                    barcode: u.barcode,
-                  };
-                }),
-              ),
-            }
-          : undefined,
+        itemUnits: unitRows ? { create: unitRows } : undefined,
       },
       include: { category: true, baseUnit: true, brand: true, itemUnits: true, attributes: true },
     });
@@ -118,6 +122,7 @@ export class ItemsService {
           baseUnit: true,
           brand: true,
           attributes: true,
+          itemUnits: { include: { unit: true } },
           prices: { include: { priceList: true }, orderBy: { priceListId: 'asc' } },
         },
         orderBy: { nameAr: 'asc' },
@@ -152,6 +157,10 @@ export class ItemsService {
   async update(id: number, dto: UpdateItemDto, companyId: number | null = null, userId?: number) {
     const before = await this.findOne(id, companyId);
 
+    if (dto.parentItemId === id) {
+      throw new ConflictException('Item cannot be its own parent variant');
+    }
+
     const category = dto.categoryCode
       ? await this.prisma.category.findFirst({ where: { code: dto.categoryCode, ...tenantWhere(companyId) } })
       : null;
@@ -165,6 +174,9 @@ export class ItemsService {
     if (dto.brandCode && !brand) {
       throw new NotFoundException(`Brand ${dto.brandCode} not found`);
     }
+
+    const unitRows = dto.itemUnits ? ((await this.resolveUnitRows(dto.itemUnits)) ?? []) : undefined;
+    const attrRows = dto.attributes?.map((a) => ({ key: a.key, value: a.value }));
 
     const updated = await this.prisma.item.update({
       where: { id },
@@ -181,8 +193,10 @@ export class ItemsService {
         imageUrl: dto.imageUrl,
         parentItemId: dto.parentItemId,
         active: dto.active,
+        itemUnits: unitRows ? { deleteMany: {}, create: unitRows } : undefined,
+        attributes: attrRows ? { deleteMany: {}, create: attrRows } : undefined,
       },
-      include: { category: true, baseUnit: true, brand: true },
+      include: { category: true, baseUnit: true, brand: true, itemUnits: true, attributes: true },
     });
 
     await this.audits.write({

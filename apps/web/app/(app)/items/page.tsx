@@ -10,6 +10,7 @@ import {
   qs,
   type Batch,
   type BatchesPage,
+  type Brand,
   type Category,
   type Item,
   type ItemsPage,
@@ -37,6 +38,7 @@ interface UnitRow {
   isSale: boolean;
   isPurchase: boolean;
   allowDecimal: boolean;
+  barcode: string;
 }
 
 interface AttrRow {
@@ -50,6 +52,7 @@ const emptyUnitRow = (): UnitRow => ({
   isSale: true,
   isPurchase: true,
   allowDecimal: true,
+  barcode: '',
 });
 
 export default function ItemsPage() {
@@ -63,17 +66,26 @@ export default function ItemsPage() {
   const [categoryCode, setCategoryCode] = useState('');
   const [units, setUnits] = useState<Unit[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [parentOptions, setParentOptions] = useState<Item[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([get<{ units: Unit[] }>('/units'), get<{ categories: Category[]; total: number }>('/categories')])
-      .then(([u, c]) => {
+    Promise.all([
+      get<{ units: Unit[] }>('/units'),
+      get<{ categories: Category[]; total: number }>('/categories'),
+      get<{ brands: Brand[]; total: number }>('/brands'),
+      get<ItemsPage>('/items?limit=100&active=true'),
+    ])
+      .then(([u, c, b, i]) => {
         if (!cancelled) {
           setUnits(u.units);
           setCategories(c.categories);
+          setBrands(b.brands);
+          setParentOptions(i.items);
         }
       })
       .catch(() => undefined);
@@ -153,9 +165,11 @@ export default function ItemsPage() {
               <Th>الكود</Th>
               <Th>الاسم</Th>
               <Th>التصنيف</Th>
+              <Th>الماركة / المنشأ</Th>
               <Th>الوحدة</Th>
               <Th>وحدات التحويل</Th>
               <Th>حد أدنى</Th>
+              <Th>حد البيع</Th>
               <Th>الحالة</Th>
               <Th></Th>
             </tr>
@@ -174,22 +188,36 @@ export default function ItemsPage() {
                 <tr key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
                   <Td className="font-mono font-semibold">{item.code}</Td>
                   <Td>
-                    <div className="font-semibold">{item.nameAr}</div>
-                    {item.nameEn ? <div className="text-xs text-gray-400">{item.nameEn}</div> : null}
+                    <div className="flex items-center gap-2">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.imageUrl} alt={item.nameAr} className="h-8 w-8 rounded object-cover" />
+                      ) : null}
+                      <div>
+                        <div className="font-semibold">{item.nameAr}</div>
+                        {item.nameEn ? <div className="text-xs text-gray-400">{item.nameEn}</div> : null}
+                        {item.parentItemId ? <div className="text-xs text-blue-500">تنويعة</div> : null}
+                      </div>
+                    </div>
                   </Td>
                   <Td>{item.category?.nameAr ?? '—'}</Td>
+                  <Td>
+                    <div>{item.brand?.nameAr ?? '—'}</div>
+                    {item.origin ? <div className="text-xs text-gray-400">{item.origin}</div> : null}
+                  </Td>
                   <Td>{item.baseUnit.nameAr ?? item.baseUnit.code}</Td>
                   <Td>
                     <div className="flex flex-wrap gap-1">
-                      {item.itemUnits.map((iu) => (
+                      {(item.itemUnits ?? []).map((iu) => (
                         <span key={iu.id} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
                           {iu.unit.code}: {Number(iu.factorToBase).toLocaleString('ar-EG')}
                         </span>
                       ))}
-                      {item.itemUnits.length === 0 ? <span className="text-xs text-gray-400">—</span> : null}
+                      {(item.itemUnits ?? []).length === 0 ? <span className="text-xs text-gray-400">—</span> : null}
                     </div>
                   </Td>
                   <Td>{formatMoney(item.minStock)}</Td>
+                  <Td>{item.minSalePrice != null ? formatMoney(item.minSalePrice) : '—'}</Td>
                   <Td>{item.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
                   <Td>
                     {manage ? (
@@ -241,6 +269,7 @@ export default function ItemsPage() {
         <CreateItemModal
           units={units}
           categories={categories}
+          brands={brands}
           onClose={() => setCreateOpen(false)}
           onCreated={() => {
             setCreateOpen(false);
@@ -253,7 +282,10 @@ export default function ItemsPage() {
       {editItem ? (
         <EditItemModal
           item={editItem}
+          units={units}
           categories={categories}
+          brands={brands}
+          parentOptions={parentOptions}
           onClose={() => setEditItem(null)}
           onSaved={() => {
             setEditItem(null);
@@ -268,14 +300,170 @@ export default function ItemsPage() {
   );
 }
 
+function UnitRowsEditor({
+  rows,
+  setRows,
+  units,
+  baseUnitCode,
+}: {
+  rows: UnitRow[];
+  setRows: (rows: UnitRow[]) => void;
+  units: Unit[];
+  baseUnitCode?: string;
+}) {
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-bold text-gray-700">وحدات التحويل</span>
+        <Button variant="secondary" onClick={() => setRows([...rows, emptyUnitRow()])}>
+          + إضافة وحدة
+        </Button>
+      </div>
+      {rows.length === 0 ? <div className="text-xs text-gray-400">لا توجد وحدات بديلة</div> : null}
+      {rows.map((row, i) => (
+        <div key={i} className="mb-2 rounded-lg border border-gray-100 bg-gray-50 p-2">
+          <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
+            <Field label="الوحدة">
+              <Select
+                value={row.unitCode}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, unitCode: e.target.value };
+                  setRows(next);
+                }}
+              >
+                <option value="">—</option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.code} disabled={u.code === baseUnitCode}>
+                    {u.nameAr ?? u.code}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="العامل إلى الأساس (×)">
+              <TextInput
+                value={row.factorToBase}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, factorToBase: e.target.value };
+                  setRows(next);
+                }}
+                type="number"
+                min="0.000001"
+                step="any"
+              />
+            </Field>
+            <Field label="باركود الوحدة">
+              <TextInput
+                value={row.barcode}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, barcode: e.target.value };
+                  setRows(next);
+                }}
+              />
+            </Field>
+            <Button variant="danger" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
+              حذف
+            </Button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={row.isSale}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, isSale: e.target.checked };
+                  setRows(next);
+                }}
+              />
+              وحدة بيع
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={row.isPurchase}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, isPurchase: e.target.checked };
+                  setRows(next);
+                }}
+              />
+              وحدة شراء
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={row.allowDecimal}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, allowDecimal: e.target.checked };
+                  setRows(next);
+                }}
+              />
+              تقبل كسوراً
+            </label>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AttrRowsEditor({ rows, setRows }: { rows: AttrRow[]; setRows: (rows: AttrRow[]) => void }) {
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-bold text-gray-700">الخصائص</span>
+        <Button variant="secondary" onClick={() => setRows([...rows, { key: '', value: '' }])}>
+          + إضافة خاصية
+        </Button>
+      </div>
+      {rows.length === 0 ? <div className="text-xs text-gray-400">لا توجد خصائص</div> : null}
+      {rows.map((row, i) => (
+        <div key={i} className="mb-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+          <Field label="الخاصية">
+            <TextInput
+              value={row.key}
+              onChange={(e) => {
+                const next = [...rows];
+                next[i] = { ...row, key: e.target.value };
+                setRows(next);
+              }}
+              placeholder="القطر / الدرجة / النوع"
+            />
+          </Field>
+          <Field label="القيمة">
+            <TextInput
+              value={row.value}
+              onChange={(e) => {
+                const next = [...rows];
+                next[i] = { ...row, value: e.target.value };
+                setRows(next);
+              }}
+              placeholder="12 / 52 / لاكيه"
+            />
+          </Field>
+          <Button variant="danger" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
+            حذف
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CreateItemModal({
   units,
   categories,
+  brands,
   onClose,
   onCreated,
 }: {
   units: Unit[];
   categories: Category[];
+  brands: Brand[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -284,8 +472,12 @@ function CreateItemModal({
   const [nameEn, setNameEn] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
   const [baseUnitCode, setBaseUnitCode] = useState('');
+  const [brandCode, setBrandCode] = useState('');
+  const [origin, setOrigin] = useState('');
   const [minStock, setMinStock] = useState('0');
+  const [minSalePrice, setMinSalePrice] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [trackBatch, setTrackBatch] = useState(false);
   const [unitRows, setUnitRows] = useState<UnitRow[]>([]);
   const [attrs, setAttrs] = useState<AttrRow[]>([]);
@@ -302,8 +494,12 @@ function CreateItemModal({
         nameEn: nameEn.trim() || undefined,
         categoryCode: categoryCode.trim(),
         baseUnitCode: baseUnitCode.trim(),
+        brandCode: brandCode.trim() || undefined,
+        origin: origin.trim() || undefined,
         minStock: Number(minStock) || 0,
+        minSalePrice: minSalePrice.trim() === '' ? undefined : Number(minSalePrice),
         barcode: barcode.trim() || undefined,
+        imageUrl: imageUrl.trim() || undefined,
         trackBatch,
         itemUnits: unitRows
           .filter((r) => r.unitCode)
@@ -313,6 +509,7 @@ function CreateItemModal({
             isSale: r.isSale,
             isPurchase: r.isPurchase,
             allowDecimal: r.allowDecimal,
+            barcode: r.barcode.trim() || undefined,
           })),
         attributes: attrs.filter((a) => a.key.trim()).map((a) => ({ key: a.key.trim(), value: a.value.trim() })),
       });
@@ -357,97 +554,45 @@ function CreateItemModal({
             ))}
           </Select>
         </Field>
+        <Field label="الماركة">
+          <Select value={brandCode} onChange={(e) => setBrandCode(e.target.value)}>
+            <option value="">—</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.code}>
+                {b.nameAr}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="المنشأ">
+          <TextInput value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="مصر / تركيا…" />
+        </Field>
         <Field label="حد أدنى للمخزون">
           <TextInput value={minStock} onChange={(e) => setMinStock(e.target.value)} type="number" min="0" step="any" />
+        </Field>
+        <Field label="حد أدنى لسعر البيع">
+          <TextInput
+            value={minSalePrice}
+            onChange={(e) => setMinSalePrice(e.target.value)}
+            type="number"
+            min="0"
+            step="any"
+          />
         </Field>
         <Field label="باركود">
           <TextInput value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         </Field>
+        <Field label="رابط الصورة">
+          <TextInput value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
+        </Field>
       </div>
-      <label className="mb-4 flex items-center gap-2 text-sm text-gray-700">
+      <label className="mb-2 flex items-center gap-2 text-sm text-gray-700">
         <input type="checkbox" checked={trackBatch} onChange={(e) => setTrackBatch(e.target.checked)} />
-        يتتبع رقم الدفعة (batch)
+        يتتبع رقم الدفعة (تشغيلة + صلاحية)
       </label>
 
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-bold text-gray-700">وحدات التحويل</span>
-        <Button variant="secondary" onClick={() => setUnitRows([...unitRows, emptyUnitRow()])}>
-          + إضافة وحدة
-        </Button>
-      </div>
-      {unitRows.map((row, i) => (
-        <div key={i} className="mb-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-          <Field label="الوحدة">
-            <Select
-              value={row.unitCode}
-              onChange={(e) => {
-                const next = [...unitRows];
-                next[i] = { ...row, unitCode: e.target.value };
-                setUnitRows(next);
-              }}
-            >
-              <option value="">—</option>
-              {units.map((u) => (
-                <option key={u.id} value={u.code} disabled={u.code === baseUnitCode}>
-                  {u.nameAr ?? u.code}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="العامل إلى الأساس (×)">
-            <TextInput
-              value={row.factorToBase}
-              onChange={(e) => {
-                const next = [...unitRows];
-                next[i] = { ...row, factorToBase: e.target.value };
-                setUnitRows(next);
-              }}
-              type="number"
-              min="0.000001"
-              step="any"
-            />
-          </Field>
-          <Button variant="danger" onClick={() => setUnitRows(unitRows.filter((_, j) => j !== i))}>
-            حذف
-          </Button>
-        </div>
-      ))}
-
-      <div className="mb-2 mt-4 flex items-center justify-between">
-        <span className="text-sm font-bold text-gray-700">الخصائص</span>
-        <Button variant="secondary" onClick={() => setAttrs([...attrs, { key: '', value: '' }])}>
-          + إضافة خاصية
-        </Button>
-      </div>
-      {attrs.map((row, i) => (
-        <div key={i} className="mb-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-          <Field label="الخاصية">
-            <TextInput
-              value={row.key}
-              onChange={(e) => {
-                const next = [...attrs];
-                next[i] = { ...row, key: e.target.value };
-                setAttrs(next);
-              }}
-              placeholder="درجة / لحام / لين"
-            />
-          </Field>
-          <Field label="القيمة">
-            <TextInput
-              value={row.value}
-              onChange={(e) => {
-                const next = [...attrs];
-                next[i] = { ...row, value: e.target.value };
-                setAttrs(next);
-              }}
-              placeholder="3 لين"
-            />
-          </Field>
-          <Button variant="danger" onClick={() => setAttrs(attrs.filter((_, j) => j !== i))}>
-            حذف
-          </Button>
-        </div>
-      ))}
+      <UnitRowsEditor rows={unitRows} setRows={setUnitRows} units={units} baseUnitCode={baseUnitCode} />
+      <AttrRowsEditor rows={attrs} setRows={setAttrs} />
 
       {error ? (
         <div className="mt-3">
@@ -468,21 +613,46 @@ function CreateItemModal({
 
 function EditItemModal({
   item,
+  units,
   categories,
+  brands,
+  parentOptions,
   onClose,
   onSaved,
 }: {
   item: Item;
+  units: Unit[];
   categories: Category[];
+  brands: Brand[];
+  parentOptions: Item[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [nameAr, setNameAr] = useState(item.nameAr);
   const [nameEn, setNameEn] = useState(item.nameEn ?? '');
   const [categoryCode, setCategoryCode] = useState(item.category?.code ?? '');
+  const [brandCode, setBrandCode] = useState(item.brand?.code ?? '');
+  const [origin, setOrigin] = useState(item.origin ?? '');
   const [minStock, setMinStock] = useState(item.minStock);
+  const [minSalePrice, setMinSalePrice] = useState(item.minSalePrice ?? '');
   const [barcode, setBarcode] = useState(item.barcode ?? '');
+  const [imageUrl, setImageUrl] = useState(item.imageUrl ?? '');
   const [trackBatch, setTrackBatch] = useState(item.trackBatch);
+  const [active, setActive] = useState(item.active);
+  const [parentItemId, setParentItemId] = useState(item.parentItemId ? String(item.parentItemId) : '');
+  const [unitRows, setUnitRows] = useState<UnitRow[]>(
+    (item.itemUnits ?? []).map((iu) => ({
+      unitCode: iu.unit.code,
+      factorToBase: String(iu.factorToBase),
+      isSale: iu.isSale,
+      isPurchase: iu.isPurchase,
+      allowDecimal: iu.allowDecimal,
+      barcode: iu.barcode ?? '',
+    })),
+  );
+  const [attrs, setAttrs] = useState<AttrRow[]>(
+    (item.attributes ?? []).map((a) => ({ key: a.key, value: a.value })),
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -494,9 +664,26 @@ function EditItemModal({
         nameAr: nameAr.trim(),
         nameEn: nameEn.trim() || undefined,
         categoryCode: categoryCode.trim() || undefined,
+        brandCode: brandCode.trim() || undefined,
+        origin: origin.trim() || undefined,
         minStock: Number(minStock) || 0,
+        minSalePrice: minSalePrice.trim() === '' ? undefined : Number(minSalePrice),
         barcode: barcode.trim() || undefined,
+        imageUrl: imageUrl.trim() || undefined,
         trackBatch,
+        active,
+        parentItemId: parentItemId ? Number(parentItemId) : undefined,
+        itemUnits: unitRows
+          .filter((r) => r.unitCode)
+          .map((r) => ({
+            unitCode: r.unitCode,
+            factorToBase: Number(r.factorToBase),
+            isSale: r.isSale,
+            isPurchase: r.isPurchase,
+            allowDecimal: r.allowDecimal,
+            barcode: r.barcode.trim() || undefined,
+          })),
+        attributes: attrs.filter((a) => a.key.trim()).map((a) => ({ key: a.key.trim(), value: a.value.trim() })),
       });
       onSaved();
     } catch (err) {
@@ -524,23 +711,70 @@ function EditItemModal({
             ))}
           </Select>
         </Field>
+        <Field label="الماركة">
+          <Select value={brandCode} onChange={(e) => setBrandCode(e.target.value)}>
+            <option value="">—</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.code}>
+                {b.nameAr}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="المنشأ">
+          <TextInput value={origin} onChange={(e) => setOrigin(e.target.value)} />
+        </Field>
+        <Field label="الصنف الأساسي (تنويعة)">
+          <Select value={parentItemId} onChange={(e) => setParentItemId(e.target.value)}>
+            <option value="">— ليس تنويعة —</option>
+            {parentOptions
+              .filter((o) => o.id !== item.id)
+              .map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.code} — {o.nameAr}
+                </option>
+              ))}
+          </Select>
+        </Field>
         <Field label="حد أدنى للمخزون">
           <TextInput value={minStock} onChange={(e) => setMinStock(e.target.value)} type="number" min="0" step="any" />
+        </Field>
+        <Field label="حد أدنى لسعر البيع">
+          <TextInput
+            value={minSalePrice}
+            onChange={(e) => setMinSalePrice(e.target.value)}
+            type="number"
+            min="0"
+            step="any"
+          />
         </Field>
         <Field label="باركود">
           <TextInput value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         </Field>
+        <Field label="رابط الصورة">
+          <TextInput value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+        </Field>
       </div>
-      <label className="mb-4 flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" checked={trackBatch} onChange={(e) => setTrackBatch(e.target.checked)} />
-        يتتبع رقم الدفعة
-      </label>
+      <div className="mb-2 flex flex-wrap gap-4 text-sm text-gray-700">
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={trackBatch} onChange={(e) => setTrackBatch(e.target.checked)} />
+          يتتبع رقم الدفعة
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+          نشط
+        </label>
+      </div>
+
+      <UnitRowsEditor rows={unitRows} setRows={setUnitRows} units={units} baseUnitCode={item.baseUnit.code} />
+      <AttrRowsEditor rows={attrs} setRows={setAttrs} />
+
       {error ? (
-        <div className="mb-3">
+        <div className="mb-3 mt-3">
           <Notice type="error">{error}</Notice>
         </div>
       ) : null}
-      <div className="flex justify-end gap-2">
+      <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>
           إلغاء
         </Button>
@@ -688,9 +922,8 @@ function BatchesModal({ item, canManage, onClose }: { item: Item; canManage: boo
                     <Td>{b.productionDate ? b.productionDate.slice(0, 10) : '—'}</Td>
                     <Td>
                       {canManage ? (
-                        <input
+                        <TextInput
                           type="date"
-                          className="rounded border border-gray-200 px-2 py-1 text-sm"
                           value={b.expiry ? b.expiry.slice(0, 10) : ''}
                           onChange={(e) => updateExpiry(b, e.target.value)}
                         />
@@ -705,7 +938,7 @@ function BatchesModal({ item, canManage, onClose }: { item: Item; canManage: boo
                     </Td>
                     {canManage ? (
                       <Td>
-                        <Button variant="danger" onClick={() => remove(b)}>
+                        <Button variant="ghost" onClick={() => remove(b)} className="!text-red-600">
                           حذف
                         </Button>
                       </Td>
@@ -726,4 +959,3 @@ function BatchesModal({ item, canManage, onClose }: { item: Item; canManage: boo
     </Modal>
   );
 }
-
