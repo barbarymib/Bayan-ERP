@@ -29,6 +29,11 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B13: customer lat/lng web inputs + geolocation quick-fill + map link (2026-10-18)
+- **Spec §5.4 (GAP R3-B13):** Customer map location — API `lat`/`lng` existed (DTO `@IsLatitude/@IsLongitude`, `Customer` Decimal(10,7), create/update/list already round-tripped them) but **no web input/picker**.
+- **Web:** `CustomerModal` gained خط العرض/خط الطول numeric `TextInput`s (`step=any`, `dir=ltr`, pre-filled from `customer.lat/lng`, empty when null), a **تحديد من الموقع الحالي** button (`navigator.geolocation.getCurrentPosition` → `toFixed(7)`, graceful unsupported/denied error), and an **عرض على الخريطة** Google-Maps `?q=lat,lng` link shown when both set. Submit body sends `lat`/`lng` as `Number(...)` or `null` (clear). `lib/api.ts` `Customer` interface +`lat`/`lng: number|null`. Backend untouched.
+- **Gates:** web `tsc --noEmit` 0 + `eslint` 0. **Live-verified 2026-10-18** (API restarted, DB already at 31 migrations): `POST /customers {lat,lng}` → returned; `PATCH /customers/:id {lat,lng}` → updated; `GET /customers?q=…` → list returns updated values. Commit `20fec84`.
+- **Next:** continue plan item 40 → **R3-B12** (`creditDays` unused — no due-date/overdue), **R3-B14** (`statement.cancel` permission), or **R3-B15** (tax per-company setting).
 ### Completed — R3-A12/R3-A3: client-facing effective feature-flags endpoint + mobile gates retail print (2026-10-18)
 - **Spec §12.3 (GAP R3-A12/R3-A3):** `printing.retail` flag seeded but never enforced; no client-facing flag endpoint (API `@Features` only).
 - **API:** new `auth/features.service.ts` `FeaturesService` (`isEnabled` single + `effectiveFlags` bulk; precedence user-override ← company-override ← global). `AuthGuard` refactored to use it (removed private `featureEnabled`). New `GET /auth/features` (`AuthController.features`) returns `{code:bool}` for the current user/company (tenant) or global defaults. Registered in `AuthModule` (providers+exports).
