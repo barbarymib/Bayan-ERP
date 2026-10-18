@@ -53,6 +53,94 @@ services:
       timeout: 5s
       retries: 10
 
+  # G28: خدمات التطبيق (profile «apps») — التشغيل الافتراضي للبنية فقط كما كان؛
+  # للتشغيل الكامل: docker compose --profile apps up --build
+  api-migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrator
+    container_name: bayan-api-migrate
+    environment: &api-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bayan}:${POSTGRES_PASSWORD:-bayan}@postgres:5432/${POSTGRES_DB:-bayan}
+      PORT: "3000"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-bayan}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-bayan12345}
+      S3_BUCKET: ${S3_BUCKET:-bayan}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["apps"]
+
+  # إنشاء مستخدم تطبيق مخصص في MinIO (API يرفض اعتمادات minioadmin الافتراضية
+  # في وضع production) + ضمان وجود الـ bucket.
+  minio-init:
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: bayan-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-bayan}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-bayan12345}
+      S3_BUCKET: ${S3_BUCKET:-bayan}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc admin user add local "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" || true
+        mc admin policy attach local readwrite --user "$$S3_ACCESS_KEY" || mc admin policy set local readwrite --user "$$S3_ACCESS_KEY" || true
+        mc mb --ignore-existing "local/$$S3_BUCKET"
+        echo "minio-init ok"
+    profiles: ["apps"]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    container_name: bayan-api
+    environment: *api-env
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    profiles: ["apps"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+    container_name: bayan-web
+    ports:
+      - "3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    profiles: ["apps"]
+
 volumes:
   pgdata:
   redisdata:

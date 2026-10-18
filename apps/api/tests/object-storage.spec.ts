@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { LocalObjectStorage, resolveLocalRoot } from '../src/common/object-storage.local.js';
-import { S3ObjectStorage, toRelativeKey, type S3Env } from '../src/common/object-storage.s3.js';
+import { S3ObjectStorage, readS3Env, toRelativeKey, type S3Env } from '../src/common/object-storage.s3.js';
 
 const roots: string[] = [];
 
@@ -100,5 +100,84 @@ describe('S3ObjectStorage (pure id helpers, no network)', () => {
     expect(toRelativeKey('bayan', 'archives/AR-1.zip')).toBe('archives/AR-1.zip');
     expect(toRelativeKey('bayan', 's3://bayan/archives/AR-1.zip')).toBe('archives/AR-1.zip');
     expect(toRelativeKey('other', 's3://bayan/archives/AR-1.zip')).toBe('s3://bayan/archives/AR-1.zip');
+  });
+});
+
+describe('readS3Env (endpoint parsing)', () => {
+  const KEYS = [
+    'NODE_ENV', 'S3_ENDPOINT', 'MINIO_ENDPOINT', 'S3_PORT', 'MINIO_PORT',
+    'S3_USE_SSL', 'MINIO_USE_SSL', 'S3_ACCESS_KEY', 'MINIO_ACCESS_KEY',
+    'S3_SECRET_KEY', 'MINIO_SECRET_KEY',
+  ];
+  let saved: Record<string, string | undefined>;
+
+  function setEnv(vars: Record<string, string | undefined>): void {
+    saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+    for (const k of KEYS) delete process.env[k];
+    for (const [k, v] of Object.entries(vars)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+
+  function restoreEnv(): void {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+
+  it('parses a full http URL into host/port (minio-js needs a bare hostname)', () => {
+    try {
+      setEnv({ S3_ENDPOINT: 'http://minio:9000', S3_ACCESS_KEY: 'bayan', S3_SECRET_KEY: 'k' });
+      const env = readS3Env();
+      expect(env.endpoint).toBe('minio');
+      expect(env.port).toBe(9000);
+      expect(env.useSSL).toBe(false);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it('derives https + port 443 from scheme when no explicit port/ssl', () => {
+    try {
+      setEnv({ S3_ENDPOINT: 'https://s3.example.com', S3_ACCESS_KEY: 'bayan', S3_SECRET_KEY: 'k' });
+      const env = readS3Env();
+      expect(env.endpoint).toBe('s3.example.com');
+      expect(env.port).toBe(443);
+      expect(env.useSSL).toBe(true);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it('keeps legacy raw-hostname behaviour (no scheme → port 9000, no ssl)', () => {
+    try {
+      setEnv({ S3_ENDPOINT: 'minio', S3_ACCESS_KEY: 'bayan', S3_SECRET_KEY: 'k' });
+      const env = readS3Env();
+      expect(env.endpoint).toBe('minio');
+      expect(env.port).toBe(9000);
+      expect(env.useSSL).toBe(false);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it('explicit S3_PORT wins over the URL port', () => {
+    try {
+      setEnv({ S3_ENDPOINT: 'http://minio:9000', S3_PORT: '9100', S3_ACCESS_KEY: 'bayan', S3_SECRET_KEY: 'k' });
+      expect(readS3Env().port).toBe(9100);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it('rejects default minioadmin credentials in production', () => {
+    try {
+      setEnv({ NODE_ENV: 'production', S3_ENDPOINT: 'http://minio:9000' });
+      expect(() => readS3Env()).toThrow(/required in production/);
+    } finally {
+      restoreEnv();
+    }
   });
 });

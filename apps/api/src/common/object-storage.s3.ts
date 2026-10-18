@@ -16,8 +16,25 @@ export interface S3Env {
 }
 
 export function readS3Env(): S3Env {
-  const endpoint =
-    process.env.MINIO_ENDPOINT ?? process.env.S3_ENDPOINT ?? 'localhost';
+  // يقبل بصيغة URL كاملة (http://minio:9000) أو اسم مضيف خام (minio) —
+  // مكتبة minio تتطلب اسم المضيف دون مخطط، وتُشتق useSSL من المخطط عند عدم تحديدها صراحةً.
+  const raw = (
+    process.env.MINIO_ENDPOINT ??
+    process.env.S3_ENDPOINT ??
+    'localhost'
+  ).trim();
+  const m = /^(https?):\/\/([^/?#]+)$/i.exec(raw);
+  const scheme = m?.[1]?.toLowerCase();
+  const hostPort = (m ? m[2] : raw) ?? raw;
+  let host = hostPort;
+  let endpointPort: number | undefined;
+  if (!hostPort.startsWith('[')) {
+    const idx = hostPort.lastIndexOf(':');
+    if (idx > -1 && /^\d+$/.test(hostPort.slice(idx + 1))) {
+      host = hostPort.slice(0, idx);
+      endpointPort = Number(hostPort.slice(idx + 1));
+    }
+  }
   const accessKey = process.env.MINIO_ACCESS_KEY ?? process.env.S3_ACCESS_KEY ?? 'minioadmin';
   const secretKey = process.env.MINIO_SECRET_KEY ?? process.env.S3_SECRET_KEY ?? 'minioadmin';
   if (
@@ -28,12 +45,19 @@ export function readS3Env(): S3Env {
       'S3/MinIO credentials (MINIO_ACCESS_KEY/MINIO_SECRET_KEY or S3_ACCESS_KEY/S3_SECRET_KEY) are required in production',
     );
   }
+  const sslEnv = process.env.MINIO_USE_SSL ?? process.env.S3_USE_SSL;
+  const useSSL =
+    sslEnv !== undefined
+      ? ['1', 'true', 'yes', 'on'].includes(String(sslEnv).toLowerCase())
+      : scheme === 'https';
+  const envPort = process.env.MINIO_PORT ?? process.env.S3_PORT;
+  const port = envPort
+    ? Number(envPort)
+    : (endpointPort ?? (scheme ? (useSSL ? 443 : 80) : 9000));
   return {
-    endpoint,
-    port: Number(process.env.MINIO_PORT ?? process.env.S3_PORT ?? 9000),
-    useSSL: ['1', 'true', 'yes', 'on'].includes(
-      String(process.env.MINIO_USE_SSL ?? process.env.S3_USE_SSL ?? '0').toLowerCase(),
-    ),
+    endpoint: host,
+    port,
+    useSSL,
     region: process.env.S3_REGION ?? 'us-east-1',
     accessKey,
     secretKey,

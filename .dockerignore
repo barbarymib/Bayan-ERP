@@ -1,0 +1,17 @@
+.git
+.github
+.turbo
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.log
+apps/mobile
+docs
+memory.md
+AGENTS.md
+CLAUDE.md
+prisma_tenant_inventory_full.txt
+.env
+.env.*
+!.env.example
