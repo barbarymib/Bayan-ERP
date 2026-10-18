@@ -35,7 +35,7 @@ import {
 type Tab = 'movements' | 'values' | 'noprice' | 'summary' | 'lowstock' | 'aging' | 'weightnotes';
 
 export default function ReportsPage() {
-  const { user } = useAuth();
+  const { user, featureEnabled } = useAuth();
   const canView = can(user, 'report.view');
   const [tab, setTab] = useState<Tab>('movements');
 
@@ -50,7 +50,9 @@ export default function ReportsPage() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'movements', label: 'حركة المخزون' },
-    { id: 'values', label: 'تقييم المخازن' },
+    ...(featureEnabled('reports.valuation')
+      ? [{ id: 'values' as Tab, label: 'تقييم المخازن' }]
+      : []),
     { id: 'noprice', label: 'أصناف بدون سعر' },
     { id: 'summary', label: 'ملخص الأصناف' },
     { id: 'lowstock', label: 'تحت الحد الأدنى' },

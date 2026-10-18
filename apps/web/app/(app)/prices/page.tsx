@@ -34,7 +34,7 @@ import {
 type Tab = 'resolve' | 'bulk' | 'history' | 'convert';
 
 export default function PricesPage() {
-  const { user } = useAuth();
+  const { user, featureEnabled } = useAuth();
   const manage = can(user, 'price.manage');
 
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
@@ -65,7 +65,7 @@ export default function PricesPage() {
 
   const tabs: { id: Tab; label: string; cond?: boolean }[] = [
     { id: 'resolve', label: 'استعلام / تحديد سعر' },
-    { id: 'bulk', label: 'التسعير الجماعي اليومي', cond: manage },
+    { id: 'bulk', label: 'التسعير الجماعي اليومي', cond: manage && featureEnabled('pricing.bulk') },
     { id: 'history', label: 'سجل تغييرات الأسعار', cond: manage },
     { id: 'convert', label: 'آلة تحويل الوحدات' },
   ];

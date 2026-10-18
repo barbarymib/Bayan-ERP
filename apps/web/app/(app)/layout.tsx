@@ -6,11 +6,11 @@ import type { ReactNode } from 'react';
 import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
 
-type NavLink = { href: string; label: string; phase: number; perm?: string };
+type NavLink = { href: string; label: string; phase: number; perm?: string; feature?: string };
 
 function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, featureEnabled } = useAuth();
 
   const links: NavLink[] = [
     { href: '/statements', label: 'بيانات الأسعار', phase: 2 },
@@ -26,10 +26,10 @@ function Shell({ children }: { children: ReactNode }) {
     { href: '/transfers', label: 'التحويلات المخزنية', phase: 3 },
     { href: '/reports', label: 'التقارير والتقييم', phase: 3 },
     { href: '/reps', label: 'المتابعة الميدانية', phase: 5 },
-    { href: '/geo', label: 'تتبع المندوبين', phase: 5 },
+    { href: '/geo', label: 'تتبع المندوبين', phase: 5, feature: 'geotracking.fleet' },
     { href: '/visit-plans', label: 'خطط الزيارات', phase: 5 },
     { href: '/targets', label: 'التارجت والعمولات', phase: 5 },
-    { href: '/archives', label: 'الترحيل والأرشفة', phase: 6 },
+    { href: '/archives', label: 'الترحيل والأرشفة', phase: 6, feature: 'archiving.core' },
     { href: '/backups', label: 'النسخ الاحتياطي', phase: 6 },
     { href: '/notifications', label: 'الإشعارات', phase: 6 },
     { href: '/audit-logs', label: 'سجل التدقيق', phase: 6 },
@@ -86,7 +86,12 @@ function Shell({ children }: { children: ReactNode }) {
                 {group.title}
               </div>
               {links
-                .filter((l) => l.phase === group.phase && (!l.perm || can(user, l.perm)))
+                .filter(
+                  (l) =>
+                    l.phase === group.phase &&
+                    (!l.perm || can(user, l.perm)) &&
+                    (!l.feature || featureEnabled(l.feature)),
+                )
                 .map((link) => {
                   const active = pathname?.startsWith(link.href);
                   return (

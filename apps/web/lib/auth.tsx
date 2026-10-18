@@ -15,6 +15,8 @@ import { API_URL, clearToken, getToken, request, setRefreshToken, setToken, sync
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
+  features: Record<string, boolean>;
+  featureEnabled: (code: string) => boolean;
   login: (identifier: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -23,6 +25,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,6 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const me = await request<AuthUser>('/auth/me');
         if (!cancelled) setUser(me);
+        try {
+          const flags = await request<Record<string, boolean>>('/auth/features');
+          if (!cancelled) setFeatures(flags);
+        } catch {
+          /* features are optional; default to visible */
+        }
       } catch {
         clearToken();
       } finally {
@@ -77,14 +86,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.accessToken);
     if (data.refreshToken) setRefreshToken(data.refreshToken);
     setUser(data.user);
+    try {
+      const flags = await request<Record<string, boolean>>('/auth/features');
+      setFeatures(flags);
+    } catch {
+      setFeatures({});
+    }
   }, []);
 
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
+    setFeatures({});
   }, []);
 
-  const value = useMemo(() => ({ user, loading, login, logout }), [user, loading, login, logout]);
+  const featureEnabled = useCallback((code: string) => features[code] !== false, [features]);
+
+  const value = useMemo(
+    () => ({ user, loading, features, featureEnabled, login, logout }),
+    [user, loading, features, featureEnabled, login, logout],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
