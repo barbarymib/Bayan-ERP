@@ -244,7 +244,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-A11 | No `lastPurchaseAt` date stored (only cost). | §5.3 | ✅ FIXED | `schema.prisma:406` added `lastPurchaseAt DateTime?`; migration `20261018000000_item_last_purchase_at` (schema-qualified public); `purchases.service.ts` sets `lastPurchaseAt = new Date()` when auto-updating `lastPurchaseCost` (line ~203); web `lib/api.ts` `Item.lastPurchaseAt` + `items/page.tsx` shows "آخر شراء" (cost + date). Commit `58df9fb`/`a249f7f`. Live-verified via purchase flow logic (field persisted on approval). |
 | R3-A12 | `printing.retail` flag seeded but never enforced. | §12.3 | PARTIAL | `seed.ts:63`; `@Features` uses exclude it |
 | R3-A13 | Currency not modeled (EGP hardcoded). | §3 | PARTIAL | `apps/web/lib/tafqit.ts:94` |
-| R3-A14 | Web shows wrong "own" discount limits (`roleCode==='ADMIN'?100:0`). | §4.2 | DEVIATION | `apps/web/app/(app)/users/page.tsx:84` |
+| R3-A14 | Web shows wrong "own" discount limits (`roleCode==='ADMIN'?100:0`). | §4.2 | ✅ FIXED | `apps/web/app/(app)/users/page.tsx:84` |
 | R3-B12 | `creditDays` captured but unused (no due-date/overdue). | §5.4 | PARTIAL | `customers.dto.ts:84,158` |
 | R3-B13 | Customer map location: API lat/lng exists, no web input/picker. | §5.4 | MISSING | `customers/page.tsx` |
 | R3-B14 | No dedicated `statement.cancel` permission (gated by `statement.edit`). | §5.6 | DEVIATION | `price-statements.controller.ts:63-64` |
@@ -333,4 +333,3 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 
 ### Migration note — schema `bayan`
 The RLS migration (`20261012000000_rls_tenant_isolation`) does `CREATE SCHEMA IF NOT EXISTS bayan` and puts the helper `bayan.current_company_id()` there. Because the DB role is named `bayan`, its default `search_path` is `bayan, public`, so an **unqualified `CREATE TABLE` in any migration after RLS lands in schema `bayan`, not `public`** (where all 72 app tables live) → Prisma Client (which resolves via `public`) fails at runtime with `relation "…" does not exist`. **Rule: new-table migrations MUST schema-qualify `public."Table"` (and FKs `REFERENCES public."…"`).** Column-only (`ALTER TABLE`) migrations are unaffected.
-
