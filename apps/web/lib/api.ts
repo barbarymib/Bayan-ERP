@@ -408,6 +408,32 @@ export interface CustomerStatement {
   totalOutstanding: number;
 }
 
+export interface SupplierStatement {
+  supplier: { id: number; code: string; nameAr: string };
+  openingBalance: number;
+  closingBalance: number;
+  movements: {
+    id: number;
+    date: string;
+    description: string;
+    debit: number;
+    credit: number;
+    balance: number;
+    refType: string;
+    refId: number;
+  }[];
+  outstandingStatements: {
+    statementId: number;
+    number: string;
+    date: string;
+    net: number;
+    paid: number;
+    allocated: number;
+    outstanding: number;
+  }[];
+  totalOutstanding: number;
+}
+
 export interface User {
   id: number;
   name: string;

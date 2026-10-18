@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { can, get, post, qs, type Supplier, type SuppliersPage } from '@/lib/api';
+import { can, get, post, qs, type Supplier, type SuppliersPage, type SupplierStatement } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
   Badge,
@@ -14,11 +14,14 @@ import {
   Td,
   TextInput,
   Th,
+  formatDate,
+  formatMoney,
 } from '@/components/ui';
 
 export default function SuppliersPage() {
   const { user } = useAuth();
   const manage = can(user, 'supplier.manage');
+  const canViewStatement = can(user, 'ledger.view') || can(user, 'report.view');
 
   const [rows, setRows] = useState<Supplier[]>([]);
   const [q, setQ] = useState('');
@@ -26,6 +29,7 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [statementRow, setStatementRow] = useState<Supplier | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,6 +82,7 @@ export default function SuppliersPage() {
               <Th>الهاتف</Th>
               <Th>العنوان</Th>
               <Th>الحالة</Th>
+              <Th>كشف الحساب</Th>
             </tr>
           </thead>
           <tbody>
@@ -97,6 +102,15 @@ export default function SuppliersPage() {
                   <Td dir="ltr">{s.phone ?? '—'}</Td>
                   <Td>{s.address ?? '—'}</Td>
                   <Td>{s.active ? <Badge color="green">نشط</Badge> : <Badge color="red">موقوف</Badge>}</Td>
+                  <Td>
+                    {canViewStatement ? (
+                      <Button variant="secondary" onClick={() => setStatementRow(s)}>
+                        كشف حساب
+                      </Button>
+                    ) : (
+                      '—'
+                    )}
+                  </Td>
                 </tr>
               ))
             )}
@@ -114,6 +128,8 @@ export default function SuppliersPage() {
           }}
         />
       ) : null}
+
+      {statementRow ? <SupplierStatementModal supplier={statementRow} onClose={() => setStatementRow(null)} /> : null}
     </div>
   );
 }
@@ -174,6 +190,117 @@ function CreateSupplierModal({
           {busy ? 'جارِ الحفظ…' : 'حفظ'}
         </Button>
       </div>
+    </Modal>
+  );
+}
+
+function SupplierStatementModal({ supplier, onClose }: { supplier: Supplier; onClose: () => void }) {
+  const [data, setData] = useState<SupplierStatement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<SupplierStatement>(`/suppliers/${supplier.id}/statement`)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'فشل تحميل كشف الحساب');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supplier.id]);
+
+  return (
+    <Modal title={`كشف حساب ${supplier.code} — ${supplier.nameAr}`} onClose={onClose}>
+      {loading ? <div className="py-6 text-center text-gray-400">جارِ التحميل…</div> : null}
+      {error ? <ErrorBox message={error} /> : null}
+      {data ? (
+        <>
+          <div className="mb-3 grid grid-cols-3 gap-3 text-sm">
+            <div className="rounded-lg border border-gray-200 p-2">
+              <div className="text-gray-500">رصيد أول المدة</div>
+              <div className="font-semibold">{formatMoney(data.openingBalance)}</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-2">
+              <div className="text-gray-500">رصيد آخر المدة</div>
+              <div className="font-semibold">{formatMoney(data.closingBalance)}</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-2">
+              <div className="text-gray-500">إجمالي المستحق</div>
+              <div className="font-semibold">{formatMoney(data.totalOutstanding)}</div>
+            </div>
+          </div>
+
+          <div className="mb-3 max-h-64 overflow-y-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-50">
+                <tr>
+                  <Th>التاريخ</Th>
+                  <Th>البيان</Th>
+                  <Th>مدين</Th>
+                  <Th>دائن</Th>
+                  <Th>الرصيد</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.movements.length === 0 ? (
+                  <tr>
+                    <Td className="py-3 text-center text-gray-400" colSpan={5}>
+                      لا توجد حركات
+                    </Td>
+                  </tr>
+                ) : (
+                  data.movements.map((m) => (
+                    <tr key={m.id} className="border-b border-gray-100 last:border-0">
+                      <Td>{formatDate(m.date)}</Td>
+                      <Td>{m.description}</Td>
+                      <Td className="text-end">{m.debit ? formatMoney(m.debit) : '—'}</Td>
+                      <Td className="text-end">{m.credit ? formatMoney(m.credit) : '—'}</Td>
+                      <Td className="text-end font-semibold">{formatMoney(m.balance)}</Td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {data.outstandingStatements.length > 0 ? (
+            <div>
+              <div className="mb-1 text-sm font-bold text-gray-700">فواتير مشتريات غير مسددة</div>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <Th>الرقم</Th>
+                      <Th>التاريخ</Th>
+                      <Th>الصافي</Th>
+                      <Th>المدفوع</Th>
+                      <Th>المتبقي</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.outstandingStatements.map((s) => (
+                      <tr key={s.statementId} className="border-b border-gray-100 last:border-0">
+                        <Td className="font-mono">{s.number}</Td>
+                        <Td>{formatDate(s.date)}</Td>
+                        <Td className="text-end">{formatMoney(s.net)}</Td>
+                        <Td className="text-end">{formatMoney(s.paid)}</Td>
+                        <Td className="text-end font-semibold">{formatMoney(s.outstanding)}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </Modal>
   );
 }
