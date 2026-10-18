@@ -29,6 +29,14 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — R3-B4: capture/send statement GPS location (2026-10-18)
+- **Spec §5.6 (GAP R3-B4, was PARTIAL):** API accepted `lat`/`lng` but no client ever sent them; sync push ignored them.
+- **Web** `statements/page.tsx`: module helper `getGeo(): Promise<{lat,lng}|null>` — `navigator.geolocation.getCurrentPosition`, `timeout:5000, maximumAge:60000`, resolves `null` on error/unsupported. Started as `geoPromise` before the try, awaited inside; body spreads `...(pos ? {lat,lng} : {})`.
+- **Mobile** `new_statement_screen.dart`: `final geo = ref.read(locationProvider).getCurrentPosition();` started right after `_saving=true` (runs in parallel with totals/payload build), awaited just before `_enqueueStatement` in try/catch → `payload['lat']/['lng']` when non-null; failure → statement saved without coords (best-effort). `locationProvider` (Riverpod, `core/providers.dart`) wired to `GeolocatorLocationProvider` in `main.dart`.
+- **API** `sync.service.ts pushPriceStatement`: `lat = num(payload['lat'])`, `lng = num(payload['lng'])` spread into `CreateStatementDto` (previously dropped). Service already persisted `dto.lat/lng` (create:236, update:861).
+- **Gates:** api typecheck 0 + **425/425**; web typecheck/lint 0; mobile `flutter analyze` clean.
+- **Live-verify 2026-10-18:** create with `lat=24.713552,lng=46.675296` → stored (id206); sync push `lat=24.777777,lng=46.333333` → stored (id207); both cancelled. Commit `af3c271`.
+- **Next:** R3-B5 (live %↔value discount conversion in web+mobile entry forms) → B8 → B9 → B12 → P3/P4.
 ### Completed — R3-B3: payment term + paid amount end-to-end (2026-10-18)
 - **Spec §5.6 (GAP R3-B3, was PARTIAL):** mobile push sent no `paymentTerm`/`paid` → all rep sales forced CREDIT, MIXED unusable; web form had no `paid` input.
 - **Mobile** `new_statement_screen.dart`: added `String _paymentTerm='CREDIT'` + `_paid` controller (disposed), payment-term `DropdownButtonFormField` (نقدي/آجل/مختلط) + paid `TextField`, payload now `'paymentTerm'`/`'paid'`.
