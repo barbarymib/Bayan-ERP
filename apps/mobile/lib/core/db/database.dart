@@ -11,6 +11,7 @@ import 'db_security.dart';
 part 'database.g.dart';
 
 /// الأصناف المرجعية القادمة من خادم المزامنة.
+@TableIndex(name: 'idx_items_code', columns: {#code})
 class Items extends Table {
   IntColumn get id => integer()();
   TextColumn get code => text()();
@@ -24,6 +25,8 @@ class Items extends Table {
 }
 
 /// العملاء المرجعيون مع رصيدهم وقائمة الأسعار وآخر بيان.
+@TableIndex(name: 'idx_customers_code', columns: {#code})
+@TableIndex(name: 'idx_customers_name', columns: {#name})
 class Customers extends Table {
   IntColumn get id => integer()();
   TextColumn get code => text()();
@@ -50,6 +53,7 @@ class PriceLists extends Table {
 }
 
 /// أسعار الأصناف داخل كل قائمة (سعر الوحدة الأساسية/التحويلية).
+@TableIndex(name: 'idx_item_prices_item', columns: {#itemId})
 class ItemPrices extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get priceListId => integer()();
@@ -64,6 +68,8 @@ class ItemPrices extends Table {
 }
 
 /// بيانات الأسعار المعتمدة (لإصدار المرتجعات أوفلاين).
+@TableIndex(name: 'idx_statement_rows_customer', columns: {#customerId})
+@TableIndex(name: 'idx_statement_rows_date', columns: {#date})
 class StatementRows extends Table {
   IntColumn get id => integer()();
   TextColumn get number => text()();
@@ -77,6 +83,8 @@ class StatementRows extends Table {
 }
 
 /// بنود بيانات الأسعار.
+@TableIndex(name: 'idx_statement_lines_statement', columns: {#statementId})
+@TableIndex(name: 'idx_statement_lines_item', columns: {#itemId})
 class StatementLineRows extends Table {
   IntColumn get id => integer()();
   IntColumn get statementId =>
@@ -141,7 +149,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -149,6 +157,21 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             // R3-A6 §5.2: تصنيف الصنف (لتمييز أصناف الحديد) — عمود اختياري.
             await m.addColumn(items, items.categoryCode);
+          }
+          if (from < 3) {
+            // R3-E7 §11: فهارس ثانوية لأعمدة الاستعلام الساخنة (ترتيب/ربط/حذف تتابعي).
+            for (final index in [
+              idxItemsCode,
+              idxCustomersCode,
+              idxCustomersName,
+              idxItemPricesItem,
+              idxStatementRowsCustomer,
+              idxStatementRowsDate,
+              idxStatementLinesStatement,
+              idxStatementLinesItem,
+            ]) {
+              await m.createIndex(index);
+            }
           }
         },
       );

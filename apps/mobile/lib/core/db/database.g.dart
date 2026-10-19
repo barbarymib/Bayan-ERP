@@ -2648,6 +2648,38 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $StatementLineRowsTable statementLineRows =
       $StatementLineRowsTable(this);
   late final $MetaTable meta = $MetaTable(this);
+  late final Index idxItemsCode = Index(
+    'idx_items_code',
+    'CREATE INDEX idx_items_code ON items (code)',
+  );
+  late final Index idxCustomersCode = Index(
+    'idx_customers_code',
+    'CREATE INDEX idx_customers_code ON customers (code)',
+  );
+  late final Index idxCustomersName = Index(
+    'idx_customers_name',
+    'CREATE INDEX idx_customers_name ON customers (name)',
+  );
+  late final Index idxItemPricesItem = Index(
+    'idx_item_prices_item',
+    'CREATE INDEX idx_item_prices_item ON item_prices (item_id)',
+  );
+  late final Index idxStatementRowsCustomer = Index(
+    'idx_statement_rows_customer',
+    'CREATE INDEX idx_statement_rows_customer ON statement_rows (customer_id)',
+  );
+  late final Index idxStatementRowsDate = Index(
+    'idx_statement_rows_date',
+    'CREATE INDEX idx_statement_rows_date ON statement_rows (date)',
+  );
+  late final Index idxStatementLinesStatement = Index(
+    'idx_statement_lines_statement',
+    'CREATE INDEX idx_statement_lines_statement ON statement_line_rows (statement_id)',
+  );
+  late final Index idxStatementLinesItem = Index(
+    'idx_statement_lines_item',
+    'CREATE INDEX idx_statement_lines_item ON statement_line_rows (item_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2660,6 +2692,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     statementRows,
     statementLineRows,
     meta,
+    idxItemsCode,
+    idxCustomersCode,
+    idxCustomersName,
+    idxItemPricesItem,
+    idxStatementRowsCustomer,
+    idxStatementRowsDate,
+    idxStatementLinesStatement,
+    idxStatementLinesItem,
   ];
 }
 
