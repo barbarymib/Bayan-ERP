@@ -638,3 +638,70 @@ class CustodyHandover {
         status: j['status'] as String? ?? '',
       );
 }
+
+/// مؤشرات أداء المندوب لليوم (§8.2 #1 «مؤشرات اليوم») — صف واحد من
+/// `GET /reports/rep-performance` بمرشّح `repId` + فترة اليوم.
+class TodayKpis {
+  final DateTime from;
+  final DateTime to;
+  final double salesNet;
+  final int salesCount;
+  final double collected;
+  final double collectionRatePct;
+  final int visits;
+  final int visitsDone;
+  final int visitsMissed;
+  final double distanceKm;
+  final double targetAmount;
+  final double achievementPct;
+
+  const TodayKpis({
+    required this.from,
+    required this.to,
+    this.salesNet = 0,
+    this.salesCount = 0,
+    this.collected = 0,
+    this.collectionRatePct = 0,
+    this.visits = 0,
+    this.visitsDone = 0,
+    this.visitsMissed = 0,
+    this.distanceKm = 0,
+    this.targetAmount = 0,
+    this.achievementPct = 0,
+  });
+
+  /// يقرأ استجابة `/reports/rep-performance` ويختار صفّ المندوب المطلوب
+  /// (الخادم يرجع صفّاً واحداً عند تمرير `repId`؛ يُتسامح مع صفوف إضافية).
+  factory TodayKpis.fromResponse(
+    Map<String, dynamic> j, {
+    int? repId,
+    DateTime? fallbackDate,
+  }) {
+    final rows = ((j['rows'] as List?) ?? const [])
+        .map((e) => (e as Map).cast<String, dynamic>());
+    Map<String, dynamic> row = const {};
+    for (final r in rows) {
+      if (repId == null || (r['repId'] as num?)?.toInt() == repId) {
+        row = r;
+        break;
+      }
+    }
+    final date = fallbackDate ?? DateTime.now();
+    DateTime dateOf(Object? v) =>
+        DateTime.tryParse(v?.toString() ?? '') ?? date;
+    return TodayKpis(
+      from: dateOf(j['from']),
+      to: dateOf(j['to']),
+      salesNet: _decimal(row['salesNet']),
+      salesCount: (row['salesCount'] as num?)?.toInt() ?? 0,
+      collected: _decimal(row['collected']),
+      collectionRatePct: _decimal(row['collectionRatePct']),
+      visits: (row['visits'] as num?)?.toInt() ?? 0,
+      visitsDone: (row['visitsDone'] as num?)?.toInt() ?? 0,
+      visitsMissed: (row['visitsMissed'] as num?)?.toInt() ?? 0,
+      distanceKm: _decimal(row['distanceKm']),
+      targetAmount: _decimal(row['targetAmount']),
+      achievementPct: _decimal(row['achievementPct']),
+    );
+  }
+}

@@ -18,6 +18,8 @@ import '../sync/sync_controller.dart';
 import '../tools/tools_screen.dart';
 import '../treasury/handover_screen.dart';
 import '../visits/visit_plan_screen.dart';
+import 'today_kpis_controller.dart';
+import 'today_kpis_view.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +34,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     // إن تُركت وردية تتبع نشطة على الخادم تُستأنف تلقائياً عند فتح التطبيق.
     ref.read(shiftControllerProvider.notifier).syncFromServer();
+    // مؤشرات اليوم (§8.2 #1) — تُجلب مع الخطأ محلياً عند الأوفلاين.
+    Future.microtask(() => ref.read(todayKpisControllerProvider.notifier).refresh());
   }
 
   Future<void> _toggleDeviceLock() async {
@@ -208,7 +212,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(syncControllerProvider.notifier).syncNow(),
+        onRefresh: () async {
+          await Future.wait([
+            ref.read(syncControllerProvider.notifier).syncNow(),
+            ref.read(todayKpisControllerProvider.notifier).refresh(),
+          ]);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -243,6 +252,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             if (user != null && user.repCode != null)
               Text('كود المندوب: ${user.repCode}',
                   style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 16),
+            _kpiSection(context, ref),
             const SizedBox(height: 16),
             Text('عملائي (${customers.length})',
                 style: Theme.of(context).textTheme.titleMedium),
@@ -281,6 +292,117 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(height: 72),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _kpiSection(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(todayKpisControllerProvider);
+    final theme = Theme.of(context);
+
+    if (st.kpis == null && !st.loading && st.error == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_outlined, size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 6),
+                Text('مؤشرات اليوم', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                if (st.loading)
+                  const SizedBox(
+                    height: 14,
+                    width: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (st.offline)
+                  Text('أوفلاين', style: theme.textTheme.bodySmall),
+              ],
+            ),
+            if (st.error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                st.error!,
+                style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: st.loading
+                      ? null
+                      : () => ref.read(todayKpisControllerProvider.notifier).refresh(),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              ),
+            ],
+            if (st.kpis != null) ...[
+              const SizedBox(height: 8),
+              for (final row in _kpiRows(todayKpiCards(st.kpis!)))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      for (final c in row) ...[
+                        Expanded(child: _kpiTile(context, c)),
+                        if (c != row.last) const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// يقسّم البطاقات إلى صفوف من عنصرين (الأخير فردي أوحذف إن كان فارغاً).
+  List<List<KpiCard>> _kpiRows(List<KpiCard> cards) {
+    final rows = <List<KpiCard>>[];
+    for (var i = 0; i < cards.length; i += 2) {
+      rows.add(cards.sublist(i, i + 1 < cards.length ? i + 2 : cards.length));
+    }
+    return rows;
+  }
+
+  Widget _kpiTile(BuildContext context, KpiCard c) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: c.highlight
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+            : theme.hoverColor.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(c.label, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 2),
+          Text(
+            c.value,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: c.highlight ? theme.colorScheme.onPrimaryContainer : null,
+            ),
+          ),
+          if (c.caption != null) ...[
+            const SizedBox(height: 2),
+            Text(c.caption!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11)),
+          ],
+        ],
       ),
     );
   }

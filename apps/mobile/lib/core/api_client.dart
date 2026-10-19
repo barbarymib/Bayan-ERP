@@ -433,6 +433,22 @@ class ApiClient {
     );
   }
 
+  /// مؤشرات أداء المندوب للفترة (§8.2 #1 «مؤشرات اليوم») — تُمرَّر `repId`
+  /// دائماً ليحصل المندوب على أرقامه فقط، و`from`/`to` بصيغة `yyyy-MM-dd`.
+  Future<Map<String, dynamic>> repPerformance({
+    required int repId,
+    required String from,
+    required String to,
+  }) async {
+    return _send(
+      () => _client.get(
+        _uri('/reports/rep-performance', {'repId': '$repId', 'from': from, 'to': to}),
+        headers: _headers,
+      ),
+      'فشل جلب مؤشرات اليوم',
+    );
+  }
+
   /// الميزات الفعّالة للمستخدم/الشركة الحاليَّين (§12.3) — خريطة كود ⇒ مفعّل.
   /// يستهلكها العميل لتقييم واجهات الميزات محلياً (R3-A3).
   Future<Map<String, bool>> features() async {
