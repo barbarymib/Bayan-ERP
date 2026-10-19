@@ -40,4 +40,13 @@ export class BackupsController {
   verify(@Param('id', ParseIntPipe) id: number) {
     return this.backups.verify(id);
   }
+
+  @Post(':id/restore-drill')
+  @Permissions('archive.run')
+  @ApiOkResponse({
+    description: 'اختبار استرجاع فعلي: يستعيد النسخة في قاعدة مؤقتة ويتحقق من البيانات ثم يسقطها (R3-E6)',
+  })
+  restoreDrill(@Param('id', ParseIntPipe) id: number) {
+    return this.backups.restoreDrill(id);
+  }
 }

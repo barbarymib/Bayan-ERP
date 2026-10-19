@@ -1544,6 +1544,9 @@ model AutomatedBackup {
   createdBy   User?        @relation(fields: [createdById], references: [id])
   createdAt   DateTime     @default(now())
   completedAt DateTime?
+  lastDrillAt DateTime?
+  lastDrillOk Boolean?
+  lastDrillDetail String?
 
   @@index([status, createdAt])
 }

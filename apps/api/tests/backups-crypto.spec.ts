@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { decrypt, encrypt, resolveKey } from '../src/backups/crypto.util.js';
-import { resolveDumpDatabaseUrl } from '../src/backups/backups.service.js';
-
+import {
+  parseDrillScalar,
+  resolveAdminDatabaseUrl,
+  resolveDumpDatabaseUrl,
+  resolveScratchDatabaseUrl,
+  scratchDatabaseName,
+} from '../src/backups/backups.service.js';
 const ORIGINAL_KEY = process.env.BACKUP_ENCRYPTION_KEY;
 
 afterEach(() => {
@@ -89,5 +94,36 @@ describe('resolveDumpDatabaseUrl (اتصال pg_dump مع تجاوز RLS)', () =
 
   it('يرفض غياب كلاهما', () => {
     expect(() => resolveDumpDatabaseUrl({})).toThrow('DATABASE_URL is not set');
+  });
+});
+
+describe('اختبار الاسترجاع الدوري (R3-E6، §9)', () => {
+  const base = 'postgresql://bypass:secret@localhost:5433/bayan?schema=public';
+
+  it('يبني اتصال قاعدة الإدارة postgres', () => {
+    const url = new URL(resolveAdminDatabaseUrl(base));
+    expect(url.pathname).toBe('/postgres');
+    expect(url.host).toBe('localhost:5433');
+    expect(url.password).toBe('secret');
+  });
+
+  it('يبني اتصال قاعدة الاختبار المؤقتة باسمها', () => {
+    const url = new URL(resolveScratchDatabaseUrl(base, 'bayan_drill_x'));
+    expect(url.pathname).toBe('/bayan_drill_x');
+    expect(url.searchParams.get('schema')).toBe('public');
+  });
+
+  it('يولّد اسم قاعدة اختبار آمن وفريد بحسب الوقت', () => {
+    const a = scratchDatabaseName(new Date('2026-10-19T02:00:00Z'), 'BK-20261019020000-ab12cd');
+    expect(a).toMatch(/^bayan_drill_20261019\d{6}_[a-z0-9]+$/);
+    expect(a).not.toMatch(/[^a-z0-9_]/);
+    const b = scratchDatabaseName(new Date('2026-10-20T02:00:00Z'), 'BK-20261020020000-ab12cd');
+    expect(a).not.toBe(b);
+  });
+
+  it('يستخرج قيمة psql الرقمية المفردة', () => {
+    expect(parseDrillScalar('  42\n')).toBe(42);
+    expect(parseDrillScalar('0\n')).toBe(0);
+    expect(parseDrillScalar('غير صالح')).toBe(-1);
   });
 });

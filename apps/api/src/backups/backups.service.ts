@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -27,6 +27,36 @@ export function resolveDumpDatabaseUrl(env: NodeJS.ProcessEnv = process.env): st
   const url = env.BACKUP_DATABASE_URL ?? env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
   return url;
+}
+
+/** اتصال قاعدة بيانات الإدارة `postgres` (لإنشاء/إسقاط قاعدة اختبار الاسترجاع). */
+export function resolveAdminDatabaseUrl(baseUrl: string): string {
+  const u = new URL(baseUrl);
+  u.pathname = '/postgres';
+  return u.toString();
+}
+
+/** اتصال قاعدة بيانات مؤقتة باسم محدّد على نفس الخادم. */
+export function resolveScratchDatabaseUrl(baseUrl: string, name: string): string {
+  const u = new URL(baseUrl);
+  u.pathname = `/${name}`;
+  return u.toString();
+}
+
+/** اسم قاعدة اختبار آمن (بلا رموز). */
+export function scratchDatabaseName(date: Date, suffix: string): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp =
+    `${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}` +
+    `${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`;
+  const safe = suffix.replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'x';
+  return `bayan_drill_${stamp}_${safe}`.toLowerCase();
+}
+
+/** يقرأ قيمة رقمية مفردة من مخرجات psql (تُرجع -1 عند تعذّر التحويل). */
+export function parseDrillScalar(stdout: string): number {
+  const v = Number(stdout.trim());
+  return Number.isFinite(v) ? v : -1;
 }
 
 @Injectable()
@@ -160,6 +190,118 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * اختبار استرجاع فعلي (R3-E6، §9): يفك التشفير ويستعيد النسخة في قاعدة بيانات
+   * مؤقتة على نفس الخادم، ثم يتحقق من وجود الجداول والبيانات الأساسية، ويسقط القاعدة.
+   * يُسجّل النتيجة على سجل النسخة (lastDrillAt/lastDrillOk/lastDrillDetail).
+   */
+  async restoreDrill(id: number) {
+    const record = await this.prisma.automatedBackup.findUnique({ where: { id } });
+    if (!record) throw new NotFoundException(`Backup #${id} not found`);
+    if (!record.path || !(await this.storage.exists(record.path))) {
+      throw new BadRequestException('Backup file is missing on disk');
+    }
+
+    const buf = await this.storage.load(record.path);
+    const sha256 = createHash('sha256').update(buf).digest('hex');
+    if (sha256 !== record.sha256) {
+      throw new BadRequestException('Checksum mismatch — the backup file was altered');
+    }
+
+    const dir = path.join(os.tmpdir(), 'bayan-backups');
+    mkdirSync(dir, { recursive: true });
+    const plainPath = path.join(dir, `drill-${record.code}-${randomBytes(3).toString('hex')}.sql`);
+    const name = scratchDatabaseName(new Date(), record.code);
+    const psql = this.resolvePsql();
+    const baseUrl = resolveDumpDatabaseUrl();
+    const adminUrl = resolveAdminDatabaseUrl(baseUrl);
+    const scratchUrl = resolveScratchDatabaseUrl(baseUrl, name);
+
+    const psqlBase = ['--set', 'ON_ERROR_STOP=1', '--no-psqlrc'];
+    let created = false;
+    let ok = false;
+    let detail = '';
+    let tables = -1;
+    let companies = -1;
+
+    try {
+      writeFileSync(plainPath, decrypt(buf, resolveKey()));
+
+      await execFileAsync(
+        psql,
+        [...psqlBase, '--dbname', adminUrl, '--command', `CREATE DATABASE "${name}"`],
+        { timeout: 60_000 },
+      );
+      created = true;
+
+      await execFileAsync(
+        psql,
+        [...psqlBase, '--quiet', '--dbname', scratchUrl, '--file', plainPath],
+        { maxBuffer: 1024 * 1024 * 512, timeout: 300_000 },
+      );
+
+      const tableRes = await execFileAsync(
+        psql,
+        [
+          ...psqlBase,
+          '--tuples-only',
+          '--no-align',
+          '--dbname',
+          scratchUrl,
+          '--command',
+          "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'",
+        ],
+        { timeout: 60_000 },
+      );
+      tables = parseDrillScalar(tableRes.stdout);
+
+      const companyRes = await execFileAsync(
+        psql,
+        [
+          ...psqlBase,
+          '--tuples-only',
+          '--no-align',
+          '--dbname',
+          scratchUrl,
+          '--command',
+          'SELECT count(*) FROM "Company"',
+        ],
+        { timeout: 60_000 },
+      );
+      companies = parseDrillScalar(companyRes.stdout);
+
+      ok = tables > 0 && companies >= 0;
+      detail = `tables=${tables}, companies=${companies}`;
+      if (!ok) throw new Error(`drill validation failed (${detail})`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!ok) detail = detail || message.slice(0, 400);
+      this.logger.error(`Restore drill for ${record.code} failed: ${message}`);
+    } finally {
+      if (created) {
+        await execFileAsync(
+          psql,
+          [...psqlBase, '--dbname', adminUrl, '--command', `DROP DATABASE IF EXISTS "${name}"`],
+          { timeout: 60_000 },
+        ).catch((e) =>
+          this.logger.warn(
+            `Could not drop drill database ${name}: ${e instanceof Error ? e.message : e}`,
+          ),
+        );
+      }
+      rmSync(plainPath, { force: true });
+    }
+
+    await this.prisma.automatedBackup.update({
+      where: { id: record.id },
+      data: { lastDrillAt: new Date(), lastDrillOk: ok, lastDrillDetail: detail.slice(0, 500) },
+    });
+
+    if (!ok) throw new BadRequestException(`Restore drill failed: ${detail}`);
+    this.logger.log(`Restore drill for ${record.code} OK (${detail})`);
+    return { ok, code: record.code, tables, companies, detail };
+  }
+
   async list(limit = 50) {
     const [rows, total] = await Promise.all([
       this.prisma.automatedBackup.findMany({
@@ -199,7 +341,16 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
 
   private async runScheduled(): Promise<void> {
     try {
-      await this.runBackup();
+      const backup = await this.runBackup();
+      if (process.env.BACKUP_DRILL !== 'off' && process.env.BACKUP_DRILL !== 'false') {
+        try {
+          await this.restoreDrill(backup.id);
+        } catch (err) {
+          this.logger.error(
+            `Scheduled restore drill failed: ${err instanceof Error ? err.message : err}`,
+          );
+        }
+      }
     } catch (err) {
       this.logger.error(`Scheduled backup failed: ${err instanceof Error ? err.message : err}`);
     }
@@ -222,6 +373,21 @@ export class BackupsService implements OnModuleInit, OnModuleDestroy {
       if (existsSync(candidate)) return candidate;
     }
     return 'pg_dump';
+  }
+
+  private resolvePsql(): string {
+    if (process.env.PG_PSQL_PATH) return process.env.PG_PSQL_PATH;
+    const candidates =
+      process.platform === 'win32'
+        ? [
+            'C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe',
+            'C:\\Program Files\\PostgreSQL\\16\\bin\\psql.exe',
+          ]
+        : ['/usr/bin/psql', '/usr/local/bin/psql'];
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return candidate;
+    }
+    return 'psql';
   }
 
   private stamp(date: Date): string {
