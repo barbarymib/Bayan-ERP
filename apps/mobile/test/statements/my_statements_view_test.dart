@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bayan_rep/core/models.dart';
+import 'package:bayan_rep/core/outbox.dart';
 import 'package:bayan_rep/features/statements/my_statements_view.dart';
 
 CustomerSummary _cust(int id, String name, [double balance = 0, String code = '']) =>
@@ -153,6 +154,122 @@ void main() {
         at('DRAFT', DateTime(2026, 10, 18)),
       ];
       expect(staleDraftCount(list, now: now), 1);
+    });
+  });
+
+  group('unifiedStatementRows (R3-F6 §8.2 #4)', () {
+    final customers = [_cust(1, 'شركة النور'), _cust(2, 'مؤسسة الأمل')];
+
+    OutboxItem local(
+      String uuid,
+      String? number,
+      int customerId,
+      String customerName,
+      double net, {
+      SyncStatus status = SyncStatus.local,
+      DateTime? at,
+    }) =>
+        OutboxItem(
+          clientUuid: uuid,
+          type: 'price_statement',
+          payload: {
+            'number': number,
+            'customerId': customerId,
+            'customerName': customerName,
+            'net': net,
+          },
+          number: number,
+          createdAt: at ?? DateTime(2026, 10, 12),
+          status: status,
+        );
+
+    test('يجمع كشوفات الخادم والمسودات المحلية فقط', () {
+      final rows = unifiedStatementRows(
+        statements: [_stmt(1, 'BP-1', 1, 'APPROVED', 100)],
+        customers: customers,
+        outbox: [
+          local('u1', 'BP-L1', 2, 'مؤسسة الأمل', 50),
+          OutboxItem(
+            clientUuid: 'u2',
+            type: 'collection',
+            payload: const {},
+            createdAt: DateTime(2026, 10, 13),
+          ),
+        ],
+      );
+      expect(rows.length, 2);
+      expect(rows.where((r) => r.local).single.number, 'BP-L1');
+    });
+
+    test('يرتّب تنازلياً حسب التاريخ', () {
+      final rows = unifiedStatementRows(
+        statements: [_stmt(1, 'BP-1', 1, 'APPROVED', 100)],
+        customers: customers,
+        outbox: [local('u1', 'BP-L1', 2, 'مؤسسة الأمل', 50, at: DateTime(2026, 10, 15))],
+      );
+      expect(rows.first.number, 'BP-L1');
+    });
+
+    test('يُسقط العنصر المحلي المكرّر برقم موجود على الخادم', () {
+      final rows = unifiedStatementRows(
+        statements: [_stmt(1, 'BP-1', 1, 'DRAFT', 100)],
+        customers: customers,
+        outbox: [local('u1', 'BP-1', 1, 'شركة النور', 100)],
+      );
+      expect(rows.length, 1);
+      expect(rows.single.local, isFalse);
+    });
+
+    test('تصنيف الحالات: مسودات/مرفوعة/معتمدة', () {
+      final rows = unifiedStatementRows(
+        statements: [
+          _stmt(1, 'BP-1', 1, 'DRAFT', 10),
+          _stmt(2, 'BP-2', 1, 'PENDING_REVIEW', 20),
+          _stmt(3, 'BP-3', 1, 'APPROVED', 30),
+          _stmt(4, 'BP-4', 1, 'CANCELLED', 40),
+        ],
+        customers: customers,
+        outbox: [
+          local('u1', 'BP-L1', 2, 'مؤسسة الأمل', 1),
+          local('u2', 'BP-L2', 2, 'مؤسسة الأمل', 2, status: SyncStatus.pendingReview),
+          local('u3', 'BP-L3', 2, 'مؤسسة الأمل', 3, status: SyncStatus.approved),
+        ],
+      );
+      expect(rows.where((r) => r.bucket == StatementBucket.drafts).length, 2);
+      expect(rows.where((r) => r.bucket == StatementBucket.uploaded).length, 2);
+      expect(rows.where((r) => r.bucket == StatementBucket.approved).length, 2);
+      expect(rows.where((r) => r.bucket == StatementBucket.other).length, 1);
+    });
+
+    test('الفلترة بالتصنيف والبحث بالاسم', () {
+      final rows = unifiedStatementRows(
+        statements: [
+          _stmt(1, 'BP-1', 1, 'APPROVED', 10),
+          _stmt(2, 'BP-2', 2, 'PENDING_REVIEW', 20),
+        ],
+        customers: customers,
+        outbox: [local('u1', 'BP-L1', 2, 'مؤسسة الأمل', 5)],
+      );
+      expect(filterUnifiedStatements(rows, bucket: StatementBucket.uploaded).length, 1);
+      expect(filterUnifiedStatements(rows, query: 'الأمل').length, 2);
+      expect(
+        filterUnifiedStatements(rows, bucket: StatementBucket.drafts, query: 'BP-L1').length,
+        1,
+      );
+    });
+
+    test('عدّ المسودات المحلية وإجمالي الصافي الموحّد', () {
+      final rows = unifiedStatementRows(
+        statements: [_stmt(1, 'BP-1', 1, 'APPROVED', 10)],
+        customers: customers,
+        outbox: [local('u1', 'BP-L1', 2, 'مؤسسة الأمل', 5, status: SyncStatus.uploaded)],
+      );
+      expect(localDraftCount(rows), 0);
+      expect(totalUnifiedNet(rows), 15);
+      expect(statementBucketLabel(StatementBucket.approved), 'معتمدة');
+      expect(syncStatusLabel(SyncStatus.local), 'مسودّة محلية');
+      expect(bucketForServerStatus('CANCELLED'), StatementBucket.other);
+      expect(bucketForSyncStatus(SyncStatus.uploading), StatementBucket.drafts);
     });
   });
 }

@@ -16,19 +16,25 @@ class MyStatementsScreen extends ConsumerStatefulWidget {
 
 class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
   String _query = '';
-  String? _status;
+  StatementBucket? _bucket;
 
-  static const _statuses = <String?>[null, 'APPROVED', 'PENDING_REVIEW'];
+  static const _buckets = <StatementBucket?>[
+    null,
+    StatementBucket.drafts,
+    StatementBucket.uploaded,
+    StatementBucket.approved,
+  ];
 
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(dataStoreProvider);
-    final statements = filterStatements(
-      store.statements,
-      store.customers,
-      status: _status,
-      query: _query,
+    final outbox = ref.watch(outboxProvider).all;
+    final allRows = unifiedStatementRows(
+      statements: store.statements,
+      customers: store.customers,
+      outbox: outbox,
     );
+    final rows = filterUnifiedStatements(allRows, bucket: _bucket, query: _query);
     final balances = balancesSorted(store.customers);
     final theme = Theme.of(context);
 
@@ -37,7 +43,7 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _summaryCards(store.statements, store.customers),
+          _summaryCards(allRows, store.customers),
           if (staleDraftCount(store.statements) > 0) ...[
             const SizedBox(height: 8),
             _staleBanner(staleDraftCount(store.statements)),
@@ -54,24 +60,24 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
           Wrap(
             spacing: 8,
             children: [
-              for (final s in _statuses)
+              for (final b in _buckets)
                 ChoiceChip(
-                  label: Text(s == null ? 'الكل' : statementStatusLabel(s)),
-                  selected: _status == s,
-                  onSelected: (_) => setState(() => _status = s),
+                  label: Text(b == null ? 'الكل' : statementBucketLabel(b)),
+                  selected: _bucket == b,
+                  onSelected: (_) => setState(() => _bucket = b),
                 ),
             ],
           ),
           const SizedBox(height: 12),
-          Text('الكشوفات (${statements.length})',
+          Text('الكشوفات (${rows.length})',
               style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
-          if (store.statements.isEmpty)
+          if (allRows.isEmpty)
             _emptyCard('لا توجد كشوفات. نزّل البيانات ثم أعد المحاولة.')
-          else if (statements.isEmpty)
+          else if (rows.isEmpty)
             _emptyCard('لا توجد نتائج مطابقة.')
           else
-            for (final s in statements) _statementTile(context, s, store.customers),
+            for (final r in rows) _unifiedTile(context, r),
           const SizedBox(height: 16),
           Text('أرصدة العملاء (${balances.length})',
               style: theme.textTheme.titleMedium),
@@ -86,18 +92,26 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
     );
   }
 
-  Widget _summaryCards(List<StatementSummary> statements, List<CustomerSummary> customers) {
+  Widget _summaryCards(List<UnifiedStatementRow> rows, List<CustomerSummary> customers) {
+    final localDrafts = localDraftCount(rows);
     return Column(
       children: [
         Row(
           children: [
-            _stat(context, 'الكشوفات', '${statements.length}'),
+            _stat(context, 'الكشوفات', '${rows.length}'),
             const SizedBox(width: 8),
-            _stat(context, 'إجمالي الصافي', fmtMoney(totalNet(statements))),
+            _stat(context, 'إجمالي الصافي', fmtMoney(totalUnifiedNet(rows))),
           ],
         ),
         const SizedBox(height: 8),
-        _stat(context, 'إجمالي المستحق على العملاء', fmtMoney(totalOutstanding(customers))),
+        Row(
+          children: [
+            _stat(context, 'إجمالي المستحق على العملاء',
+                fmtMoney(totalOutstanding(customers))),
+            const SizedBox(width: 8),
+            _stat(context, 'مسودات محلية غير مرفوعة', '$localDrafts'),
+          ],
+        ),
       ],
     );
   }
@@ -119,48 +133,51 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
         ),
       );
 
-  Widget _statementTile(
-    BuildContext context,
-    StatementSummary s,
-    List<CustomerSummary> customers,
-  ) {
-    final name = customerNameById(customers, s.customerId);
+  Widget _unifiedTile(BuildContext context, UnifiedStatementRow r) {
+    final stale = !r.local &&
+        r.bucket == StatementBucket.drafts &&
+        DateTime.now().difference(r.date).inDays >= kStaleDraftDays;
     return Card(
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.receipt_long_outlined)),
-        title: Text(s.number),
+        leading: CircleAvatar(
+          child: Icon(r.local ? Icons.cloud_off_outlined : Icons.receipt_long_outlined),
+        ),
+        title: Text(r.number.isEmpty ? 'بدون رقم' : r.number),
         subtitle: Text(
           [
-            if (name.isNotEmpty) name,
-            _dateLabel(s.date),
-            '${s.lines.length} بند',
+            if (r.customerName.isNotEmpty) r.customerName,
+            _dateLabel(r.date),
+            if (r.local) 'محلي',
           ].join(' · '),
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(fmtMoney(s.net), style: const TextStyle(fontWeight: FontWeight.w600)),
-            _statusChip(context, s.status),
-            if (isStaleDraft(s)) _staleChip(context),
+            Text(fmtMoney(r.net), style: const TextStyle(fontWeight: FontWeight.w600)),
+            _statusChip(context, r),
+            if (stale) _staleChip(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _statusChip(BuildContext context, String status) => Container(
-        margin: const EdgeInsets.only(top: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: _statusColor(context, status).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          statementStatusLabel(status),
-          style: TextStyle(fontSize: 11, color: _statusColor(context, status)),
-        ),
-      );
+  Widget _statusChip(BuildContext context, UnifiedStatementRow r) {
+    final color = _bucketColor(context, r);
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        r.statusLabel,
+        style: TextStyle(fontSize: 11, color: color),
+      ),
+    );
+  }
 
   Widget _staleChip(BuildContext context) => Container(
         margin: const EdgeInsets.only(top: 2),
@@ -194,16 +211,16 @@ class _MyStatementsScreenState extends ConsumerState<MyStatementsScreen> {
         ),
       );
 
-  Color _statusColor(BuildContext context, String status) {
-    switch (status) {
-      case 'APPROVED':
+  Color _bucketColor(BuildContext context, UnifiedStatementRow r) {
+    switch (r.bucket) {
+      case StatementBucket.approved:
         return Colors.green.shade600;
-      case 'PENDING_REVIEW':
+      case StatementBucket.uploaded:
         return Colors.orange.shade700;
-      case 'CANCELLED':
+      case StatementBucket.other:
         return Theme.of(context).colorScheme.error;
-      default:
-        return Colors.grey.shade600;
+      case StatementBucket.drafts:
+        return r.local ? Colors.blueGrey.shade600 : Colors.grey.shade600;
     }
   }
 

@@ -1,4 +1,5 @@
 import '../../core/models.dart';
+import '../../core/outbox.dart';
 
 /// صفّ رصيد عميل (لعرض الأرصدة مرتّبة).
 class BalanceRow {
@@ -100,3 +101,157 @@ bool isStaleDraft(
 /// عدد الكشوفات المسودّة القديمة في القائمة.
 int staleDraftCount(List<StatementSummary> statements, {DateTime? now, int days = kStaleDraftDays}) =>
     statements.where((s) => isStaleDraft(s, now: now, days: days)).length;
+
+/// تصنيف «بياناتي» الموحّد (§8.2 #4): مسودات / مرفوعة / معتمدة.
+enum StatementBucket { drafts, uploaded, approved, other }
+
+/// التسمية العربية لتصنيف الكشف.
+String statementBucketLabel(StatementBucket b) {
+  switch (b) {
+    case StatementBucket.drafts:
+      return 'مسودات';
+    case StatementBucket.uploaded:
+      return 'مرفوعة';
+    case StatementBucket.approved:
+      return 'معتمدة';
+    case StatementBucket.other:
+      return 'أخرى';
+  }
+}
+
+/// تصنيف كشف موجود على الخادم حسب حالته.
+StatementBucket bucketForServerStatus(String status) {
+  switch (status) {
+    case 'DRAFT':
+      return StatementBucket.drafts;
+    case 'PENDING_REVIEW':
+      return StatementBucket.uploaded;
+    case 'APPROVED':
+      return StatementBucket.approved;
+    default:
+      return StatementBucket.other;
+  }
+}
+
+/// تصنيف كشف محلي حسب حالة مزامنته.
+StatementBucket bucketForSyncStatus(SyncStatus status) {
+  switch (status) {
+    case SyncStatus.approved:
+      return StatementBucket.approved;
+    case SyncStatus.uploaded:
+    case SyncStatus.pendingReview:
+      return StatementBucket.uploaded;
+    case SyncStatus.local:
+    case SyncStatus.uploading:
+      return StatementBucket.drafts;
+    case SyncStatus.rejected:
+      return StatementBucket.other;
+  }
+}
+
+/// التسمية العربية لحالة مزامنة كشف محلي.
+String syncStatusLabel(SyncStatus status) {
+  switch (status) {
+    case SyncStatus.local:
+      return 'مسودّة محلية';
+    case SyncStatus.uploading:
+      return 'جارٍ الرفع';
+    case SyncStatus.uploaded:
+      return 'مرفوعة';
+    case SyncStatus.pendingReview:
+      return 'بانتظار المراجعة';
+    case SyncStatus.approved:
+      return 'معتمد';
+    case SyncStatus.rejected:
+      return 'مرفوض';
+  }
+}
+
+/// صفّ موحّد يجمع كشوفات الخادم والمحلية غير المرفوعة.
+class UnifiedStatementRow {
+  final String number;
+  final String customerName;
+  final DateTime date;
+  final double net;
+  final StatementBucket bucket;
+  final String statusLabel;
+  final bool local;
+
+  const UnifiedStatementRow({
+    required this.number,
+    required this.customerName,
+    required this.date,
+    required this.net,
+    required this.bucket,
+    required this.statusLabel,
+    required this.local,
+  });
+}
+
+/// يبني صفوف «بياناتي» الموحّدة: كشوفات الخادم + ما في صندوق الصادر من كشوفات.
+/// تُهمَل العناصر المحلية المكرّرة (سبق رفعها وظهرت ضمن بيانات الخادم) برقمها.
+List<UnifiedStatementRow> unifiedStatementRows({
+  required List<StatementSummary> statements,
+  required List<CustomerSummary> customers,
+  required List<OutboxItem> outbox,
+}) {
+  final rows = <UnifiedStatementRow>[];
+  final serverNumbers = <String>{};
+  for (final s in statements) {
+    if (s.number.isNotEmpty) serverNumbers.add(s.number);
+    rows.add(UnifiedStatementRow(
+      number: s.number,
+      customerName: customerNameById(customers, s.customerId),
+      date: s.date,
+      net: s.net,
+      bucket: bucketForServerStatus(s.status),
+      statusLabel: statementStatusLabel(s.status),
+      local: false,
+    ));
+  }
+  for (final i in outbox) {
+    if (i.type != 'price_statement') continue;
+    final number = i.number ?? (i.payload['number'] as String? ?? '');
+    if (number.isNotEmpty && serverNumbers.contains(number)) continue;
+    final customerId = (i.payload['customerId'] as num?)?.toInt();
+    final name = (i.payload['customerName'] as String?) ??
+        (customerId == null ? '' : customerNameById(customers, customerId));
+    rows.add(UnifiedStatementRow(
+      number: number,
+      customerName: name,
+      date: i.createdAt,
+      net: ((i.payload['net'] as num?) ?? 0).toDouble(),
+      bucket: bucketForSyncStatus(i.status),
+      statusLabel: syncStatusLabel(i.status),
+      local: true,
+    ));
+  }
+  rows.sort((a, b) {
+    final byDate = b.date.compareTo(a.date);
+    return byDate != 0 ? byDate : a.number.compareTo(b.number);
+  });
+  return rows;
+}
+
+/// يرشّح صفوف «بياناتي» بالتصنيف (فارغ = الكل) وبحث نصّي في الرقم أو اسم العميل.
+List<UnifiedStatementRow> filterUnifiedStatements(
+  List<UnifiedStatementRow> rows, {
+  StatementBucket? bucket,
+  String query = '',
+}) {
+  final q = query.trim().toLowerCase();
+  return rows.where((r) {
+    if (bucket != null && r.bucket != bucket) return false;
+    if (q.isEmpty) return true;
+    if (r.number.toLowerCase().contains(q)) return true;
+    return r.customerName.toLowerCase().contains(q);
+  }).toList();
+}
+
+/// عدد الكشوفات المحلية التي لم تُرفع بعد.
+int localDraftCount(List<UnifiedStatementRow> rows) =>
+    rows.where((r) => r.local && r.bucket == StatementBucket.drafts).length;
+
+/// مجموع صافي كل صفوف «بياناتي» الموحّدة.
+double totalUnifiedNet(List<UnifiedStatementRow> rows) =>
+    rows.fold(0.0, (s, r) => s + r.net);
