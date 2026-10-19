@@ -55,7 +55,7 @@
 ### Low
 
 - `G12b`/`G19` `FIXED` — §5.1/§5.16 **item images / variants / QR-barcode labels in web UI**: API `POST/DELETE /items/:id/image` (base64 data URL ≤5MB → ObjectStorage `items/{companyId}/{id}/…`) + `GET /items/:id/image` (data URL passthrough / http redirect / storage stream); `list` += `parent` + `_count.variants`. Web: file picker (canvas-downscaled JPEG) in create/edit modals + list thumbnail via authed endpoint + «ملصق» row action → QR+barcode 80mm print modal (`components/item-label-modal.tsx`) + customer QR button (§5.16) + variant badges + fixed missing «آخر شراء» cell. Tests +6 (`items.service.spec.ts`, 451). Live-verified 2026-10-19. Commit `6dc8d50`.
-- `G20` — Stocktakes lack category/brand scoping.
+- `G20` `FIXED` — §5.8.1 **stocktake category/brand scoping**: covered by R3-C6 — server `StocktakesService.open` scope `itemIds`/`categoryIds`/`brandIds` (+ 3 service tests) and web OpenModal scope picker (full/category/brand/item with checkbox lists + ≥1 validation). Commit `a997148`. Re-verified 2026-10-19 (scope code present in served chunk).
 - `G22` `FIXED` — `helmet` added (`apps/api/src/main.ts`): full policies in production; CSP disabled in dev so Swagger UI keeps working.
 - `G23` — Redis/BullMQ configured but unused (no background queues).
 - `G24` `FIXED` — §12.5 **boot-time migration check**: `apps/api/src/migrations-check/migrations-check.ts` compares `prisma/migrations` folders vs applied `_prisma_migrations` rows; `main.ts` fails boot listing pending (skip: `SKIP_MIGRATION_CHECK=1`); `GET /api/health` reports `migrations: {total, applied, pending}` (`ok`/`degraded`). Commit `fdccb5d`.
@@ -107,7 +107,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 17. **G16** Web Settings screen. ✅ done (`/settings`: company profile name/phone/email/contact + tax + feature flags; `PATCH /company`; commit `cdaf82f`)
 18. **G17** Tenant-side feature-flag management. ✅ done (company module `GET/PUT/DELETE /company/features`, per-user overrides, web Settings section; commit `392efa5`)
 19. **G18** WhatsApp sharing with PDF. ✅ done (web statement print page share + wa.me fallback + list print link; mobile via E3; commit `a046732`)
-17. **G19** Item images/variants/QR labels. ✅ done (API image endpoints + list parent/_count; web picker/thumbnail/label modal/customer QR; commit `6dc8d50`) **G12** mixed-unit display. ✅ done (shared `formatCompositeQty` + API `qtyComposite`/`systemQtyComposite`/`countedQtyComposite` + web composite cells in reports/stocktake/print; commit `38c98c4`) **G20** stocktake scoping.
+17. **G19** Item images/variants/QR labels. ✅ done (API image endpoints + list parent/_count; web picker/thumbnail/label modal/customer QR; commit `6dc8d50`) **G12** mixed-unit display. ✅ done (shared `formatCompositeQty` + API `qtyComposite`/`systemQtyComposite`/`countedQtyComposite` + web composite cells in reports/stocktake/print; commit `38c98c4`) **G20** stocktake scoping. ✅ done (covered by R3-C6: server scope + web OpenModal picker; commit `a997148`)
 18. **G26** Hijri + Arabic-Indic numerals (i18n). ✅ done (`ui.tsx` `formatMoney` uses `ar-EG-u-nu-arab`, `formatDateGregorian`/`formatDateHijri` (Intl `ar-SA-u-ca-islamic`), `toArabicNumerals`; commit `1ae9732`)
 
 ### Batch D+ — Infra & ops
@@ -318,7 +318,7 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 40. **R3-B12/B13/B14/B15** credit days usage, customer map picker, `statement.cancel` perm, tax setting. — ✅ ALL FIXED (B15 `444de54`/`19dbadc`; B13 `e23f90c`; B14 `5b3b7a7`; B12 due-date/overdue `f2bd428`)
 41. **R3-A11/A12/A13/A14** last-purchase date, `printing.retail` gate, currency setting, fix users-page limits. (R3-A11 done)
 42. **R3-C10..C17** all C-series archive/numbering/migrated-opening/wallet/warehouse/return-approval items done (via C10–C17 commits). |
-43. **G20** stocktake scoping UI (covered with R3-C6).
+43. **G20** stocktake scoping UI (covered with R3-C6). — ✅ FIXED (server `open()` scope + web OpenModal full/category/brand/item picker; commit `a997148`; chunk re-verified 2026-10-19)
 44. **G29** print/PDF templates for purchases, receipts, transfers, returns, supplier-returns, stocktakes, daily-close (web + mobile).
 
 ### Phase P4 — Infra, i18n & NFRs (Low/Medium)
