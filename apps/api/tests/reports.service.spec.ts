@@ -1064,9 +1064,45 @@ describe('ReportsService.stockSummary — عرض مركب لرصيد الصنف 
         ],
       },
       stockMovement: { groupBy: async () => [{ itemId: 1, _max: { createdAt: null } }] },
+      $queryRaw: async () => [{ itemId: 1, last: null }],
     } as unknown as PrismaService;
     const out = await new ReportsService(prisma).stockSummary({} as QueryStockSummaryDto);
     expect(out.rows[0]!.qtyComposite).toBe('2 طن + 500 كجم');
+  });
+
+  it('لا يمرّر قائمة معرّفات ضخمة في in — يجمع آخر حركة عبر استعلام خام (G25/R3-E8)', async () => {
+    const last = new Date('2026-09-01T10:00:00Z');
+    const prisma = {
+      stockBalance: {
+        findMany: async () => [
+          {
+            itemId: 7,
+            warehouseId: 1,
+            batchId: '',
+            qtyBase: 10,
+            item: {
+              id: 7,
+              code: 'BENCH-000007',
+              nameAr: 'صنف',
+              baseUnitId: 1,
+              lastPurchaseCost: 5,
+              baseUnit: { id: 1, nameAr: 'كجم', measurement: 'WEIGHT' },
+              itemUnits: [],
+            },
+            warehouse: { id: 1, code: 'MAIN', nameAr: 'رئيسي' },
+          },
+        ],
+      },
+      $queryRaw: async () => [{ itemId: 7, last }],
+      stockMovement: {
+        groupBy: () => {
+          throw new Error('stockSummary must not call stockMovement.groupBy (param-limit bug)');
+        },
+      },
+    } as unknown as PrismaService;
+    const out = await new ReportsService(prisma).stockSummary({} as QueryStockSummaryDto, 1);
+    expect(out.rows[0]!.lastMovementAt).toEqual(last);
+    expect(out.totals).toMatchObject({ items: 1, qtyBase: 10, value: 50 });
   });
 });
 

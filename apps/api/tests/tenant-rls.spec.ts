@@ -41,7 +41,7 @@ function makeTx() {
 
 function makeHandler(over?: Partial<TenantRlsDeps>) {
   const { tx, calls } = makeTx();
-  const runTransaction = vi.fn((fn: (t: unknown) => Promise<unknown>) => fn(tx));
+  const runTransaction = vi.fn((fn: (t: unknown) => Promise<unknown>, _opts?: unknown) => fn(tx));
   const deps: TenantRlsDeps = { runTransaction: runTransaction as unknown as TenantRlsDeps['runTransaction'], ...over };
   return { handler: makeTenantQueryHandler(deps), calls, runTransaction };
 }
@@ -67,6 +67,16 @@ describe('tenant RLS query handler', () => {
     );
     expect(runTransaction).toHaveBeenCalledTimes(1);
     expect(result).toEqual([{ id: 1 }]);
+  });
+
+  it('يمرّر مهلة معاملة موسّعة للتقارير الثقيلة (R3-E8)', async () => {
+    const { handler, runTransaction } = makeHandler();
+    await runWithTenant({ companyId: 3 }, () =>
+      handler({ model: 'Item', operation: 'findMany', args: {}, query: vi.fn() }),
+    );
+    const opts = runTransaction.mock.calls[0]![1] as { timeout: number; maxWait: number };
+    expect(opts.timeout).toBeGreaterThanOrEqual(15000);
+    expect(opts.maxWait).toBeGreaterThan(0);
   });
 
   it('wraps RLS models in a transaction that sets the company GUC first', async () => {

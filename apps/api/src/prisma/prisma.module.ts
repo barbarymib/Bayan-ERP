@@ -2,7 +2,7 @@ import { Global, Injectable, Module, OnModuleDestroy, OnModuleInit } from '@nest
 import { PrismaClient, Prisma } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { currentCompanyId } from '../tenant/tenant.context.js';
-import { buildTenantGuc, setTenantGuc, tenantRlsExtension } from '../tenant/prisma-tenant.extension.js';
+import { buildTenantGuc, setTenantGuc, tenantRlsExtension, tenantTxOptions } from '../tenant/prisma-tenant.extension.js';
 
 type RawExecuteRaw = (strings: TemplateStringsArray, ...values: unknown[]) => Prisma.PrismaPromise<number>;
 type RawTransaction = (...args: unknown[]) => unknown;
@@ -30,6 +30,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     target.$transaction = ((arg: unknown, options?: unknown) => {
       const companyId = currentCompanyId();
+      const opts = { ...tenantTxOptions(), ...((options as object | undefined) ?? {}) };
 
       if (typeof arg === 'function') {
         return rawTransaction(
@@ -37,15 +38,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             await setTenantGuc(tx, companyId);
             return (arg as (t: Prisma.TransactionClient) => Promise<unknown>)(tx);
           },
-          options,
+          opts,
         );
       }
 
       if (Array.isArray(arg)) {
-        return rawTransaction([buildTenantGuc(rawExecuteRaw, companyId), ...arg], options);
+        return rawTransaction([buildTenantGuc(rawExecuteRaw, companyId), ...arg], opts);
       }
 
-      return rawTransaction(arg, options);
+      return rawTransaction(arg, opts);
     }) as never;
   }
 

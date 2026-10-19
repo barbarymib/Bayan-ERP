@@ -55,7 +55,17 @@ export const RLS_MODELS: ReadonlySet<string> = new Set([
 
 export type TenantTransactionRunner = <T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  options?: { timeout?: number; maxWait?: number },
 ) => Promise<T>;
+
+/** مهلة معاملة اللف الزمني (R3-E8): تقارير ثقيلة على 50k صف تتجاوز المهلة الافتراضية 5s. */
+export const TENANT_TX_TIMEOUT_MS = Number(process.env.PRISMA_TX_TIMEOUT_MS ?? 20000);
+export const TENANT_TX_MAXWAIT_MS = Number(process.env.PRISMA_TX_MAXWAIT_MS ?? 10000);
+
+export const tenantTxOptions = (): { timeout: number; maxWait: number } => ({
+  timeout: TENANT_TX_TIMEOUT_MS,
+  maxWait: TENANT_TX_MAXWAIT_MS,
+});
 
 export interface TenantRlsDeps {
   /** ينفّذ callback داخل معاملة أصلية (غير ملتفّة) لتجنّب الالتفاف المتداخل. */
@@ -105,7 +115,7 @@ export function makeTenantQueryHandler(deps: TenantRlsDeps) {
       await setTenantGuc(tx, companyId);
       const record = tx as unknown as Record<string, Record<string, (a: unknown) => Prisma.PrismaPromise<unknown>>>;
       return record[delegate]![operation]!(args);
-    });
+    }, tenantTxOptions());
   };
 }
 

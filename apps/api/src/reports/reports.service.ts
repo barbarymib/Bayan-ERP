@@ -489,16 +489,25 @@ export class ReportsService {
         warehouse: { select: { id: true, code: true, nameAr: true } },
       },
     });
-    const ids = [...new Set(balances.map((b) => b.itemId))];
     const lastMov = new Map<number, Date | null>();
-    if (ids.length) {
-      const movs = await this.prisma.stockMovement.groupBy({
-        by: ['itemId'],
-        where: { itemId: { in: ids }, ...tenantWhere(companyId) },
-        _max: { createdAt: true },
-      });
-      for (const m of movs) lastMov.set(m.itemId, m._max.createdAt ?? null);
+    if (balances.length) {
+      // ملاحظة (G25/R3-E8): لا نمرّر آلاف المعرّفات في `in` (يسبب P2029/P2028)؛
+      // نجمع آخر حركة على مستوى قاعدة البيانات مقيّدة بالشركة، ثم نطابقها في الذاكرة.
+      const movs =
+        companyId == null
+          ? await this.prisma.$queryRaw<{ itemId: number; last: Date | null }[]>`
+              SELECT "itemId", MAX("createdAt") AS last
+              FROM "StockMovement"
+              GROUP BY "itemId"`
+          : await this.prisma.$queryRaw<{ itemId: number; last: Date | null }[]>`
+              SELECT "itemId", MAX("createdAt") AS last
+              FROM "StockMovement"
+              WHERE "companyId" = ${companyId}
+              GROUP BY "itemId"`;
+      for (const m of movs) lastMov.set(m.itemId, m.last ?? null);
     }
+    const itemById = new Map<number, (typeof balances)[number]['item']>();
+    for (const b of balances) if (!itemById.has(b.itemId)) itemById.set(b.itemId, b.item);
 
     let totalQty = 0;
     let totalValue = 0;
@@ -516,7 +525,7 @@ export class ReportsService {
 
     const rows = [...byItem.entries()].map(([itemId, v]) => {
       const last = lastMov.get(itemId) ?? null;
-      const item = balances.find((b) => b.itemId === itemId)?.item;
+      const item = itemById.get(itemId);
       return {
         itemId,
         item: { code: item?.code ?? '', nameAr: item?.nameAr ?? '' },
