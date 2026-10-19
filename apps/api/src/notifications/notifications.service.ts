@@ -3,6 +3,7 @@ import type { NotificationModel } from '../generated/prisma/models/Notification.
 
 type Notification = NotificationModel;
 import { PrismaService } from '../prisma/prisma.module.js';
+import { currentCompanyId } from '../tenant/tenant.context.js';
 import type { QueryNotificationsDto } from './notifications.dto.js';
 
 export type NotificationType =
@@ -84,10 +85,17 @@ export class NotificationsService {
     return count;
   }
 
-  /** مستخدمو الأدوار الحاملون لصلاحية معينة (نشطون فقط) */
-  async userIdsWithPermission(permissionCode: string): Promise<number[]> {
+  /** مستخدمو الأدوار الحاملون لصلاحية معينة (نشطون فقط، ومقيّدون بالشركة). */
+  async userIdsWithPermission(
+    permissionCode: string,
+    companyId: number | null = currentCompanyId(),
+  ): Promise<number[]> {
     const users = await this.prisma.user.findMany({
-      where: { active: true, role: { permissions: { some: { permission: { code: permissionCode } } } } },
+      where: {
+        active: true,
+        ...(companyId == null ? {} : { companyId }),
+        role: { permissions: { some: { permission: { code: permissionCode } } } },
+      },
       select: { id: true },
     });
     return users.map((u) => u.id);
@@ -97,7 +105,7 @@ export class NotificationsService {
    * إشعارات آلية مجمّعة (§5.15): أصناف تحت الحد، تجاوز حد ائتماني، مرتجعات منتظرة،
    * وتذكير بالترحيل والنسخ الاحتياطي. يتجاهل الصف المكرر غير المقروء (نفس النوع خلال يوم).
    */
-  async refreshAlerts() {
+  async refreshAlerts(companyId: number | null = currentCompanyId()) {
     const created = {
       low_stock: 0,
       credit_limit: 0,
@@ -106,27 +114,39 @@ export class NotificationsService {
       backup_reminder: 0,
     };
     const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
+    const tenant = companyId == null ? {} : { companyId };
 
     const recent = async (userId: number, type: string) =>
       this.prisma.notification.findFirst({ where: { userId, type, readAt: null, createdAt: { gt: dayAgo } } });
 
-    // أصناف تحت الحد الأدنى
-    const lowStock = await this.prisma.item.findMany({
-      where: { active: true, minStock: { gt: 0 } },
-      select: { id: true, code: true, nameAr: true, minStock: true },
-    });
-    const lowIds: Record<number, number> = {};
-    if (lowStock.length) {
-      const balances = await this.prisma.stockBalance.groupBy({
-        by: ['itemId'],
-        where: { itemId: { in: lowStock.map((i) => i.id) } },
-        _sum: { qtyBase: true },
-      });
-      for (const b of balances) lowIds[b.itemId] = Number(b._sum.qtyBase ?? 0);
-    }
-    const below = lowStock.filter((i) => (lowIds[i.id] ?? 0) < Number(i.minStock));
+    // أصناف تحت الحد الأدنى — جمع على مستوى قاعدة البيانات (لا قائمة معرّفات ضخمة: G25/R3-E8).
+    const lowRows =
+      companyId == null
+        ? await this.prisma.$queryRaw<
+            { id: number; code: string; nameAr: string; minStock: unknown; qty: unknown }[]
+          >`SELECT i.id, i.code, i."nameAr", i."minStock" AS "minStock", COALESCE(SUM(sb."qtyBase"), 0) AS qty
+              FROM "Item" i
+              LEFT JOIN "StockBalance" sb ON sb."itemId" = i.id
+              WHERE i.active AND i."minStock" > 0
+              GROUP BY i.id
+              HAVING COALESCE(SUM(sb."qtyBase"), 0) < i."minStock"`
+        : await this.prisma.$queryRaw<
+            { id: number; code: string; nameAr: string; minStock: unknown; qty: unknown }[]
+          >`SELECT i.id, i.code, i."nameAr", i."minStock" AS "minStock", COALESCE(SUM(sb."qtyBase"), 0) AS qty
+              FROM "Item" i
+              LEFT JOIN "StockBalance" sb ON sb."itemId" = i.id
+              WHERE i.active AND i."minStock" > 0 AND i."companyId" = ${companyId}
+              GROUP BY i.id
+              HAVING COALESCE(SUM(sb."qtyBase"), 0) < i."minStock"`;
+    const below = lowRows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      nameAr: r.nameAr,
+      minStock: Number(r.minStock),
+      qty: Number(r.qty),
+    }));
     if (below.length) {
-      const targets = await this.userIdsWithPermission('warehouse.manage');
+      const targets = await this.userIdsWithPermission('warehouse.manage', companyId);
       for (const u of targets) {
         if (await recent(u, 'low_stock')) continue;
         created.low_stock += (await this.notify(u, {
@@ -134,39 +154,48 @@ export class NotificationsService {
           title: `أصناف تحت الحد الأدنى (${below.length})`,
           body: below
             .slice(0, 5)
-            .map((i) => `${i.nameAr} (${i.code}): ${lowIds[i.id] ?? 0} من حد ${i.minStock}`)
+            .map((i) => `${i.nameAr} (${i.code}): ${i.qty} من حد ${i.minStock}`)
             .join('، '),
         })) ? 1 : 0;
       }
     }
 
-    // تجاوز الحد الائتماني (الرصيد = الافتتاحي + مدين − دائن)
-    const customers = await this.prisma.customer.findMany({
-      where: { creditLimit: { gt: 0 } },
-      select: { id: true, code: true, nameAr: true, openingBalance: true, creditLimit: true },
-    });
-    const over: { id: number; code: string; nameAr: string; creditLimit: number; balance: number }[] = [];
-    if (customers.length) {
-      const ledger = await this.prisma.ledgerEntry.groupBy({
-        by: ['accountId'],
-        where: { accountType: 'CUSTOMER', accountId: { in: customers.map((c) => c.id) } },
-        _sum: { debit: true, credit: true },
-      });
-      const sums = new Map(ledger.map((l) => [l.accountId, l]));
-      for (const c of customers) {
-        const s = sums.get(c.id);
-        const balance = Number(c.openingBalance) + Number(s?._sum.debit ?? 0) - Number(s?._sum.credit ?? 0);
-        if (balance > Number(c.creditLimit)) over.push({ id: c.id, code: c.code, nameAr: c.nameAr, creditLimit: Number(c.creditLimit), balance });
-      }
-    }
-    if (over.length) {
-      const targets = await this.userIdsWithPermission('ledger.view');
+    // تجاوز الحد الائتماني (الرصيد = الافتتاحي + مدين − دائن) — جمع على مستوى قاعدة البيانات.
+    const over =
+      companyId == null
+        ? await this.prisma.$queryRaw<
+            { id: number; code: string; nameAr: string; creditLimit: unknown; balance: unknown }[]
+          >`SELECT c.id, c.code, c."nameAr", c."creditLimit", 
+                 COALESCE(c."openingBalance", 0) + COALESCE(SUM(le.debit), 0) - COALESCE(SUM(le.credit), 0) AS balance
+              FROM "Customer" c
+              LEFT JOIN "LedgerEntry" le ON le."accountType" = 'CUSTOMER' AND le."accountId" = c.id
+              WHERE c."creditLimit" > 0
+              GROUP BY c.id
+              HAVING COALESCE(c."openingBalance", 0) + COALESCE(SUM(le.debit), 0) - COALESCE(SUM(le.credit), 0) > c."creditLimit"`
+        : await this.prisma.$queryRaw<
+            { id: number; code: string; nameAr: string; creditLimit: unknown; balance: unknown }[]
+          >`SELECT c.id, c.code, c."nameAr", c."creditLimit",
+                 COALESCE(c."openingBalance", 0) + COALESCE(SUM(le.debit), 0) - COALESCE(SUM(le.credit), 0) AS balance
+              FROM "Customer" c
+              LEFT JOIN "LedgerEntry" le ON le."accountType" = 'CUSTOMER' AND le."accountId" = c.id
+              WHERE c."creditLimit" > 0 AND c."companyId" = ${companyId}
+              GROUP BY c.id
+              HAVING COALESCE(c."openingBalance", 0) + COALESCE(SUM(le.debit), 0) - COALESCE(SUM(le.credit), 0) > c."creditLimit"`;
+    const overRows = over.map((c) => ({
+      id: c.id,
+      code: c.code,
+      nameAr: c.nameAr,
+      creditLimit: Number(c.creditLimit),
+      balance: Number(c.balance),
+    }));
+    if (overRows.length) {
+      const targets = await this.userIdsWithPermission('ledger.view', companyId);
       for (const u of targets) {
         if (await recent(u, 'credit_limit')) continue;
         created.credit_limit += (await this.notify(u, {
           type: 'credit_limit',
-          title: `تجاوز حد ائتماني (${over.length})`,
-          body: over
+          title: `تجاوز حد ائتماني (${overRows.length})`,
+          body: overRows
             .slice(0, 5)
             .map((c) => `${c.nameAr} (${c.code}): رصيد ${c.balance.toFixed(2)} / حد ${c.creditLimit.toFixed(2)}`)
             .join('، '),
@@ -176,10 +205,10 @@ export class NotificationsService {
 
     // مرتجعات بانتظار الاعتماد
     const pendingReturns = await this.prisma.approval.count({
-      where: { type: 'RETURN', status: 'PENDING' },
+      where: { type: 'RETURN', status: 'PENDING', ...tenant },
     });
     if (pendingReturns > 0) {
-      const targets = await this.userIdsWithPermission('return.approve');
+      const targets = await this.userIdsWithPermission('return.approve', companyId);
       for (const u of targets) {
         if (await recent(u, 'return_approval')) continue;
         created.return_approval += (await this.notify(u, {
@@ -193,7 +222,7 @@ export class NotificationsService {
     // تذكير بالترحيل الدوري (آخر عملية أرشفة قبل 30 يوماً)
     const lastArchive = await this.prisma.archiveRun.findFirst({ orderBy: { createdAt: 'desc' } });
     if (!lastArchive || lastArchive.createdAt.getTime() < Date.now() - 30 * 24 * 3600 * 1000) {
-      const targets = await this.userIdsWithPermission('archive.run');
+      const targets = await this.userIdsWithPermission('archive.run', companyId);
       for (const u of targets) {
         if (await recent(u, 'archive_reminder')) continue;
         created.archive_reminder += (await this.notify(u, {
@@ -210,7 +239,7 @@ export class NotificationsService {
       orderBy: { createdAt: 'desc' },
     });
     if (!lastBackup || lastBackup.createdAt.getTime() < Date.now() - 24 * 3600 * 1000) {
-      const targets = await this.userIdsWithPermission('user.manage');
+      const targets = await this.userIdsWithPermission('user.manage', companyId);
       for (const u of targets) {
         if (await recent(u, 'backup_reminder')) continue;
         created.backup_reminder += (await this.notify(u, {
