@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+
+/** العملات المدعومة (R3-A13، §3). */
+export const SUPPORTED_CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR', 'JOD'] as const;
 
 export class UpdateCompanySettingsDto {
   @ApiPropertyOptional({ description: 'اسم الشركة' })
@@ -32,6 +35,12 @@ export class UpdateCompanySettingsDto {
   @Min(0)
   @Max(100)
   taxPercent?: number;
+
+  @ApiPropertyOptional({ description: 'رمز العملة (R3-A13، §3)', enum: SUPPORTED_CURRENCIES })
+  @IsOptional()
+  @IsString()
+  @IsIn(SUPPORTED_CURRENCIES as unknown as string[])
+  currency?: string;
 }
 
 export class SetFeatureDto {

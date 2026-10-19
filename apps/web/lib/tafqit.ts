@@ -1,3 +1,5 @@
+import { activeCurrency, currencyInfo } from '@/lib/currency';
+
 const ONES = ['صفر', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة'];
 const TEENS = [
   'عشرة',
@@ -90,13 +92,15 @@ export function numberToArabic(n: number): string {
   return n < 0 ? `سالب ${text}` : text;
 }
 
-/** تحويل مبلغ إلى كلمات عربية مع الجزء العشري (فردة). */
-export function formatArabicAmount(amount: number, currency = 'ج.م', decimalName = 'قرش'): string {
+/** تحويل مبلغ إلى كلمات عربية مع الجزء العشري (فردة).
+ *  [currencyCode] رمز العملة؛ عند غيابه يُستخدم رمز عملة الشركة الفعّالة (§3، R3-A13). */
+export function formatArabicAmount(amount: number, currencyCode?: string): string {
+  const { symbol, decimalName } = currencyInfo(currencyCode ?? activeCurrency());
   const rounded = Math.round(amount * 100) / 100;
   const whole = Math.floor(Math.abs(rounded));
   const frac = Math.round((Math.abs(rounded) - whole) * 100);
   const sign = rounded < 0 ? 'سالب ' : '';
   const w = numberToArabic(whole);
-  if (frac === 0) return `${sign}${w} ${currency} فقط لا غير`;
-  return `${sign}${w} ${currency} و${numberToArabic(frac)} ${decimalName} فقط لا غير`;
+  if (frac === 0) return `${sign}${w} ${symbol} فقط لا غير`;
+  return `${sign}${w} ${symbol} و${numberToArabic(frac)} ${decimalName} فقط لا غير`;
 }

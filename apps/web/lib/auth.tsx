@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_URL, clearToken, getToken, request, setRefreshToken, setToken, syncAuthCookie, type AuthUser } from './api';
+import { DEFAULT_CURRENCY, setActiveCurrency } from './currency';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -27,6 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setActiveCurrency(user?.companyCurrency ?? DEFAULT_CURRENCY);
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;

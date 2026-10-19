@@ -28,6 +28,7 @@ export class CompanyService {
         email: company.email,
         contactName: company.contactName,
         taxPercent: Number(company.taxPercent),
+        currency: company.currency,
       },
     };
   }
@@ -45,6 +46,7 @@ export class CompanyService {
         ...(dto.email !== undefined ? { email: dto.email || null } : {}),
         ...(dto.contactName !== undefined ? { contactName: dto.contactName || null } : {}),
         ...(dto.taxPercent != null ? { taxPercent: dto.taxPercent } : {}),
+        ...(dto.currency != null ? { currency: dto.currency } : {}),
       },
     });
     await this.audits.write({
@@ -58,6 +60,7 @@ export class CompanyService {
         email: company.email,
         contactName: company.contactName,
         taxPercent: Number(company.taxPercent),
+        currency: company.currency,
       },
       afterJson: {
         nameAr: updated.nameAr,
@@ -65,6 +68,7 @@ export class CompanyService {
         email: updated.email,
         contactName: updated.contactName,
         taxPercent: Number(updated.taxPercent),
+        currency: updated.currency,
         actor: actor ?? null,
       },
     });
@@ -77,6 +81,7 @@ export class CompanyService {
         email: updated.email,
         contactName: updated.contactName,
         taxPercent: Number(updated.taxPercent),
+        currency: updated.currency,
       },
     };
   }

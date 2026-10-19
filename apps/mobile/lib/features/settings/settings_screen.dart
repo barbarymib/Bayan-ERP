@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/currency.dart';
 import '../../core/geo/shift_controller.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
@@ -35,6 +36,7 @@ class SettingsScreen extends ConsumerWidget {
                 _kv('الدور', user?.roleCode ?? '—'),
                 if ((user?.repCode ?? '').isNotEmpty) _kv('كود المندوب', user!.repCode!),
                 if (user?.companyId != null) _kv('الشركة', '${user!.companyId}'),
+                _kv('العملة', currencyName(user?.companyCurrency)),
               ],
             ),
           ),

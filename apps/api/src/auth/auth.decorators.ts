@@ -30,6 +30,8 @@ export interface AuthUser {
   scope?: 'tenant' | 'global';
   username?: string;
   companyId?: number | null;
+  /** عملة الشركة (§3، R3-A13) — تُستخدم في الطباعة/التقفيت. */
+  companyCurrency?: string | null;
 }
 
 export const CurrentUser = createParamDecorator(

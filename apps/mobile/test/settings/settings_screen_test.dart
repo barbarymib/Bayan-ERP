@@ -32,6 +32,7 @@ void main() {
         'maxItemDiscountPct': 5,
         'maxInvoiceDiscountPct': 10,
         'companyId': 1,
+        'companyCurrency': 'EGP',
       }),
       'device_id': 'test-device-1',
       'tracking_interval_sec': 90,
@@ -63,9 +64,14 @@ void main() {
     expect(find.text('M03'), findsOneWidget);
     expect(find.text('test-device-1'), findsOneWidget);
     expect(find.text('http://test.local/api'), findsOneWidget);
-    expect(find.text('فترة إرسال الموقع: 90 ثانية'), findsOneWidget);
+    expect(find.text('جنيه مصري'), findsOneWidget);
 
     final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+        find.text('فترة إرسال الموقع: 90 ثانية'), 200, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(find.text('فترة إرسال الموقع: 90 ثانية'), findsOneWidget);
+
     await tester.scrollUntilVisible(find.text('تسجيل الخروج'), 200, scrollable: scrollable);
     await tester.pumpAndSettle();
     expect(find.text('تسجيل الخروج'), findsOneWidget);

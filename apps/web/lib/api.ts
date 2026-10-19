@@ -7,6 +7,7 @@ export type AuthUser = {
   roleCode: string;
   repCode: string | null;
   permissions: string[];
+  companyCurrency?: string | null;
 };
 
 export interface Unit {
@@ -676,6 +677,7 @@ export interface CompanySettings {
     email: string | null;
     contactName: string | null;
     taxPercent: number;
+    currency: string;
   };
 }
 

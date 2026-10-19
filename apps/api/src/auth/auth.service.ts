@@ -76,6 +76,7 @@ export class AuthService {
       maxInvoiceDiscountPct: effectiveDiscountLimit(user.role.maxInvoiceDiscountPct, user.maxInvoiceDiscountPct),
       scope: 'tenant',
       companyId: user.companyId,
+      companyCurrency: user.company?.currency ?? null,
     };
 
     const tokens = await this.signTokens(authUser);
@@ -120,6 +121,7 @@ export class AuthService {
       maxInvoiceDiscountPct: effectiveDiscountLimit(user.role.maxInvoiceDiscountPct, user.maxInvoiceDiscountPct),
       scope: 'tenant',
       companyId: user.companyId,
+      companyCurrency: user.company?.currency ?? null,
     };
   }
 }

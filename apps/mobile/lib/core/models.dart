@@ -75,6 +75,7 @@ class AuthUser {
   final double maxItemDiscountPct;
   final double maxInvoiceDiscountPct;
   final int? companyId;
+  final String? companyCurrency;
 
   const AuthUser({
     required this.id,
@@ -85,6 +86,7 @@ class AuthUser {
     this.maxItemDiscountPct = 0,
     this.maxInvoiceDiscountPct = 0,
     this.companyId,
+    this.companyCurrency,
   });
 
   Map<String, dynamic> toJson() => {
@@ -96,6 +98,7 @@ class AuthUser {
         'maxItemDiscountPct': maxItemDiscountPct,
         'maxInvoiceDiscountPct': maxInvoiceDiscountPct,
         'companyId': companyId,
+        'companyCurrency': companyCurrency,
       };
 
   factory AuthUser.fromJson(Map<String, dynamic> j) => AuthUser(
@@ -110,6 +113,7 @@ class AuthUser {
         maxInvoiceDiscountPct:
             ((j['maxInvoiceDiscountPct'] as num?) ?? 0).toDouble(),
         companyId: (j['companyId'] as num?)?.toInt(),
+        companyCurrency: j['companyCurrency'] as String?,
       );
 }
 

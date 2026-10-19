@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { can, del, get, patch, put, type CompanyFeatureItem, type CompanyFeaturesResponse, type CompanySettings } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Badge, Button, ErrorBox, Field, Notice, PageHeader, TextInput } from '@/components/ui';
+import { CURRENCIES, setActiveCurrency } from '@/lib/currency';
+import { Badge, Button, ErrorBox, Field, Notice, PageHeader, Select, TextInput } from '@/components/ui';
 
 export default function CompanySettingsPage() {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ export default function CompanySettingsPage() {
   const [email, setEmail] = useState('');
   const [contactName, setContactName] = useState('');
   const [taxPercent, setTaxPercent] = useState('');
+  const [currency, setCurrency] = useState('EGP');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export default function CompanySettingsPage() {
           setEmail(d.company.email ?? '');
           setContactName(d.company.contactName ?? '');
           setTaxPercent(String(d.company.taxPercent));
+          setCurrency(d.company.currency ?? 'EGP');
           setError(null);
         }
       })
@@ -57,9 +60,12 @@ export default function CompanySettingsPage() {
         email,
         contactName,
         taxPercent: Number(taxPercent) || 0,
+        currency,
       });
       setSettings((s) => (s ? { ...s, company: d.company } : s));
       setTaxPercent(String(d.company.taxPercent));
+      setCurrency(d.company.currency ?? 'EGP');
+      setActiveCurrency(d.company.currency);
       setNotice('تم حفظ إعدادات الشركة');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل حفظ الإعدادات');
@@ -116,6 +122,21 @@ export default function CompanySettingsPage() {
 
           <div className="mt-3 text-xs text-gray-400">
             تُستخدم هذه الضريبة افتراضيًا عند إنشاء بيان أسعار جديد، ويمكن تجاوزها لكل بيان على حدة.
+          </div>
+
+          <div className="mt-3">
+            <Field label="عملة الشركة">
+              <Select value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={!manage} dir="ltr">
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} — {c.nameAr}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="mt-2 text-xs text-gray-400">
+              تُستخدم في تفقيط المبالغ بالعربية وفي أوراق الطباعة والتصدير. الافتراضي: جنيه مصري.
+            </div>
           </div>
 
           {!manage ? (

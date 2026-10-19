@@ -293,6 +293,7 @@ model Company {
   email       String?
   contactName String?
   taxPercent  Decimal       @default(0) @db.Decimal(5, 2) // الضريبة الافتراضية للشركة (R3-B15)
+  currency    String        @default("EGP") // عملة الشركة (§3): جنيه مصري افتراضياً (R3-A13)
   status      CompanyStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
