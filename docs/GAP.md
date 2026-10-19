@@ -283,6 +283,45 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 
 ---
 
+### 6.3 Round 3 live audit vs `docs/bayan-design.md` (2026-10-19)
+
+Full read-only audit of the whole design spec (§1–§14) against api/web/mobile/shared, plus benchmark/RLS/i18n. Every row below was **independently re-verified by the lead against source** (not just agent-reported). Section verdicts: §1–§4 FOUND; §5.1–§5.16 FOUND except the rows below; §6 FOUND except the loop/exception rows; §7 tables+equations FOUND; §8/§9 FOUND (2 gaps); §12 FOUND (2 gaps); §13 deferred-by-design. Confirmed-OK notes worth keeping: §7.1 Maps is implemented on web (`apps/web/components/geo-map.tsx:126`, OSM tiles); §4.2 REP_SUPERVISOR additionally holds `return.create` (test-locked, treated as intended).
+
+#### High
+| ID | Gap | Spec | Status | Evidence |
+| -- | --- | ---- | ------ | -------- |
+| R4-A1 | **Statement `PATCH` drops the company default tax** → `taxPercent` becomes `0` when omitted (create correctly inherits `Company.taxPercent`) | §5.6 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:380` (`taxPercent: dto.taxPercent`) + `buildHeaderData:879` (`dto.taxPercent ?? 0`) vs `create:156` (company default). |
+| R4-A2 | **Statement `PATCH` resets `dueDate` to `date + 0`** (never passes `customer.creditDays`) | §5.4/§5.6 | OPEN | `update()` calls `buildHeaderData(...)` at `:403` without `creditDays`; helper default `creditDays = null` → `+0` (`:856-867`). |
+| R4-A3 | **Editing an APPROVED statement re-posts** (restock → reverse ledger → delete lines → recreate → `saleOut` → ledger) **without re-running credit-limit BLOCK, discount/price approval, or stock-availability checks** (`requiresApproval` computed at `:386` is unused) | §5.6 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:405-465`; only the non-approved branch calls `assertSalePermitted` (`:443`); no `assertCustomerCredit` in the approved branch. |
+| R4-A4 | **Tenant admin can enable a globally-disabled feature** (company override beats global; no guard) — violates «ضمن الميزات العامة المفعّلة» | §12.4 | OPEN | `apps/api/src/company/company.service.ts:122-148` `setCompanyFeature` never checks `feature.enabled`. |
+
+#### Medium
+| ID | Gap | Spec | Status | Evidence |
+| -- | --- | ---- | ------ | -------- |
+| R4-B1 | Ten §5.14 reports are **API-only, no web screen** (sales-summary, sales-by, discounts, discount-approvals, returns, stopped-customers, stocktake-diff, supplier-debt, rep-performance, item-card) | §5.14/§8.1 | OPEN | web grep → 0 references; reports page tabs limited to 7 (`apps/web/app/(app)/reports/page.tsx:52-62`). |
+| R4-B2 | **Aging** report bypasses `respond()` → **no CSV/XLSX** export (payload `items`, not `rows`) | §5.14 | OPEN | `apps/api/src/reports/reports.controller.ts:200-204`; `reports.service.ts:1606`. |
+| R4-B3 | **Approvals list/decide** gated by controller `discount.approve`, so a role holding only `return.approve` (ACCOUNTANT) cannot see/decide return approvals though `TYPE_PERMISSION.RETURN='return.approve'` | §4.2/§6.2 | OPEN | `apps/api/src/approvals/approvals.controller.ts:22,29` vs `approvals.service.ts` `TYPE_PERMISSION`. |
+| R4-B4 | Mobile **new return** omits `unitCode`/`settlement`/`withoutStatement` and hardcodes `mode: BY_REP` | §5.9/§5.12 | OPEN | `apps/mobile/lib/features/return/new_return_screen.dart:98-125`. |
+| R4-B5 | Global-admin **«التقارير العامة»** route missing | §12.4 | OPEN | `apps/api/src/admin/admin.controller.ts` has no reports route. |
+| R4-B6 | Sync conflict detection is `net_mismatch` only → a **stock-only** change raises no «بانتظار المراجعة» flag | §5.12 | OPEN | `apps/api/src/sync/sync.service.ts:538-550`. |
+| R4-B7 | §6.1 «حفظ كمسودة» — clean statements **auto-post** (`finalizeStatement`) with no explicit "save as draft" option | §6.1 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:294-297`. |
+| R4-B8 | §6.1 rejection loop: rejection **cancels** (no «رفض → عودة للتعديل» path) | §6.1 | OPEN | `apps/api/src/approvals/approvals.service.ts:176-180` + `price-statements.service.ts:340`. |
+| R4-B9 | §6.1 H «طلب استثناء» (credit/stock exception request) missing — only WARN/BLOCK | §6.1 | OPEN | `apps/api/src/common/sales-ops.service.ts:140-153`. |
+| R4-B10 | Benchmark **mixed 50-concurrent burst** 84% success / p95 33.6s (< «50+ مستخدم متزامن»); no remediation tracked | §9 | OPEN | `docs/PERFORMANCE.md:25-31`. |
+| R4-B11 | Hijri date helper `formatDateHijri` has **zero call sites** → G26 Hijri claim overstated | §9 | OPEN | `apps/web/components/ui.tsx:187` (only occurrence). |
+
+#### Low
+| ID | Gap | Spec | Status | Evidence |
+| -- | --- | ---- | ------ | -------- |
+| R4-C1 | No **XLSX button** in web UI (API supports `format=xlsx`) — CSV only | §5.14 | OPEN | reports page CSV buttons only; `apps/api/src/reports/reports.controller.ts:186-191`. |
+| R4-C2 | Item images: single `imageUrl`, no gallery | §5.1 | OPEN | `apps/api/prisma/schema.prisma:417`. |
+| R4-C3 | Steel: no computed theoretical-vs-actual weight delta (free-text note only) | §5.2 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:708-712,815`. |
+| R4-C4 | Printed statement lacks company **logo**; name/phone hardcoded | §5.6 | OPEN | `apps/web/app/(app)/statements/[id]/print/page.tsx:271-284`; `schema.prisma:288-303` (no logo field). |
+| R4-C5 | Dead code: `assertMovable` in stocktakes service (void, no callers) | §5.8 | OPEN | `apps/api/src/stocktakes/stocktakes.service.ts:399-406`. |
+| R4-C6 | §14 worked-example tests mis-cite the section as §13 | §14 | OPEN | `packages/shared/tests/statement.test.ts:10`. |
+
+---
+
 ## 7. Master remediation plan — fill **all** open gaps (incl. medium & low)
 
 Ordering: security/data-integrity first, then correctness, then UI parity, then infra/i18n. Each item ships independently: code → api/web/mobile gates → commit → deploy → live-verify → status log update. Docs/UI-only items need no DB seed/migration.
@@ -344,6 +383,26 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 48. **G26** Hijri calendar + Arabic-Indic numerals. — ✅ FIXED (web `formatDateHijri` via `Intl` `ar-SA-u-ca-islamic` + `formatMoney` Arabic-Indic `ar-EG-u-nu-arab` + `toArabicNumerals`; web typecheck/lint/build 0; commit `1ae9732`)
 49. **G28** Dockerfiles. — ✅ FIXED (api 445 tests/lint; web tc/lint/build 0; images built; full stack live-verified: migrate exit 0, api `[boot] migrations ok (35/35)` + health `pending:[]`, web 200 `lang=ar dir=rtl`, S3 `bucketExists=true`; commit `344cf85`)
 50. **R3-E7** mobile Drift indexes — ✅ FIXED (8 `@TableIndex` + `schemaVersion 3` upgrade path; mobile analyze clean, 235 tests incl. fresh + v2→v3 index tests; commit `bf5b59d`); **§7.2** queue component ✅ via G23 in-process `NotificationsScheduler` (commit `4ada3a7`).
+
+### Phase P5 — Round 3 live-audit findings (R4, 2026-10-19)
+
+Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full gates + live-verify each.
+1. **R4-A3** approved-edit re-post must re-check credit BLOCK + discount/price approvals (+ stock) — **High**
+2. **R4-A1** statement PATCH must inherit company default tax — **High**
+3. **R4-A2** statement PATCH must recompute `dueDate` from `customer.creditDays` — **High**
+4. **R4-A4** guard `setCompanyFeature` on `feature.enabled` (globally-enabled only) — **High**
+5. **R4-B3** approvals list/decide gated per approval type (not blanket `discount.approve`) — **Medium**
+6. **R4-B8** rejection → return statement to editable draft (loop) — **Medium**
+7. **R4-B7** explicit «حفظ كمسودة» (skip auto-post) — **Medium**
+8. **R4-B9** credit/stock «طلب استثناء» exception request path — **Medium**
+9. **R4-B4** mobile return: unit/settlement/withoutStatement + real mode — **Medium**
+10. **R4-B6** sync: flag stock-only changes as «بانتظار المراجعة» — **Medium**
+11. **R4-B1** add web screens for the 10 API-only §5.14 reports — **Medium**
+12. **R4-B2** aging report via `respond()` (CSV/XLSX) + **R4-C1** XLSX buttons in web — **Medium/Low**
+13. **R4-B5** global-admin «التقارير العامة» route — **Medium**
+14. **R4-B10** remediate mixed 50-concurrent bottleneck (item+unit joins) + re-benchmark — **Medium**
+15. **R4-B11** surface Hijri dates in UI (wire `formatDateHijri`) or downgrade G26 claim — **Medium**
+16. **R4-C2..C6** low cleanups (image gallery, steel weight delta, print logo, dead `assertMovable`, §14 test citation) — **Low**
 
 ### Blocked
 - **F2 / §5.15** FCM push transport — needs Firebase project + credentials (notification *records* already work).
