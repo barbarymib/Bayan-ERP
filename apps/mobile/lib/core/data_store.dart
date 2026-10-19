@@ -18,6 +18,7 @@ class DataStore {
   late List<CustomerSummary> _customers;
   late List<PriceListSummary> _priceLists;
   late List<StatementSummary> _statements;
+  final Map<int, double> _stock = {};
   DateTime? _lastDelta;
 
   DataStore(this._db);
@@ -38,7 +39,21 @@ class DataStore {
     final meta = await (_db.select(_db.meta)..where((t) => t.key.equals(_lastDeltaKey)))
         .getSingleOrNull();
     _lastDelta = meta == null ? null : DateTime.tryParse(meta.value);
+    await _loadStock();
   }
+
+  Future<void> _loadStock() async {
+    final rows = await _db.select(_db.stockBalances).get();
+    _stock
+      ..clear()
+      ..addEntries(rows.map((r) => MapEntry(r.itemId, r.qty)));
+  }
+
+  /// رصيد الصنف بالكمية الأساس عبر كل المخازن (0 إن لم يصلك رصيده بعد).
+  double stockQty(int itemId) => _stock[itemId] ?? 0;
+
+  /// أرصدة الأصناف المخزنة (للعرض/الاختبارات).
+  Map<int, double> get stock => Map.unmodifiable(_stock);
 
   Future<List<ItemSummary>> _loadItems() async {
     final rows = await (_db.select(_db.items)..orderBy([(t) => OrderingTerm.asc(t.code)]))
@@ -266,6 +281,23 @@ class DataStore {
       });
     });
     _statements = await _loadStatements();
+  }
+
+  /// يدمج أرصدة الأصناف الواردة بالمعرف (المزامنة التفاضلية ترسل المتغيّر فقط — R3-F2).
+  Future<void> saveStock(List<ItemStock> v) async {
+    if (v.isEmpty) return;
+    await _db.transaction(() async {
+      await _db.batch((batch) {
+        for (final s in v) {
+          batch.insert(
+            _db.stockBalances,
+            StockBalancesCompanion.insert(itemId: Value(s.itemId), qty: Value(s.qty)),
+            mode: InsertMode.insertOrReplace,
+          );
+        }
+      });
+    });
+    await _loadStock();
   }
 
   Future<void> saveLastDelta(DateTime at) async {

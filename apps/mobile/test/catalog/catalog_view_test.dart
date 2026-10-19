@@ -94,4 +94,48 @@ void main() {
       expect(priceRange(lists, 99), isNull);
     });
   });
+
+  group('stockLabel (R3-F2 §8.2 #7)', () {
+    ItemSummary steel() => ItemSummary(
+          id: 1,
+          code: 'IR',
+          name: 'حديد',
+          baseUnit: 'KG',
+          units: const [
+            ItemUnitSummary(unitId: 3, unitCode: 'BOX', factorToBase: 12),
+            ItemUnitSummary(unitId: 9, unitCode: 'KG', factorToBase: 1),
+          ],
+        );
+
+    test('يفكّك الرصيد المركّب حسب وحدات الصنف', () {
+      expect(stockLabel(steel(), 38), '3 BOX + 2 KG');
+    });
+
+    test('الرصيد الصفر يُعرض بوحدته الأساسية', () {
+      expect(stockLabel(steel(), 0), '0 KG');
+    });
+
+    test('الرصيد الكسري يعود بالوحدة الأساسية إن لم يقبل التفكيك', () {
+      // 2 لتر < صندوق واحد (4) — يُعرض بالوحدة الأساسية المضافة بعامل 1.
+      final paint = ItemSummary(
+        id: 2,
+        code: 'PNT',
+        name: 'دهان',
+        baseUnit: 'GLN',
+        units: const [ItemUnitSummary(unitId: 4, unitCode: 'BOX', factorToBase: 4, allowDecimal: false)],
+      );
+      expect(stockLabel(paint, 6), '1 BOX + 2 GLN');
+      expect(stockLabel(paint, 0.5), '0.5 GLN');
+    });
+
+    test('صنف بلا وحدات مسحوبة يعود بالكمية والوحدة الأساسية', () {
+      final plain = ItemSummary(id: 3, code: 'C', name: 'أسمنت', baseUnit: 'BAG');
+      expect(stockLabel(plain, 10), '10 BAG');
+      expect(stockLabel(plain, 0), '0 BAG');
+    });
+
+    test('رصيد سالب (مخزون بالسالب) يُعرض كما هو بلا تفكيك', () {
+      expect(stockLabel(steel(), -5), '-5 KG');
+    });
+  });
 }

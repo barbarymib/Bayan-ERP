@@ -152,6 +152,10 @@ class SyncController extends Notifier<SyncState> {
       if (delta.customers.isNotEmpty) await store.saveCustomers(delta.customers);
       if (delta.priceLists.isNotEmpty) await store.savePriceLists(delta.priceLists);
       if (delta.statements.isNotEmpty) await store.saveStatements(delta.statements);
+      // R3-F2: أرصدة الأصناف (null = خادم قديم بلا قسم stock — لا نمسّ ما هو مخزّن).
+      if (delta.stock != null && delta.stock!.isNotEmpty) {
+        await store.saveStock(delta.stock!);
+      }
       if (delta.blocks.isNotEmpty) {
         await ref.read(numberingProvider).applyBlocks(delta.blocks);
       }

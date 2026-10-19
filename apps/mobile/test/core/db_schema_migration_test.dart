@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bayan_rep/core/data_store.dart';
 import 'package:bayan_rep/core/db/database.dart';
+import 'package:bayan_rep/core/models.dart';
 import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,15 +103,16 @@ void main() {
         sqlite_open.OperatingSystem.windows, () => DynamicLibrary.open('winsqlite3.dll'));
   }
 
-  group('ترقية مخطط Drift 3 ← 4 (G13)', () {
-    test('التنصيب الجديد ينشئ barcode وجدول الوحدات وكل الفهارس', () async {
+  group('ترقية مخطط Drift 3 ← 5 (G13 + R3-F2)', () {
+    test('التنصيب الجديد ينشئ barcode وجدول الوحدات وأرصدة المخزون وكل الفهارس', () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
 
-      expect(await _userVersion(db), 4);
+      expect(await _userVersion(db), 5);
       expect(await _indexes(db), _indexesV4);
       expect(await _columns(db, 'items'), contains('barcode'));
       expect(await _hasTable(db, 'item_units'), isTrue);
+      expect(await _hasTable(db, 'stock_balances'), isTrue);
     });
 
     test('ترقية قاعدة إصدار 3 تحفظ البيانات وتضيف الحقول الجديدة', () async {
@@ -122,10 +124,11 @@ void main() {
       final db = AppDatabase.forTesting(NativeDatabase(file));
       addTearDown(db.close);
 
-      expect(await _userVersion(db), 4);
+      expect(await _userVersion(db), 5);
       expect(await _indexes(db), _indexesV4);
       expect(await _columns(db, 'items'), contains('barcode'));
       expect(await _hasTable(db, 'item_units'), isTrue);
+      expect(await _hasTable(db, 'stock_balances'), isTrue);
 
       final store = DataStore(db);
       await store.init();
@@ -136,6 +139,49 @@ void main() {
       expect(item.barcode, isNull);
       expect(item.units, isEmpty);
       expect(store.customers.single.name, 'عميل');
+    });
+
+    test('قاعدة إصدار 4 (قبل R3-F2) ترقى لإنشاء جدول الأرصدة دون فقدان البيانات', () async {
+      final file = File(p.join(Directory.systemTemp.path, 'bayan_v4_stock_upgrade.sqlite'));
+      addTearDown(() {
+        if (file.existsSync()) file.deleteSync();
+      });
+      // بناء حالة v4 الخام مباشرة: مخطط 3 + barcode + جدول الوحدات + الفهارس.
+      if (file.existsSync()) file.deleteSync();
+      final raw = sqlite3.open(file.path);
+      for (final stmt in _ddlV3) {
+        raw.execute(stmt);
+      }
+      raw.execute('ALTER TABLE items ADD COLUMN barcode TEXT');
+      raw.execute(
+        'CREATE TABLE item_units ("item_id" INTEGER NOT NULL, "unit_id" INTEGER NOT NULL, '
+        '"unit_code" TEXT NULL, "factor_to_base" REAL NOT NULL, "allow_decimal" INTEGER NOT NULL DEFAULT 1, '
+        '"barcode" TEXT NULL, "is_sale" INTEGER NOT NULL DEFAULT 1, "is_purchase" INTEGER NOT NULL DEFAULT 1, '
+        'PRIMARY KEY ("item_id", "unit_id"))',
+      );
+      raw.execute('CREATE INDEX idx_item_units_item ON item_units (item_id)');
+      raw.execute('CREATE INDEX idx_item_units_barcode ON item_units (barcode)');
+      raw.execute(
+        'INSERT INTO items (id, code, name, base_unit, last_price, category_code, barcode) '
+        "VALUES (1, 'IR', 'حديد', 'KG', 12.5, 'STEEL', '6221000000017')",
+      );
+      raw.execute('PRAGMA user_version = 4');
+      raw.dispose();
+
+      final db = AppDatabase.forTesting(NativeDatabase(file));
+      addTearDown(db.close);
+
+      expect(await _userVersion(db), 5);
+      expect(await _hasTable(db, 'stock_balances'), isTrue);
+      expect(await _hasTable(db, 'item_units'), isTrue);
+
+      final store = DataStore(db);
+      await store.init();
+      expect(store.items.single.code, 'IR');
+      expect(store.items.single.barcode, '6221000000017');
+      expect(store.stockQty(1), 0);
+      await store.saveStock(const [ItemStock(itemId: 1, qty: 4.5)]);
+      expect(store.stockQty(1), 4.5);
     });
 
     test('الوحدات تُضاف على قاعدة مُرقّاة وتُقرأ عبر DataStore', () async {

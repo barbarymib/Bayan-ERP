@@ -108,8 +108,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 ? _empty('لا توجد أصناف. نزّل البيانات ثم أعد المحاولة.')
                 : ListView.builder(
                     itemCount: filtered.length,
-                    itemBuilder: (context, index) =>
-                        _itemTile(context, filtered[index], lists, selected),
+                    itemBuilder: (context, index) => _itemTile(
+                      context,
+                      filtered[index],
+                      lists,
+                      selected,
+                      store.stockQty(filtered[index].id),
+                    ),
                   ),
           ),
         ],
@@ -131,6 +136,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     ItemSummary item,
     List<PriceListSummary> lists,
     PriceListSummary? selected,
+    double stockQty,
   ) {
     final theme = Theme.of(context);
     final price = priceInList(selected, item.id);
@@ -139,14 +145,27 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       child: ListTile(
         leading: const CircleAvatar(child: Icon(Icons.inventory_2_outlined)),
         title: Text(item.name),
-        subtitle: Text(
-          [
-            item.code,
-            if (item.baseUnit != null && item.baseUnit!.isNotEmpty) item.baseUnit!,
-            if (range != null && range.min != range.max)
-              'المدى: ${fmtMoney(range.min)} - ${fmtMoney(range.max)}',
-          ].join(' · '),
-          style: theme.textTheme.bodySmall,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              [
+                item.code,
+                if (item.baseUnit != null && item.baseUnit!.isNotEmpty) item.baseUnit!,
+                if (range != null && range.min != range.max)
+                  'المدى: ${fmtMoney(range.min)} - ${fmtMoney(range.max)}',
+              ].join(' · '),
+              style: theme.textTheme.bodySmall,
+            ),
+            // R3-F2 §8.2 #7: رصيد الصنف (مركّب حسب وحداته) مع آخر تحديث للمزامنة.
+            Text(
+              'الرصيد: ${stockLabel(item, stockQty)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         trailing: Text(
           price == null ? '—' : fmtMoney(price),

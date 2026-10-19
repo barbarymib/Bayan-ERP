@@ -198,6 +198,46 @@ void main() {
       await s.close();
     });
 
+    test('أرصدة الأصناف تُدمج بالمعرف وتُقرأ عبر stockQty (R3-F2)', () async {
+      final s = await _memoryStore();
+      expect(s.stockQty(1), 0, reason: 'بلا رصيد مخزّن = صفر');
+      expect(s.stock, isEmpty);
+
+      await s.saveStock(const [
+        ItemStock(itemId: 1, qty: 12.5),
+        ItemStock(itemId: 2, qty: 0),
+      ]);
+      expect(s.stockQty(1), 12.5);
+      expect(s.stockQty(2), 0);
+      expect(s.stockQty(999), 0);
+
+      // دمج تفاضلي: تحديث صنف 1 لا يمسّ صنف 2.
+      await s.saveStock(const [ItemStock(itemId: 1, qty: 3)]);
+      expect(s.stockQty(1), 3);
+      expect(s.stockQty(2), 0);
+      await s.close();
+    });
+
+    test('الأرصدة تبقى عبر إعادة فتح قاعدة الملف (R3-F2)', () async {
+      final dir = await Directory.systemTemp.createTemp('bayan_stock_test');
+      final file = File(p.join(dir.path, 'bayan_test.sqlite'));
+      try {
+        final db1 = AppDatabase.forTesting(NativeDatabase(file));
+        final s1 = DataStore(db1);
+        await s1.init();
+        await s1.saveStock(const [ItemStock(itemId: 7, qty: 4.5)]);
+        await s1.close();
+
+        final db2 = AppDatabase.forTesting(NativeDatabase(file));
+        final s2 = DataStore(db2);
+        await s2.init();
+        expect(s2.stockQty(7), 4.5);
+        await s2.close();
+      } finally {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      }
+    });
+
     test('الصبر عبر قاعدة ملف حقيقي (SQLite دائم)', () async {
       final dir = await Directory.systemTemp.createTemp('bayan_ds_test');
       final file = File(p.join(dir.path, 'bayan_test.sqlite'));

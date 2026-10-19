@@ -33,6 +33,10 @@ class _FakeDataStore implements DataStore {
   List<StatementSummary> get statements => const [];
   @override
   DateTime? get lastDelta => null;
+  @override
+  double stockQty(int itemId) => 0;
+  @override
+  Map<int, double> get stock => const {};
 
   @override
   Future<void> init() async {}
@@ -47,6 +51,8 @@ class _FakeDataStore implements DataStore {
   Future<void> savePriceLists(List<PriceListSummary> v) async {}
   @override
   Future<void> saveStatements(List<StatementSummary> v) async {}
+  @override
+  Future<void> saveStock(List<ItemStock> v) async {}
   @override
   Future<void> saveLastDelta(DateTime at) async {}
   @override

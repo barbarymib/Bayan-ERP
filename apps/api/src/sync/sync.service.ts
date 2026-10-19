@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { roundQty } from '@bayan/shared';
 import type { AuthUser } from '../auth/auth.decorators.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
@@ -239,6 +240,28 @@ export class SyncService {
       take: 20,
     });
 
+    // R3-F2 §8.2 #7: أرصدة الأصناف (الكمية الأساس عبر كل المخازن) لعرضها على شاشة الأصناف أوفلاين.
+    // أول استدعاء (بلا since) يرسل كل الأرصدة؛ وبعده الأصناف التي تغيّرت أرصدتها فقط (updatedAt > since).
+    const changedItemIds = cursor
+      ? (
+          await this.prisma.stockBalance.findMany({
+            where: { ...tenantWhere(companyId), updatedAt: { gt: cursor } },
+            select: { itemId: true },
+            distinct: ['itemId'],
+          })
+        ).map((r) => r.itemId)
+      : null;
+    const stock = changedItemIds && changedItemIds.length === 0
+      ? []
+      : await this.prisma.stockBalance.groupBy({
+          by: ['itemId'],
+          where: {
+            ...tenantWhere(companyId),
+            ...(changedItemIds ? { itemId: { in: changedItemIds } } : {}),
+          },
+          _sum: { qtyBase: true },
+        });
+
     return {
       serverTime: new Date().toISOString(),
       items: items.map((i) => ({
@@ -297,6 +320,8 @@ export class SyncService {
         // لكن الاستهلاك الفعلي يُتتبع على الجهاز نفسه ولا يعرفه الخادم.
         used: 0,
       })),
+      // R3-F2 §8.2 #7: [{itemId, qty}] — الكمية الأساس عبر كل المخازن (صف لكل صنف تغيّر رصيده أو كلها في أول مزامنة).
+      stock: stock.map((s) => ({ itemId: s.itemId, qty: roundQty(Number(s._sum.qtyBase ?? 0)) })),
     };
   }
 

@@ -197,13 +197,18 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
 });
 
 describe('SyncService.delta — باركود الأصناف والوحدات (G13 §9)', () => {
-  function deltaHarness(items: unknown[]) {
+  function deltaHarness(items: unknown[], stockBalance?: Partial<Record<'findMany' | 'groupBy', unknown>>) {
     const prisma = {
       item: { findMany: async () => items },
       customerRepAssignment: { findMany: async () => [] },
       priceList: { findMany: async () => [] },
       priceStatement: { findMany: async () => [] },
       numberBlock: { findMany: async () => [] },
+      stockBalance: {
+        findMany: async () => [],
+        groupBy: async () => [],
+        ...stockBalance,
+      },
     };
     const service = new SyncService(
       prisma as unknown as PrismaService,
@@ -297,5 +302,126 @@ describe('SyncService.delta — باركود الأصناف والوحدات (G1
     ]);
     const res = await service.delta(deltaUser);
     expect(res.items[0]).toMatchObject({ id: 2, barcode: null, units: [] });
+  });
+
+  it('يعتمر updatedAt على مرشّح item.findMany عند تمرير since (لحقل Item.updatedAt — R3-F2)', async () => {
+    const itemArgs: { where?: Record<string, unknown> }[] = [];
+    const prisma = {
+      item: {
+        findMany: async (args: { where?: Record<string, unknown> }) => {
+          itemArgs.push(args);
+          return [];
+        },
+      },
+      customerRepAssignment: { findMany: async () => [] },
+      priceList: { findMany: async () => [] },
+      priceStatement: { findMany: async () => [] },
+      numberBlock: { findMany: async () => [] },
+      stockBalance: { findMany: async () => [], groupBy: async () => [] },
+    };
+    const service = new SyncService(
+      prisma as unknown as PrismaService,
+      {} as never,
+      {} as never,
+      {} as never,
+      { notify: async () => {} } as never,
+      {} as never,
+      {} as never,
+      { write: async () => {} } as never,
+    );
+
+    // بلا since: لا مرشّح وقت — كل الأصناف النشطة تُرسل (مزامنة أولى).
+    await service.delta(deltaUser);
+    expect(itemArgs[0]!.where).not.toHaveProperty('updatedAt');
+
+    // مع since: مرشّح updatedAt.gt مطلوب — غيابه على حقل Item بدون updatedAt
+    // كان يرفع خطأ Prisma (500) في كل مزامنة بعد الأولى.
+    const since = '2026-10-19T00:00:00.000Z';
+    await service.delta(deltaUser, since);
+    expect(itemArgs[1]!.where).toMatchObject({
+      updatedAt: { gt: new Date(since) },
+      active: true,
+    });
+  });
+
+  it('يرفض since غير صالح بتاريخ قبل تنفيذ الاستعلام', async () => {
+    const service = deltaHarness([]);
+    await expect(service.delta(deltaUser, 'not-a-date')).rejects.toThrow(/Invalid since/);
+  });
+});
+
+describe('SyncService.delta — قسم أرصدة الأصناف (R3-F2 §8.2 #7)', () => {
+  function stockHarness(opts: {
+    changed?: { itemId: number }[];
+    grouped?: { itemId: number; _sum: { qtyBase: unknown } }[];
+  }) {
+    const calls: unknown[] = [];
+    const prisma = {
+      item: { findMany: async () => [] },
+      customerRepAssignment: { findMany: async () => [] },
+      priceList: { findMany: async () => [] },
+      priceStatement: { findMany: async () => [] },
+      numberBlock: { findMany: async () => [] },
+      stockBalance: {
+        findMany: async (args: unknown) => {
+          calls.push(args);
+          return opts.changed ?? [];
+        },
+        groupBy: async (args: unknown) => {
+          calls.push(args);
+          return opts.grouped ?? [];
+        },
+      },
+    };
+    const service = new SyncService(
+      prisma as unknown as PrismaService,
+      {} as never,
+      {} as never,
+      {} as never,
+      { notify: async () => {} } as never,
+      {} as never,
+      {} as never,
+      { write: async () => {} } as never,
+    );
+    return { service, calls };
+  }
+
+  const stockUser = { ...baseUser, repCode: 'M03' } as unknown as AuthUser;
+
+  it('أول مزامنة (بلا since) تجمّع كل الأرصدة وتعيدها مقرّبة', async () => {
+    const { service, calls } = stockHarness({
+      grouped: [
+        { itemId: 1, _sum: { qtyBase: '12.5000' } },
+        { itemId: 7, _sum: { qtyBase: null } },
+      ],
+    });
+    const res = await service.delta(stockUser);
+    expect(res.stock).toEqual([
+      { itemId: 1, qty: 12.5 },
+      { itemId: 7, qty: 0 },
+    ]);
+    // بلا since: لا استعلام تغيّرات — groupBy مباشرة بلا itemId in.
+    expect(calls).toHaveLength(1);
+    const where = (calls[0] as { where: Record<string, unknown> }).where;
+    expect(where.itemId).toBeUndefined();
+  });
+
+  it('مع since: يُرسل أرصدة الأصناف المتغيّرة فقط عبر معرّفات محدّدة', async () => {
+    const { service, calls } = stockHarness({
+      changed: [{ itemId: 5 }, { itemId: 9 }],
+      grouped: [{ itemId: 5, _sum: { qtyBase: 3 } }],
+    });
+    const res = await service.delta(stockUser, '2026-10-19T00:00:00.000Z');
+    expect(res.stock).toEqual([{ itemId: 5, qty: 3 }]);
+    expect(calls).toHaveLength(2);
+    const where = (calls[1] as { where: { itemId: { in: number[] } } }).where;
+    expect(where.itemId.in).toEqual([5, 9]);
+  });
+
+  it('مع since دون أي تغيّر في المخزون: قسم stock فارغ بلا استعلام تجميع', async () => {
+    const { service, calls } = stockHarness({ changed: [] });
+    const res = await service.delta(stockUser, '2026-10-19T00:00:00.000Z');
+    expect(res.stock).toEqual([]);
+    expect(calls).toHaveLength(1); // findMany التغيّرات فقط
   });
 });

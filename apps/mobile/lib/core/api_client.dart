@@ -192,6 +192,10 @@ class ApiClient {
       statements: ((json['statements'] as List?) ?? const [])
           .map((e) => StatementSummary.fromJson((e as Map).cast<String, dynamic>()))
           .toList(),
+      // R3-F2: قسم أرصدة الأصناف — null إن غاب (خادم قديم) فلا يُمسّ المخزّن المحلي.
+      stock: (json['stock'] as List?)
+          ?.map((e) => ItemStock.fromJson((e as Map).cast<String, dynamic>()))
+          .toList(),
     );
   }
 

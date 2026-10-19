@@ -127,6 +127,15 @@ class Meta extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// رصيد صنف بالكمية الأساس عبر كل المخازن (R3-F2 §8.2 #7) — يصلك مع المزامنة التفاضلية.
+class StockBalances extends Table {
+  IntColumn get itemId => integer()();
+  RealColumn get qty => real().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {itemId};
+}
+
 @DriftDatabase(
   tables: [
     Items,
@@ -137,6 +146,7 @@ class Meta extends Table {
     StatementRows,
     StatementLineRows,
     Meta,
+    StockBalances,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -168,7 +178,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -198,6 +208,10 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(itemUnits);
             await m.createIndex(idxItemUnitsItem);
             await m.createIndex(idxItemUnitsBarcode);
+          }
+          if (from < 5) {
+            // R3-F2 §8.2 #7: أرصدة الأصناف (الكمية الأساس) لعرضها على شاشة الأصناف.
+            await m.createTable(stockBalances);
           }
         },
       );

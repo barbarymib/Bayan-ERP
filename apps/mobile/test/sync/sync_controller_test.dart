@@ -29,6 +29,7 @@ class _FakeDataStore implements DataStore {
   List<CustomerSummary> _customers = const [];
   List<PriceListSummary> _priceLists = const [];
   List<StatementSummary> _statements = const [];
+  final Map<int, double> _stock = {};
   DateTime? _lastDelta;
   final Map<String, String> _meta = {};
 
@@ -44,7 +45,12 @@ class _FakeDataStore implements DataStore {
   @override
   List<StatementSummary> get statements => _statements;
   @override
+  Map<int, double> get stock => _stock;
+  @override
   DateTime? get lastDelta => _lastDelta;
+
+  @override
+  double stockQty(int itemId) => _stock[itemId] ?? 0;
 
   @override
   Future<void> init() async {}
@@ -64,6 +70,13 @@ class _FakeDataStore implements DataStore {
   Future<void> savePriceLists(List<PriceListSummary> v) async => _priceLists = v;
   @override
   Future<void> saveStatements(List<StatementSummary> v) async => _statements = v;
+
+  @override
+  Future<void> saveStock(List<ItemStock> v) async {
+    for (final s in v) {
+      _stock[s.itemId] = s.qty;
+    }
+  }
 
   @override
   Future<void> saveLastDelta(DateTime at) async {
@@ -107,6 +120,8 @@ void main() {
   late _FakeDataStore store;
   late _FakeConnectivity connectivity;
   late List<http.Request> log;
+  // يحاكي خادماً قديماً بلا قسم stock (R3-F2).
+  bool omitStock = false;
 
   MockClient buildMock() => MockClient((request) async {
         log.add(request);
@@ -164,6 +179,11 @@ void main() {
             'priceLists': [],
             'statements': [],
             'blocks': [],
+            if (!omitStock)
+              'stock': [
+                {'itemId': 42, 'qty': 7.5},
+                {'itemId': 43, 'qty': 0},
+              ],
           });
         }
         return _json({'message': 'not found'}, 404);
@@ -171,6 +191,7 @@ void main() {
 
   Future<void> setUpContainer({BackoffPolicy? policy}) async {
     log = [];
+    omitStock = false;
     outbox = Outbox(policy: policy ?? const BackoffPolicy());
     store = _FakeDataStore();
     connectivity = _FakeConnectivity();
@@ -339,6 +360,30 @@ void main() {
       await controller().syncNow();
 
       expect(state().pricingAlerts, isEmpty);
+    });
+
+    test('يحفظ قسم stock الوارد من الخادم في المخزن (R3-F2)', () async {
+      await setUpContainer();
+      controller();
+
+      await controller().syncNow();
+
+      expect(store.stockQty(42), 7.5);
+      expect(store.stockQty(43), 0);
+      expect(store.stockQty(999), 0, reason: 'صنف بلا رصيد = صفر');
+    });
+
+    test('استجابة بلا قسم stock (خادم قديم) لا تمسّ الأرصدة المخزنة', () async {
+      await setUpContainer();
+      controller();
+      await controller().syncNow();
+      expect(store.stockQty(42), 7.5);
+
+      await store.saveStock(const [ItemStock(itemId: 42, qty: 99)]);
+      omitStock = true;
+
+      await controller().syncNow();
+      expect(store.stockQty(42), 99, reason: 'غياب القسم لا يصفّر ما هو مخزّن');
     });
   });
 }

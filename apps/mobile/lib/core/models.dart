@@ -424,6 +424,19 @@ class NumberBlock {
       );
 }
 
+/// رصيد صنف بالكمية الأساس عبر كل المخازن (R3-F2 §8.2 #7).
+class ItemStock {
+  final int itemId;
+  final double qty;
+
+  const ItemStock({required this.itemId, required this.qty});
+
+  factory ItemStock.fromJson(Map<String, dynamic> j) => ItemStock(
+        itemId: (j['itemId'] as num).toInt(),
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 /// نتيجة المزامنة التفاضلية (Delta Sync).
 class DeltaPayload {
   final DateTime serverTime;
@@ -433,6 +446,9 @@ class DeltaPayload {
   final List<PriceListSummary> priceLists;
   final List<StatementSummary> statements;
 
+  /// أرصدة الأصناف: فارغة = لم يرسل الخادم القسم (خادم قديم)؛ وإلا دُمجت بالمعرف.
+  final List<ItemStock>? stock;
+
   const DeltaPayload({
     required this.serverTime,
     this.items = const [],
@@ -440,6 +456,7 @@ class DeltaPayload {
     this.blocks = const [],
     this.priceLists = const [],
     this.statements = const [],
+    this.stock,
   });
 
   /// سعر الصنف لعميل محدد انطلاقاً من قائمة أسعاره.

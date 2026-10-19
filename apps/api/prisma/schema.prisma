@@ -414,6 +414,8 @@ model Item {
   parent           Item?    @relation("ItemVariants", fields: [parentItemId], references: [id])
   variants         Item[]   @relation("ItemVariants")
   imageUrl         String?
+  // ختم آخر تعديل — أساسي لمرشّح since في مزامنة الدلتا (R3-F2)
+  updatedAt        DateTime @updatedAt
 
   attributes          ItemAttribute[]
   itemUnits           ItemUnit[]
@@ -435,6 +437,7 @@ model Item {
   @@index([categoryId])
   @@index([companyId])
   @@index([nameAr])
+  @@index([updatedAt])
   @@unique([companyId, code])
   @@unique([companyId, barcode])
 }

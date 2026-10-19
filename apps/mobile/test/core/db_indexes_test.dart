@@ -41,11 +41,11 @@ void main() {
   _enableSqliteOnWindows();
 
   group('R3-E7 Drift secondary indexes', () {
-    test('التنصيب الجديد ينشئ كل الفهارس الثانوية (schema v4)', () async {
+    test('التنصيب الجديد ينشئ كل الفهارس الثانوية (schema v5)', () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
 
-      expect(await _userVersion(db), 4);
+      expect(await _userVersion(db), 5);
       expect(await _secondaryIndexes(db), _expectedIndexes);
     });
   });
