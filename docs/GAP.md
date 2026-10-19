@@ -261,7 +261,7 @@ Re-audit of the whole codebase (api/web/mobile/shared, infra) against `docs/baya
 | R3-E6 | Periodic restore test is manual (decrypt/checksum only; no drill/restore). | §9 | PARTIAL | `backups.controller.ts:37`; `backups.service.ts:122-150` |
 | R3-E7 | Mobile Drift DB has no secondary indexes. | §11 | FIXED | 8 `@TableIndex` on hot columns (`items.code`, `customers.code/name`, `item_prices.item_id`, `statement_rows.customer_id/date`, `statement_line_rows.statement_id/item_id`) + `schemaVersion 3` with `onUpgrade` creating them; commit `bf5b59d`; tests `test/core/db_indexes_test.dart` (fresh + v2→v3 upgrade) |
 | R3-E8 | 50+ concurrent scalability untested (distinct from G25). | §9 | PARTIAL | `app.module.ts:51` only |
-| R3-F4 | Mobile new statement has no payment step. | §8.2 #3 | PARTIAL | `new_statement_screen.dart:106-149` |
+| R3-F4 | Mobile new statement has no payment step. | §8.2 #3 | ✅ FIXED (mobile 289/289) | `new_statement_screen.dart`: added payment step card (الإجمالي/خصم البيان/الصافي/المدفوع/المتبقي), quick chips (صفر/نصف/الكل), manual payment term (CASH/CREDIT/MIXED) with auto-inference (paid==0→CREDIT, paid==net→CASH, else MIXED), paid>net guard + paidColor; new test `test/statements/new_statement_payment_step_test.dart`. Commit `7d3e594`. |
 | R3-F5 | Mobile has no dedicated settings screen. | §8.2 #8 | PARTIAL | `home_screen.dart:97-141` |
 | R3-F6 | Mobile "بياناتي" has no unified drafts/uploaded view. | §8.2 #4 | PARTIAL | `my_statements_screen.dart:21-31` |
 

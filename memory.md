@@ -1005,3 +1005,9 @@ Complete all phases 0â€“7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Gates:** `flutter analyze` clean; `flutter test` **287/287** (was 286; +1 widget test). No API/web changes.
 - **Commits:** code `58b5124` (3 files: new screen + home wiring + new test); docs (GAP row 238 ? ? FIXED + this entry) in the follow-up commit.
 - **Next:** R3-F4/F5/F6 (payment step, settings screen, drafts view), G23/R3-E6 BullMQ + restore drill, G25/R3-E8 50k benchmark, R3-A13 currency, G26 Hijri/Arabic-numeral helper. Then full audit vs `docs/bayan-design.md` + GAP reconcile (backfill §5 status-log: G12/G20/R3-E7/G13/G14/R3-D3/R3-F3/R3-F1/R3-F2). Blocked: FCM.
+
+### Completed — R3-F4: mobile new-statement payment step (2026-10-19)
+- **New payment step:** `new_statement_screen.dart` restructured (header discount before lines, payment as a dedicated card): shows subtotal/header discount/net/paid/remaining, quick action chips (???/???/????), payment term dropdown (CASH/CREDIT/MIXED) with manual override + auto-inference (paid <= 0 ? CREDIT; paid >= net±0.005 ? CASH; else MIXED). Prevents saving when paid > net+0.005. Colorizes remaining (green fully paid, error overpaid).
+- **Tests:** +2 widget tests (`test/statements/new_statement_payment_step_test.dart`); full suite **289/289**. `flutter analyze` clean.
+- **Commits:** code `7d3e594`; docs (GAP row 264 ? ? FIXED + this entry).
+- **Next:** R3-F5 (settings screen), R3-F6 (drafts/uploaded view), G23/R3-E6 BullMQ + restore drill, G25/R3-E8 50k benchmark, R3-A13 currency, G26 Hijri/Arabic-numeral helper. Full audit vs `docs/bayan-design.md` + GAP reconcile at end.
