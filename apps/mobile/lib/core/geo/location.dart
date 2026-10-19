@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:geolocator/geolocator.dart';
 
 /// موقع جغرافي تجريدي — مستقل عن قنوات المنصة ليسهل اختباره.
@@ -13,6 +15,18 @@ class GeoPosition {
     this.accuracy,
     required this.capturedAt,
   });
+}
+
+/// المسافة بالمتر بين موقعين (Haversine) — تُستخدم لاكتشاف سكون المندوب
+/// وتخفيف تردد الإرسال لتوفير البطارية (§5.13).
+double distanceMeters(GeoPosition a, GeoPosition b) {
+  const earthRadius = 6371000.0;
+  double toRad(double deg) => deg * pi / 180;
+  final dLat = toRad(b.lat - a.lat);
+  final dLng = toRad(b.lng - a.lng);
+  final h = sin(dLat / 2) * sin(dLat / 2) +
+      cos(toRad(a.lat)) * cos(toRad(b.lat)) * sin(dLng / 2) * sin(dLng / 2);
+  return 2 * earthRadius * asin(sqrt(h));
 }
 
 /// واجهة توفير الموقع — قابل للاستبدال في الاختبارات (لا تُستدعى المنصة هنا).

@@ -94,10 +94,12 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
                 Text('لا توجد وردية نشطة', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 8),
                 const Text(
-                  'ابدأ الوردية ليُرسل التطبيق موقعك كل دقيقة أثناء العمل، '
-                  'وتُسجَّل زياراتك للعملاء مع التحقق من القرب (150م).',
+                  'ابدأ الوردية ليُرسل التطبيق موقعك حسب الفاصل المُضبوط أدناه '
+                  'أثناء العمل، وتُسجَّل زياراتك للعملاء مع التحقق من القرب (150م).',
                   style: TextStyle(height: 1.5),
                 ),
+                const SizedBox(height: 12),
+                _intervalSelector(controller),
                 const SizedBox(height: 12),
                 _consentBanner(consented, consent?.signatureName),
                 if (state.error != null) ...[
@@ -119,6 +121,32 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  /// اختيار فاصل إرسال الموقع (§5.13: 30–120 ثانية) — يُحفظ فوراً في
+  /// إعدادات الجهاز ويُعيد جدولة المؤقّت إن كانت وردية نشطة.
+  Widget _intervalSelector(ShiftController controller) {
+    final intervalSec = ref.watch(trackingIntervalProvider).inSeconds;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('فاصل تحديث الموقع: $intervalSec ثانية',
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Slider(
+          value: intervalSec.toDouble(),
+          min: 30,
+          max: 120,
+          divisions: 9,
+          label: '$intervalSec ثانية',
+          onChanged: (v) => controller.setInterval(Duration(seconds: v.round())),
+        ),
+        const Text(
+          'يُخفَّف التطبيق التردد تلقائياً عند سكونك لتوفير البطارية.',
+          style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
       ],
     );
@@ -172,6 +200,9 @@ class _ShiftScreenState extends ConsumerState<ShiftScreen> {
                 _kv('المدة', _elapsed(elapsed)),
                 _kv('النقاط المُرسلة', state.pushedLocations.toString()),
                 _kv('مؤشر التتبع', 'ظاهر على الجهاز'),
+                _kv('فاصل التحديث', '${ref.watch(trackingIntervalProvider).inSeconds} ثانية'),
+                if (state.throttled)
+                  _kv('وضع توفير البطارية', 'مُخفَّف — المندوب ساكن'),
                 if (state.lastPushAt != null) _kv('آخر إرسال', _fmt(state.lastPushAt!)),
                 if (state.lastPosition != null) ...[
                   const SizedBox(height: 8),

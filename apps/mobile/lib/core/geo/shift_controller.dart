@@ -22,6 +22,9 @@ class ShiftState {
   final VisitResult? lastVisit;
   final String? error;
 
+  /// هل يُخفَّف التردد حالياً لأن المندوب ساكن (توفير البطارية، §5.13)؟
+  final bool throttled;
+
   const ShiftState({
     this.shift,
     this.busy = false,
@@ -30,6 +33,7 @@ class ShiftState {
     this.lastPushAt,
     this.lastVisit,
     this.error,
+    this.throttled = false,
   });
 
   bool get isTracking => shift != null;
@@ -42,6 +46,7 @@ class ShiftState {
     DateTime? lastPushAt,
     VisitResult? lastVisit,
     String? error,
+    bool? throttled,
   }) =>
       ShiftState(
         shift: shift ?? this.shift,
@@ -51,7 +56,28 @@ class ShiftState {
         lastPushAt: lastPushAt ?? this.lastPushAt,
         lastVisit: lastVisit ?? this.lastVisit,
         error: error ?? this.error,
+        throttled: throttled ?? this.throttled,
       );
+}
+
+/// عتبة السكون (بالمتر): إذا كانت المسافة بين موقعين متتاليين أقل منها فالمندوب
+/// ساكن ويُخفَّف تردد الإرسال لتوفير البطارية (§5.13).
+const kStationaryThresholdMeters = 15.0;
+
+/// معامل تخفيف التردد عند السكون، وسقفه الأقصى (§5.13).
+const kIdleThrottleFactor = 2;
+const kMaxIdleInterval = Duration(minutes: 5);
+
+/// يحسب المدة التالية بين إرسال موقع — دالة نقية قابلة للاختبار:
+/// الفاصل الأساسي عند الحركة، ومضاعفته (بحدٍّ أقصى [kMaxIdleInterval])
+/// عند السكون لتوفير البطارية (§5.13).
+Duration nextTrackingDelay(Duration base, {required bool stationary}) {
+  if (!stationary) return base;
+  final ms = base.inMilliseconds * kIdleThrottleFactor;
+  final capped = ms > kMaxIdleInterval.inMilliseconds
+      ? kMaxIdleInterval.inMilliseconds
+      : ms;
+  return Duration(milliseconds: capped);
 }
 
 /// يدير وردية تتبع الموقع: بدء/إنهاء، إرسال نقاط دورية، وتسجيل الزيارات.
@@ -63,9 +89,15 @@ class ShiftController extends Notifier<ShiftState> {
   Timer? _timer;
   bool _pushing = false;
 
+  /// هل يُسمح بإعادة الجدولة؟ يُلغى عند الإنهاء حتى لا يستأنف مؤقّت منتهٍ.
+  bool _tracking = false;
+
   @override
   ShiftState build() {
-    ref.onDispose(() => _timer?.cancel());
+    ref.onDispose(() {
+      _tracking = false;
+      _timer?.cancel();
+    });
     return const ShiftState();
   }
 
@@ -76,6 +108,15 @@ class ShiftController extends Notifier<ShiftState> {
   TrackingNotifier get _notifier => ref.read(trackingNotifierProvider);
 
   String _notifBody(int points) => 'الوردية نشطة — أُرسلت $points نقطة موقع';
+
+  /// يضبط فاصل إرسال الموقع أثناء الوردية (§5.13: 30–120 ثانية)، يحفظه في
+  /// إعدادات الجهاز، ويُعيد جدولة المؤقّت فوراً إن كانت الوردية نشطة.
+  Future<void> setInterval(Duration interval) async {
+    final seconds = interval.inSeconds.clamp(30, 120).toInt();
+    await _session.saveTrackingIntervalSec(seconds);
+    ref.invalidate(trackingIntervalProvider);
+    if (_tracking && state.shift != null) _scheduleNext();
+  }
 
   /// عند فتح التطبيق: إن تُركت وردية نشطة على الخادم نستأنف التتبع.
   Future<void> syncFromServer() async {
@@ -123,6 +164,7 @@ class ShiftController extends Notifier<ShiftState> {
 
   Future<void> stopShift() async {
     final active = state.shift;
+    _tracking = false;
     _timer?.cancel();
     _timer = null;
     if (active == null || state.busy) return;
@@ -173,16 +215,40 @@ class ShiftController extends Notifier<ShiftState> {
     }
   }
 
+  /// يبدأ جدولة نقاط الإرسال بفاصل متجدّد: الفاصل الأساسي أثناء الحركة،
+  /// ومضاعفته (بحدٍّ أقصى) عند السكون (§5.13).
   void _startTimer() {
+    _tracking = true;
+    _scheduleNext();
+  }
+
+  void _scheduleNext() {
     _timer?.cancel();
-    _timer = Timer.periodic(_interval, (_) => _tick());
+    if (!_tracking || state.shift == null) return;
+    _timer = Timer(
+      nextTrackingDelay(_interval, stationary: state.throttled),
+      () => _tick(),
+    );
   }
 
   Future<void> _tick() async {
-    if (state.shift == null || _pushing) return;
+    if (!_tracking || state.shift == null) return;
+    if (_pushing) {
+      // إرسال سابق قيد التنفيذ — نؤجّل الدورة فقط دون قطع السلسلة.
+      _scheduleNext();
+      return;
+    }
     final pos = await _location.getCurrentPosition();
+    if (!ref.mounted || !_tracking || state.shift == null) return;
+    if (pos != null) {
+      // قرر التخفيف قبل الإرسال لأن `_push` يحدّث آخر موقع مُرسل.
+      final stationary = state.lastPosition != null &&
+          distanceMeters(state.lastPosition!, pos) < kStationaryThresholdMeters;
+      state = state.copy(throttled: stationary);
+      await _push(pos);
+    }
     if (!ref.mounted) return;
-    if (pos != null) await _push(pos);
+    _scheduleNext();
   }
 
   Future<void> _push(GeoPosition pos) async {

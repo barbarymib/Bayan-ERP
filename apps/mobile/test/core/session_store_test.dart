@@ -69,4 +69,29 @@ void main() {
     expect(await secure.read(key: 'bayan.session.token.v1'), isNull);
     expect(await secure.read(key: 'bayan.session.refresh.v1'), isNull);
   });
+
+  test('فاصل تتبع الموقع: افتراضي 60 ثانية ويُقيَّد بين 30 و120 (§5.13)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final session = SessionStore(await SharedPreferences.getInstance());
+    expect(session.trackingIntervalSec, 60);
+
+    await session.saveTrackingIntervalSec(90);
+    expect(session.trackingIntervalSec, 90);
+
+    await session.saveTrackingIntervalSec(5);
+    expect(session.trackingIntervalSec, 30);
+
+    await session.saveTrackingIntervalSec(500);
+    expect(session.trackingIntervalSec, 120);
+  });
+
+  test('قراءة خام لفاصل التتبع من التفضيلات تُقيَّد أيضاً بين 30 و120', () async {
+    SharedPreferences.setMockInitialValues({'tracking_interval_sec': 999});
+    final session = SessionStore(await SharedPreferences.getInstance());
+    expect(session.trackingIntervalSec, 120);
+
+    SharedPreferences.setMockInitialValues({'tracking_interval_sec': 1});
+    final session2 = SessionStore(await SharedPreferences.getInstance());
+    expect(session2.trackingIntervalSec, 30);
+  });
 }

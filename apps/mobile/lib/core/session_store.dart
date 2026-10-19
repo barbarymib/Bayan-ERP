@@ -27,6 +27,7 @@ class SessionStore {
   static const _kPrinter = 'last_printer_address';
   static const _kDeviceLock = 'device_lock_enabled';
   static const _kGeoConsent = 'geo_consent';
+  static const _kTrackingInterval = 'tracking_interval_sec';
 
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
@@ -54,6 +55,22 @@ class SessionStore {
   /// هل قفل الجهاز (مصادقة بيومترية/بيانات الجهاز) مُفعّل؟ (§9/G4)
   bool get deviceLockEnabled => _prefs.getBool(_kDeviceLock) ?? false;
   Future<void> saveDeviceLockEnabled(bool enabled) => _prefs.setBool(_kDeviceLock, enabled);
+
+  /// فاصل إرسال نقاط الموقع أثناء الوردية بالثواني (§5.13: قابل للضبط
+  /// بين 30 و120 ثانية، والقيمة الافتراضية 60).
+  int get trackingIntervalSec {
+    final raw = _prefs.getInt(_kTrackingInterval) ?? 60;
+    if (raw < 30) return 30;
+    if (raw > 120) return 120;
+    return raw;
+  }
+
+  Future<void> saveTrackingIntervalSec(int seconds) {
+    var value = seconds;
+    if (value < 30) value = 30;
+    if (value > 120) value = 120;
+    return _prefs.setInt(_kTrackingInterval, value);
+  }
 
   /// الإقرار الموقّع على تتبع الموقع المحفوظ محلياً (§5.13)، أو null إن لم يوجد.
   GeoConsent? get geoConsent => GeoConsent.decode(_prefs.getString(_kGeoConsent));

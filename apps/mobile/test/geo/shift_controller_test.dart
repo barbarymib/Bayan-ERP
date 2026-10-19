@@ -302,7 +302,7 @@ void main() {
       expect(notifier.started, isFalse);
     });
 
-    test('المؤشر المرئي يبدأ مع الوردية ويتحدّث ويُوقف عند الإنهاء', () async {
+  test('المؤشر المرئي يبدأ مع الوردية ويتحدّث ويُوقف عند الإنهاء', () async {
       await setUpContainer();
       final controller = container.read(shiftControllerProvider.notifier);
 
@@ -316,6 +316,130 @@ void main() {
 
       expect(notifier.stopped, isTrue);
       expect(container.read(shiftControllerProvider).shift, isNull);
+    });
+  });
+
+  group('فاصل التتبع القابل للضبط (R3-D3، §5.13)', () {
+    test('setInterval يُقيَّد بين 30 و120 ثانية ويُحفظ في إعدادات الجهاز', () async {
+      await setUpContainer();
+      final controller = container.read(shiftControllerProvider.notifier);
+      final session = container.read(sessionProvider);
+
+      await controller.setInterval(const Duration(seconds: 45));
+      expect(session.trackingIntervalSec, 45);
+
+      await controller.setInterval(const Duration(seconds: 5));
+      expect(session.trackingIntervalSec, 30);
+
+      await controller.setInterval(const Duration(minutes: 10));
+      expect(session.trackingIntervalSec, 120);
+    });
+
+    test('تغيير الفاصل أثناء وردية نشطة يستمر بإرسال النقاط دون قطع', () async {
+      await setUpContainer();
+      final controller = container.read(shiftControllerProvider.notifier);
+      await controller.startShift();
+      final before = container.read(shiftControllerProvider).pushedLocations;
+
+      await controller.setInterval(const Duration(seconds: 30));
+
+      await waitUntil(
+        () => container.read(shiftControllerProvider).pushedLocations > before,
+      );
+      expect(container.read(shiftControllerProvider).isTracking, isTrue);
+    });
+
+    test('المزوّد يشتق من إعدادات الجهاز: افتراضي 60 ثم القيمة المحفوظة', () async {
+      SharedPreferences.setMockInitialValues({});
+      final session = SessionStore(await SharedPreferences.getInstance());
+      final c = ProviderContainer(overrides: [sessionProvider.overrideWithValue(session)]);
+      addTearDown(c.dispose);
+
+      expect(c.read(trackingIntervalProvider), const Duration(seconds: 60));
+
+      await session.saveTrackingIntervalSec(90);
+      c.invalidate(trackingIntervalProvider);
+      expect(c.read(trackingIntervalProvider), const Duration(seconds: 90));
+    });
+  });
+
+  group('تخفيف التردد عند السكون (R3-D4، §5.13)', () {
+    test('المندوب الساكن يفعّل وضع توفير البطارية ثم يُلغيه عند الحركة', () async {
+      await setUpContainer();
+      final controller = container.read(shiftControllerProvider.notifier);
+      await controller.startShift();
+
+      // الموقع ثابت → المسافة صفر → السكون.
+      await waitUntil(() => container.read(shiftControllerProvider).throttled);
+      expect(container.read(shiftControllerProvider).isTracking, isTrue);
+
+      // حركة بعيدة (~7كم) تُعيد الفاصل الأساسي.
+      fake.next = _pos(lat: 31.3, lng: 35.2);
+      await waitUntil(() => !container.read(shiftControllerProvider).throttled);
+      expect(container.read(shiftControllerProvider).isTracking, isTrue);
+    });
+
+    test('التخفيف لا يوقف الإرسال — النقاط تواصل بالتراكم', () async {
+      await setUpContainer();
+      final controller = container.read(shiftControllerProvider.notifier);
+      await controller.startShift();
+      await waitUntil(() => container.read(shiftControllerProvider).throttled);
+      final before = container.read(shiftControllerProvider).pushedLocations;
+
+      await waitUntil(
+        () => container.read(shiftControllerProvider).pushedLocations > before,
+        timeoutMs: 3000,
+      );
+    });
+  });
+
+  group('nextTrackingDelay (دالة نقية)', () {
+    test('عند الحركة يُرجع الفاصل الأساسي دون تغيير', () {
+      expect(
+        nextTrackingDelay(const Duration(seconds: 60), stationary: false),
+        const Duration(seconds: 60),
+      );
+      expect(
+        nextTrackingDelay(const Duration(milliseconds: 20), stationary: false),
+        const Duration(milliseconds: 20),
+      );
+    });
+
+    test('عند السكون يضاعف الفاصل بحدٍّ أقصى 5 دقائق', () {
+      expect(
+        nextTrackingDelay(const Duration(seconds: 60), stationary: true),
+        const Duration(seconds: 120),
+      );
+      expect(
+        nextTrackingDelay(const Duration(seconds: 120), stationary: true),
+        const Duration(seconds: 240),
+      );
+      expect(
+        nextTrackingDelay(const Duration(minutes: 4), stationary: true),
+        kMaxIdleInterval,
+      );
+      expect(
+        nextTrackingDelay(const Duration(minutes: 10), stationary: true),
+        kMaxIdleInterval,
+      );
+    });
+  });
+
+  group('distanceMeters', () {
+    test('نفس النقطة = صفر، ودرجة عرض ≈ 111كم', () {
+      final a = _pos();
+      expect(distanceMeters(a, a), 0);
+
+      final b = _pos(lat: 32.235);
+      expect(distanceMeters(a, b), closeTo(111000, 1500));
+    });
+
+    test('تباعد 10 أمتار يقع دون عتبة السكون', () {
+      final a = _pos();
+      // ~0.00009 درجة عرض ≈ 10م.
+      final b = _pos(lat: 31.23509);
+      expect(distanceMeters(a, b), lessThan(kStationaryThresholdMeters));
+      expect(distanceMeters(a, b), greaterThan(5));
     });
   });
 }

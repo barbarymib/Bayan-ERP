@@ -41,5 +41,8 @@ final bluetoothPrinterProvider =
 /// قفل الجهاز (§9/G4) — يُستبدل بتنفيذ حقيقي في `main()` وبنسخة زائفة في الاختبارات.
 final deviceLockProvider = Provider<DeviceLock>((ref) => throw UnimplementedError());
 
-/// الفاصل الزمني لإرسال نقاط الموقع أثناء الوردية (§5.13: 30–120 ثانية).
-final trackingIntervalProvider = Provider<Duration>((ref) => const Duration(seconds: 60));
+/// الفاصل الزمني لإرسال نقاط الموقع أثناء الوردية (§5.13: 30–120 ثانية،
+/// افتراضي 60) — مصدره إعدادات الجهاز في [SessionStore] ويُعاد حسابه بعد
+/// تغييره من شاشة الوردية عبر `ref.invalidate(trackingIntervalProvider)`.
+final trackingIntervalProvider =
+    Provider<Duration>((ref) => Duration(seconds: ref.watch(sessionProvider).trackingIntervalSec));
