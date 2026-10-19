@@ -185,6 +185,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-19 | **R3-E8/G25** 50k-row + 50-concurrent **benchmark** | ✅ FIXED (`npm run bench` → `docs/PERFORMANCE.md`; fixed `stockSummary` P2029/P2028 via raw group-by + tenant tx timeout `PRISMA_TX_TIMEOUT_MS`; live: items 74 ms…stock-summary 3.2 s, light burst 100% ok; api 471; commit `05682e9`) |
 | 2026-10-19 | **G23** scheduled **automatic alerts** (background work behind §5.15) | ✅ FIXED (`NotificationsScheduler` per-company `refreshAlerts` every `ALERTS_INTERVAL_MS` (1h default, `off` disables) inside `runWithTenant`; scalable raw-SQL low-stock/credit-limit aggregation; live refresh `{low_stock:1,…}` matches DB + body `صنف هجرة (MIG-ITEM): 0 من حد 5`; api 478; commit `4ada3a7`) |
 | 2026-10-19 | **R4-A1..A4** Round-4 High fixes (statement PATCH tax/dueDate, approved-edit re-checks, tenant feature guard) | ✅ FIXED (**R4-A3** approved `update()` re-runs `assertCustomerCredit` (BLOCK) + `assertSalePermitted` before snapshot/restock/reverse/re-post — live BLOCK `creditLimit=100`+net `570`→`400` unmutated; **R4-A1** `PATCH` inherits `Company.taxPercent` via `effectiveTaxPercent` — live tax `14`+taxAmount `42`; **R4-A2** `buildHeaderData` gets `customer.creditDays` — live `date 2026-10-05`→`dueDate 2026-11-04`; **R4-A4** `setCompanyFeature` `403` on globally-OFF feature — live verified; api 485; commit `99ef4ca`) |
+| 2026-10-19 | **R4-B3** approvals gated per approval type | ✅ FIXED (`AnyPermission` OR-decorator + guard `ANY_PERMISSIONS_KEY`; controller `discount.approve` OR `return.approve`; `list` scoped to decidable types; live ACCOUNTANT `200` / WAREHOUSEKEEPER `403`; api 490; commit `0cb88af`) |
 
 ---
 
@@ -301,7 +302,7 @@ Full read-only audit of the whole design spec (§1–§14) against api/web/mobil
 | -- | --- | ---- | ------ | -------- |
 | R4-B1 | Ten §5.14 reports are **API-only, no web screen** (sales-summary, sales-by, discounts, discount-approvals, returns, stopped-customers, stocktake-diff, supplier-debt, rep-performance, item-card) | §5.14/§8.1 | OPEN | web grep → 0 references; reports page tabs limited to 7 (`apps/web/app/(app)/reports/page.tsx:52-62`). |
 | R4-B2 | **Aging** report bypasses `respond()` → **no CSV/XLSX** export (payload `items`, not `rows`) | §5.14 | OPEN | `apps/api/src/reports/reports.controller.ts:200-204`; `reports.service.ts:1606`. |
-| R4-B3 | **Approvals list/decide** gated by controller `discount.approve`, so a role holding only `return.approve` (ACCOUNTANT) cannot see/decide return approvals though `TYPE_PERMISSION.RETURN='return.approve'` | §4.2/§6.2 | OPEN | `apps/api/src/approvals/approvals.controller.ts:22,29` vs `approvals.service.ts` `TYPE_PERMISSION`. |
+| R4-B3 | **Approvals list/decide** gated by controller `discount.approve`, so a role holding only `return.approve` (ACCOUNTANT) cannot see/decide return approvals though `TYPE_PERMISSION.RETURN='return.approve'` | §4.2/§6.2 | ✅ FIXED | New `AnyPermission(...codes)` decorator (OR) + `AuthGuard` `ANY_PERMISSIONS_KEY` handling; approvals controller now `@AnyPermission('discount.approve','return.approve')` on `list`/`decide`; `ApprovalsService.list` scoped to the caller's decidable types (from `TYPE_PERMISSION`). Live 2026-10-19: ACCOUNTANT (`return.approve` only) `GET /approvals` → `200` (was `403`); WAREHOUSEKEEPER (no approve perms) → `403`. Tests +6. |
 | R4-B4 | Mobile **new return** omits `unitCode`/`settlement`/`withoutStatement` and hardcodes `mode: BY_REP` | §5.9/§5.12 | OPEN | `apps/mobile/lib/features/return/new_return_screen.dart:98-125`. |
 | R4-B5 | Global-admin **«التقارير العامة»** route missing | §12.4 | OPEN | `apps/api/src/admin/admin.controller.ts` has no reports route. |
 | R4-B6 | Sync conflict detection is `net_mismatch` only → a **stock-only** change raises no «بانتظار المراجعة» flag | §5.12 | OPEN | `apps/api/src/sync/sync.service.ts:538-550`. |
@@ -392,7 +393,7 @@ Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full ga
 2. ~~**R4-A1** statement PATCH must inherit company default tax — **High**~~ ✅ FIXED (`99ef4ca`)
 3. ~~**R4-A2** statement PATCH must recompute `dueDate` from `customer.creditDays` — **High**~~ ✅ FIXED (`99ef4ca`)
 4. ~~**R4-A4** guard `setCompanyFeature` on `feature.enabled` (globally-enabled only) — **High**~~ ✅ FIXED (`99ef4ca`)
-5. **R4-B3** approvals list/decide gated per approval type (not blanket `discount.approve`) — **Medium**
+5. ~~**R4-B3** approvals list/decide gated per approval type (not blanket `discount.approve`) — **Medium**~~ ✅ FIXED (`0cb88af`)
 6. **R4-B8** rejection → return statement to editable draft (loop) — **Medium**
 7. **R4-B7** explicit «حفظ كمسودة» (skip auto-post) — **Medium**
 8. **R4-B9** credit/stock «طلب استثناء» exception request path — **Medium**
