@@ -184,6 +184,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-19 | **R3-E6** automated **restore drill** | ✅ FIXED (`POST /backups/:id/restore-drill`: sha256→decrypt→temp DB→`psql ON_ERROR_STOP`→assert tables+Company→drop; migration `20261019030000`; runs after scheduled backup; live `{ok:true,tables:77,companies:1}`; api 469; commit `57aa387`) |
 | 2026-10-19 | **R3-E8/G25** 50k-row + 50-concurrent **benchmark** | ✅ FIXED (`npm run bench` → `docs/PERFORMANCE.md`; fixed `stockSummary` P2029/P2028 via raw group-by + tenant tx timeout `PRISMA_TX_TIMEOUT_MS`; live: items 74 ms…stock-summary 3.2 s, light burst 100% ok; api 471; commit `05682e9`) |
 | 2026-10-19 | **G23** scheduled **automatic alerts** (background work behind §5.15) | ✅ FIXED (`NotificationsScheduler` per-company `refreshAlerts` every `ALERTS_INTERVAL_MS` (1h default, `off` disables) inside `runWithTenant`; scalable raw-SQL low-stock/credit-limit aggregation; live refresh `{low_stock:1,…}` matches DB + body `صنف هجرة (MIG-ITEM): 0 من حد 5`; api 478; commit `4ada3a7`) |
+| 2026-10-19 | **R4-A1..A4** Round-4 High fixes (statement PATCH tax/dueDate, approved-edit re-checks, tenant feature guard) | ✅ FIXED (**R4-A3** approved `update()` re-runs `assertCustomerCredit` (BLOCK) + `assertSalePermitted` before snapshot/restock/reverse/re-post — live BLOCK `creditLimit=100`+net `570`→`400` unmutated; **R4-A1** `PATCH` inherits `Company.taxPercent` via `effectiveTaxPercent` — live tax `14`+taxAmount `42`; **R4-A2** `buildHeaderData` gets `customer.creditDays` — live `date 2026-10-05`→`dueDate 2026-11-04`; **R4-A4** `setCompanyFeature` `403` on globally-OFF feature — live verified; api 485; commit `99ef4ca`) |
 
 ---
 
@@ -290,10 +291,10 @@ Full read-only audit of the whole design spec (§1–§14) against api/web/mobil
 #### High
 | ID | Gap | Spec | Status | Evidence |
 | -- | --- | ---- | ------ | -------- |
-| R4-A1 | **Statement `PATCH` drops the company default tax** → `taxPercent` becomes `0` when omitted (create correctly inherits `Company.taxPercent`) | §5.6 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:380` (`taxPercent: dto.taxPercent`) + `buildHeaderData:879` (`dto.taxPercent ?? 0`) vs `create:156` (company default). |
-| R4-A2 | **Statement `PATCH` resets `dueDate` to `date + 0`** (never passes `customer.creditDays`) | §5.4/§5.6 | OPEN | `update()` calls `buildHeaderData(...)` at `:403` without `creditDays`; helper default `creditDays = null` → `+0` (`:856-867`). |
-| R4-A3 | **Editing an APPROVED statement re-posts** (restock → reverse ledger → delete lines → recreate → `saleOut` → ledger) **without re-running credit-limit BLOCK, discount/price approval, or stock-availability checks** (`requiresApproval` computed at `:386` is unused) | §5.6 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:405-465`; only the non-approved branch calls `assertSalePermitted` (`:443`); no `assertCustomerCredit` in the approved branch. |
-| R4-A4 | **Tenant admin can enable a globally-disabled feature** (company override beats global; no guard) — violates «ضمن الميزات العامة المفعّلة» | §12.4 | OPEN | `apps/api/src/company/company.service.ts:122-148` `setCompanyFeature` never checks `feature.enabled`. |
+| R4-A1 | **Statement `PATCH` drops the company default tax** → `taxPercent` becomes `0` when omitted (create correctly inherits `Company.taxPercent`) | §5.6 | ✅ FIXED | `update()` now computes `effectiveTaxPercent = dto.taxPercent ?? company.defaultTaxPercent() ?? 0` and passes it into `buildHeaderData` (was `dto.taxPercent ?? 0`). Live 2026-10-19: PATCH without `taxPercent` on `Company.taxPercent=14` → stored `taxPercent=14`, `taxAmount=42`. |
+| R4-A2 | **Statement `PATCH` resets `dueDate` to `date + 0`** (never passes `customer.creditDays`) | §5.4/§5.6 | ✅ FIXED | `update()` passes `customer.creditDays` to `buildHeaderData`, so `dueDate = date + creditDays`. Live 2026-10-19: `creditDays=30`, PATCH date `2026-10-05` → `dueDate=2026-11-04`. |
+| R4-A3 | **Editing an APPROVED statement re-posts** (restock → reverse ledger → delete lines → recreate → `saleOut` → ledger) **without re-running credit-limit BLOCK, discount/price approval, or stock-availability checks** (`requiresApproval` computed at `:386` is unused) | §5.6 | ✅ FIXED | Approved branch now calls `ops.assertCustomerCredit(customer.id, totals.net, tenant)` + `stock.assertSalePermitted(warehouse.id, required, tenant)` **before** the snapshot/restock/reverse-ledger/re-post, mirroring create. Live 2026-10-19: `credit.limit.enforce=BLOCK` + `creditLimit=100` → PATCH of net `570` rejected `400`, statement unmutated (`net=342`, no new revision/stock movement). Tests +2. |
+| R4-A4 | **Tenant admin can enable a globally-disabled feature** (company override beats global; no guard) — violates «ضمن الميزات العامة المفعّلة» | §12.4 | ✅ FIXED | `setCompanyFeature` throws `ForbiddenException` when `enabled && !feature.enabled` (tenant may only enable globally-enabled features; may still disable). Global-admin path (`AdminService.setCompanyFeature`) unaffected. Live 2026-10-19: global-OFF `reports.valuation` → tenant `PUT /company/features/reports.valuation {enabled:true}` → `403`; disable of an enabled feature → `200`. Tests +3. |
 
 #### Medium
 | ID | Gap | Spec | Status | Evidence |
@@ -387,10 +388,10 @@ Ordering: security/data-integrity first, then correctness, then UI parity, then 
 ### Phase P5 — Round 3 live-audit findings (R4, 2026-10-19)
 
 Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full gates + live-verify each.
-1. **R4-A3** approved-edit re-post must re-check credit BLOCK + discount/price approvals (+ stock) — **High**
-2. **R4-A1** statement PATCH must inherit company default tax — **High**
-3. **R4-A2** statement PATCH must recompute `dueDate` from `customer.creditDays` — **High**
-4. **R4-A4** guard `setCompanyFeature` on `feature.enabled` (globally-enabled only) — **High**
+1. ~~**R4-A3** approved-edit re-post must re-check credit BLOCK + discount/price approvals (+ stock) — **High**~~ ✅ FIXED (`99ef4ca`)
+2. ~~**R4-A1** statement PATCH must inherit company default tax — **High**~~ ✅ FIXED (`99ef4ca`)
+3. ~~**R4-A2** statement PATCH must recompute `dueDate` from `customer.creditDays` — **High**~~ ✅ FIXED (`99ef4ca`)
+4. ~~**R4-A4** guard `setCompanyFeature` on `feature.enabled` (globally-enabled only) — **High**~~ ✅ FIXED (`99ef4ca`)
 5. **R4-B3** approvals list/decide gated per approval type (not blanket `discount.approve`) — **Medium**
 6. **R4-B8** rejection → return statement to editable draft (loop) — **Medium**
 7. **R4-B7** explicit «حفظ كمسودة» (skip auto-post) — **Medium**
