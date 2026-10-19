@@ -861,6 +861,7 @@ model PriceStatement {
   approvedBy     User?           @relation("StatementApprovedBy", fields: [approvedById], references: [id])
   approvedAt     DateTime?
   cancelReason   String?
+  rejectedReason String?
   cancelledById  Int?
   cancelledAt    DateTime?
   // ADR-1 + ADR-6
@@ -958,6 +959,7 @@ model ReturnStatement {
   approvedById     Int?
   approvedBy       User?            @relation("ReturnApprovedBy", fields: [approvedById], references: [id])
   approvedAt       DateTime?
+  rejectedReason   String?
   periodId         Int?
   period           Period?          @relation(fields: [periodId], references: [id])
   createdAt        DateTime         @default(now())

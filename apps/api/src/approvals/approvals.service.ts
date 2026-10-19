@@ -169,7 +169,7 @@ export class ApprovalsService {
     }
   }
 
-  /** رفض الموافقة: إلغاء المستند المرتبط + تحرير الحجوزات + إغلاق باقي الموافقات المعلقة له. */
+  /** رفض الموافقة (§6.1 «رفض ← عودة للتعديل»): يعيد المستند لمسودة قابلة للتعديل + يحرر الحجوزات + يسجّل سبب الرفض ويغلق باقي الموافقات المعلقة. */
   private async rejectDocument(
     approval: { id: number; refType: string; refId: number },
     dto: DecideApprovalDto,
@@ -184,10 +184,11 @@ export class ApprovalsService {
         if (!st || (st.companyId != null && st.companyId !== (user.companyId ?? null))) {
           throw new NotFoundException(`Statement ${approval.refId} not found`);
         }
+        // يُعاد للمسودة ليتيح التعديل وإعادة الإرسال بدل الإلغاء.
         if (st.status === 'DRAFT') {
           await tx.priceStatement.update({
             where: { id: approval.refId },
-            data: { status: 'CANCELLED', cancelledById: user.id, cancelledAt: now, cancelReason: reasoned },
+            data: { status: 'DRAFT', rejectedReason: reasoned },
           });
         }
       } else if (approval.refType === 'return_statement') {
@@ -196,7 +197,7 @@ export class ApprovalsService {
           throw new NotFoundException(`Return ${approval.refId} not found`);
         }
         if (rt.status === 'DRAFT') {
-          await tx.returnStatement.update({ where: { id: approval.refId }, data: { status: 'CANCELLED' } });
+          await tx.returnStatement.update({ where: { id: approval.refId }, data: { status: 'DRAFT', rejectedReason: reasoned } });
         }
       }
       await tx.approval.updateMany({
@@ -217,10 +218,10 @@ export class ApprovalsService {
     });
     await this.audits.write({
       userId: user.id,
-      action: 'approval.reject_cancel',
+      action: 'approval.reject_reopen',
       entity: approval.refType === 'price_statement' ? 'PriceStatement' : 'ReturnStatement',
       entityId: approval.refId,
-      afterJson: { status: 'CANCELLED', note: reasoned },
+      afterJson: { status: 'DRAFT', rejectedReason: reasoned },
     });
   }
 }

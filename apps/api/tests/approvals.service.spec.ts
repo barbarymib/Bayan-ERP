@@ -80,15 +80,17 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
 }
 
 describe('ApprovalsService lifecycle', () => {
-  it('رفض بيان: يلغي المستند، يحرر الحجز، ويغلق الموافقات المعلقة الأخرى', async () => {
+  it('رفض بيان: يعيده لمسودة قابلة للتعديل، يحرر الحجز، ويسجّل سبب الرفض ويغلق الموافقات المعلقة الأخرى (R4-B8)', async () => {
     const { service, calls, releaseReservations } = build();
     const res = await service.decide(1, { approved: false, note: 'الخصم مرفوض' }, user);
     expect(res.approved).toBe(false);
 
     const st = calls.statementUpdates[0]!.data as Record<string, unknown>;
-    expect(st.status).toBe('CANCELLED');
-    expect(st.cancelledById).toBe(2);
-    expect(st.cancelReason).toBe('الخصم مرفوض');
+    expect(st.status).toBe('DRAFT');
+    expect(st.rejectedReason).toBe('الخصم مرفوض');
+    // لا يُلغى البيان — دورة §6.1 «رفض ← عودة للتعديل»
+    expect(st.status).not.toBe('CANCELLED');
+    expect(st.cancelledById).toBeUndefined();
 
     expect(releaseReservations).toHaveBeenCalledTimes(1);
     expect(releaseReservations.mock.calls[0]![1]).toBe('price_statement');
@@ -132,7 +134,7 @@ describe('ApprovalsService lifecycle', () => {
     expect(finalizeStatement).toHaveBeenCalledWith(5, user);
   });
 
-  it('رفض مرتجع: يلغي بيان المرتجع', async () => {
+  it('رفض مرتجع: يعيده لمسودة قابلة للتعديل ويسجّل سبب الرفض (R4-B8)', async () => {
     const { prisma, calls } = build();
     const returnPrisma = {
       ...prisma,
@@ -147,9 +149,11 @@ describe('ApprovalsService lifecycle', () => {
       { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
       { write: async () => undefined } as never,
     );
-    await svc.decide(2, { approved: false }, returnUser);
+    await svc.decide(2, { approved: false, note: 'كمية خاطئة' }, returnUser);
     expect(calls.returnUpdates.length).toBeGreaterThan(0);
-    expect((calls.returnUpdates[0]!.data as Record<string, unknown>).status).toBe('CANCELLED');
+    const data = calls.returnUpdates[0]!.data as Record<string, unknown>;
+    expect(data.status).toBe('DRAFT');
+    expect(data.rejectedReason).toBe('كمية خاطئة');
   });
 
   it('يرفض الاعتماد على مستند ملغي', async () => {
