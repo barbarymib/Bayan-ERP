@@ -8,6 +8,7 @@ import '../../core/geo/shift_controller.dart';
 import '../../core/models.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
+import '../tools/scan_screen.dart';
 import 'consent_screen.dart';
 
 /// شاشة تتبع الموقع: بدء/إنهاء الوردية، متابعة النقاط، وتسجيل الزيارات.
@@ -349,6 +350,25 @@ class _CustomerPickerState extends State<_CustomerPicker> {
               controller: _query,
               decoration: const InputDecoration(hintText: 'بحث بالاسم / الكود / الهاتف', prefixIcon: Icon(Icons.search)),
               onChanged: (v) => setState(() => _filter = v.trim()),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('اختر الزبون بالبحث أو افحص كود الـ QR',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+                IconButton(
+                  tooltip: 'فحص QR الزبون',
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: () async {
+                    final customer = await scanCustomer(context, widget.customers);
+                    if (customer == null) return;
+                    if (!context.mounted) return;
+                    Navigator.pop(context, customer);
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Flexible(

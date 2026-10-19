@@ -1,6 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../core/models.dart';
+import '../../core/scan_resolver.dart';
+
+/// يفتح شاشة الفحص (§9/G13) ويُعيد الزبون المطابق لكود QR (§5.16)، أو null
+/// عند الإلغاء أو عدم المطابقة — مع تنبيه في كلتا الحالتين.
+Future<CustomerSummary?> scanCustomer(
+  BuildContext context,
+  List<CustomerSummary> customers,
+) async {
+  if (customers.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('لا توجد عملاء متزامنون — اضغط مزامنة أولاً')),
+    );
+    return null;
+  }
+  final code = await Navigator.push<String>(
+    context,
+    MaterialPageRoute<String>(builder: (_) => const ScanScreen(title: 'فحص QR الزبون')),
+  );
+  if (code == null || !context.mounted) return null;
+  final customer = resolveCustomerScan(code, customers);
+  if (customer == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('لم يُعثر على زبون بالكود «$code»')),
+    );
+    return null;
+  }
+  return customer;
+}
+
 /// شاشة فحص الباركود/QR (§9/G13) — تُعيد النص المفحوص إلى الشاشة الطالبة
 /// عبر `Navigator.pop`، مع إدخال يدوي بديل عند تعذّر الكاميرا.
 class ScanScreen extends StatefulWidget {

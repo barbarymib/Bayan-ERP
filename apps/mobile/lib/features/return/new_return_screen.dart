@@ -6,6 +6,7 @@ import '../../core/models.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../sync/sync_controller.dart';
+import '../tools/scan_screen.dart';
 
 /// أسباب المرتجع المعتمدة على الخادم (مطابقة لبذور الخادم).
 const _returnReasons = <String, String>{
@@ -144,7 +145,20 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
         children: [
           DropdownButtonFormField<int>(
             initialValue: _customerId,
-            decoration: const InputDecoration(labelText: 'العميل'),
+            key: ValueKey<int?>(_customerId),
+            decoration: InputDecoration(
+              labelText: 'العميل',
+              suffixIcon: IconButton(
+                tooltip: 'فحص QR الزبون',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: () async {
+                  final customer = await scanCustomer(context, customers);
+                  if (customer == null || !mounted) return;
+                  setState(() => _customerId = customer.id);
+                  _selectStatement(null);
+                },
+              ),
+            ),
             items: customers
                 .map((c) => DropdownMenuItem(
                       value: c.id,

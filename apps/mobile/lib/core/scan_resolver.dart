@@ -40,6 +40,17 @@ ScanTarget? resolveScan(String raw, List<ItemSummary> items) {
   return null;
 }
 
+/// يطابق نص فحص QR الزبون (§5.16/G13) بكود الزبون — حمولة QR في الويب هي
+/// الكود. المقارنة بعد إزالة المسافات وبدون حساسية لحالة الأحرف.
+CustomerSummary? resolveCustomerScan(String raw, List<CustomerSummary> customers) {
+  final needle = raw.trim().toLowerCase();
+  if (needle.isEmpty) return null;
+  for (final customer in customers) {
+    if (customer.code.trim().toLowerCase() == needle) return customer;
+  }
+  return null;
+}
+
 /// وحدات البيع المتاحة للصنف مرتّبة تصاعدياً بعامل التحويل (§5.2: التجزئة
 /// الكبرى ← الصغرى). تُضاف الوحدة الأساسية (عامل 1) إن لم تكن مُدرجة كوحدة.
 List<ItemUnitSummary> saleUnits(ItemSummary item) {

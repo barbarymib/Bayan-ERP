@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme.dart';
 import '../sync/sync_controller.dart';
+import '../tools/scan_screen.dart';
 
 class NewCollectionScreen extends ConsumerStatefulWidget {
   const NewCollectionScreen({super.key});
@@ -79,7 +80,22 @@ class _NewCollectionScreenState extends ConsumerState<NewCollectionScreen> {
         children: [
           DropdownButtonFormField<int>(
             initialValue: _customerId,
-            decoration: const InputDecoration(labelText: 'العميل'),
+            key: ValueKey<int?>(_customerId),
+            decoration: InputDecoration(
+              labelText: 'العميل',
+              suffixIcon: IconButton(
+                tooltip: 'فحص QR الزبون',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: () async {
+                  final customer = await scanCustomer(context, customers);
+                  if (customer == null || !mounted) return;
+                  setState(() {
+                    _customerId = customer.id;
+                    _statementId = null;
+                  });
+                },
+              ),
+            ),
             items: customers
                 .map((c) => DropdownMenuItem(
                       value: c.id,

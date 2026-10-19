@@ -56,6 +56,31 @@ void main() {
     });
   });
 
+  group('resolveCustomerScan (G13 §5.16 — QR الزبون)', () {
+    final customers = const [
+      CustomerSummary(id: 1, code: 'C-001', name: 'أحمد محمد', phone: '01000000000'),
+      CustomerSummary(id: 2, code: 'c-002', name: 'شركة النور'),
+    ];
+
+    test('يطابق كود الزبون بعد المسافات وبدون حساسية لحالة الأحرف', () {
+      expect(resolveCustomerScan('C-001', customers)?.id, 1);
+      expect(resolveCustomerScan('  c-001  ', customers)?.id, 1);
+      expect(resolveCustomerScan(' C-002 ', customers)?.id, 2);
+    });
+
+    test('يُعيد null لغير معروف أو نص فارغ', () {
+      expect(resolveCustomerScan('C-999', customers), isNull);
+      expect(resolveCustomerScan('', customers), isNull);
+      expect(resolveCustomerScan('   ', customers), isNull);
+      expect(resolveCustomerScan('C-001', const []), isNull);
+    });
+
+    test('لا يطابق الاسم أو الهاتف — حمولة QR هي الكود فقط', () {
+      expect(resolveCustomerScan('أحمد محمد', customers), isNull);
+      expect(resolveCustomerScan('01000000000', customers), isNull);
+    });
+  });
+
   group('saleUnits (§5.2/G14)', () {
     test('يرتب تصاعدياً بعامل التحويل مع الوحدة الأساسية المُدرجة', () {
       final units = saleUnits(items[0]);
