@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import type { UpdateCompanySettingsDto } from './company.dto.js';
@@ -124,6 +124,10 @@ export class CompanyService {
     const id = this.requireCompanyId(companyId);
     const feature = await this.prisma.systemFeature.findUnique({ where: { code } });
     if (!feature) throw new NotFoundException(`Feature ${code} not found`);
+    // 12.3/12.4: لا يملك مسؤول الشركة إلا تفعيل/تعطيل الميزات المفعّلة عامّاً؛ لا يمكنه تجاوز القرار العام.
+    if (enabled && !feature.enabled) {
+      throw new ForbiddenException(`الميزة "${code}" معطّلة عامّاً ولا يمكن تفعيلها على مستوى الشركة`);
+    }
     const before = await this.prisma.companyFeature.findUnique({
       where: { companyId_featureId: { companyId: id, featureId: feature.id } },
     });

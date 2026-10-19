@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CompanyService } from '../src/company/company.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
 import type { AuditLogsService } from '../src/audit-logs/audit-logs.service.js';
@@ -91,8 +91,8 @@ describe('CompanyService.listFeatures', () => {
 
 describe('CompanyService.setCompanyFeature / clearCompanyFeature', () => {
   it('upserts a company override and reports COMPANY scope', async () => {
-    const out = await make().setCompanyFeature(1, 'reports.valuation', true, 7, 'admin');
-    expect(out).toEqual({ code: 'reports.valuation', enabled: true, scope: 'COMPANY' });
+    const out = await make().setCompanyFeature(1, 'printing.retail', true, 7, 'admin');
+    expect(out).toEqual({ code: 'printing.retail', enabled: true, scope: 'COMPANY' });
   });
 
   it('throws for an unknown feature code', async () => {
@@ -103,6 +103,23 @@ describe('CompanyService.setCompanyFeature / clearCompanyFeature', () => {
     const svc = make({ companyFeature: { enabled: false } });
     const out = await svc.clearCompanyFeature(1, 'printing.retail', 7, 'admin');
     expect(out).toEqual({ code: 'printing.retail', enabled: true, scope: 'GLOBAL' });
+  });
+
+  it('R4-A4: يرفض تفعيل ميزة معطّلة عامّاً على مستوى الشركة', async () => {
+    // reports.valuation معطّلة عامّاً (Global=OFF) فلا يجوز لمسؤول الشركة تفعيلها
+    await expect(make().setCompanyFeature(1, 'reports.valuation', true, 7, 'admin')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('R4-A4: يسمح بتفعيل ميزة مفعّلة عامّاً على مستوى الشركة', async () => {
+    const out = await make().setCompanyFeature(1, 'printing.retail', true, 7, 'admin');
+    expect(out).toEqual({ code: 'printing.retail', enabled: true, scope: 'COMPANY' });
+  });
+
+  it('R4-A4: يسمح بضبط استبدال معطّل لميزة مفعّلة عامّاً', async () => {
+    const out = await make().setCompanyFeature(1, 'printing.retail', false, 7, 'admin');
+    expect(out).toEqual({ code: 'printing.retail', enabled: false, scope: 'COMPANY' });
   });
 });
 

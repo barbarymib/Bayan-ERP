@@ -367,6 +367,56 @@ describe('PriceStatementsService.update (G3)', () => {
     // لا نسخة لأنها مسودة
     expect(calls.revisions).toHaveLength(0);
   });
+
+  it('R4-A3: يعيد فحص الحد الائتماني عند تعديل بيان معتمد (BLOCK)', async () => {
+    const { service, calls } = harness({ status: 'APPROVED' }, null, {}, { blockCredit: true });
+    await expect(service.update(7, editDto, approver)).rejects.toThrow(BadRequestException);
+    // لا أثر مخزني/دفترى قبل الرفض (الفحص قبل إعادة الترحيل)
+    expect(calls.restock).toHaveLength(0);
+    expect(calls.saleOut).toHaveLength(0);
+    expect(calls.revisions).toHaveLength(0);
+  });
+
+  it('R4-A3: يفحص توفر المخزون عند تعديل بيان معتمد', async () => {
+    let asserted = 0;
+    const h = harness({ status: 'APPROVED' });
+    // استبدل stock.assertSalePermitted بعدّاد
+    const svc = h.service as unknown as {
+      stock: { assertSalePermitted: () => Promise<void> };
+      update: (id: number, dto: typeof editDto, user: AuthUser) => Promise<unknown>;
+    };
+    svc.stock.assertSalePermitted = async () => {
+      asserted += 1;
+    };
+    await svc.update(7, editDto, approver);
+    expect(asserted).toBeGreaterThanOrEqual(1);
+  });
+
+  it('R4-A1: يعيد ضبط ضريبة الشركة الافتراضية عند تعديل بيان بلا taxPercent', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, {}, { taxDefault: 14 });
+    const svc = service as unknown as {
+      company: { defaultTaxPercent: () => Promise<number> };
+      update: (id: number, dto: Record<string, unknown>, user: AuthUser) => Promise<unknown>;
+    };
+    svc.company.defaultTaxPercent = async () => 14;
+    await svc.update(7, { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }] }, editor);
+    const update = calls.updates.find((u) => u.data.status !== undefined && u.data.taxPercent !== undefined) ?? calls.updates[0];
+    expect(update?.data.taxPercent).toBe(14);
+  });
+
+  it('R4-A2: يعيد احتساب تاريخ الاستحقاق من creditDays عند تعديل البيان', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, {}, { customer: { creditDays: 30 } });
+    const svc = service as unknown as {
+      company: { defaultTaxPercent: () => Promise<number> };
+      update: (id: number, dto: Record<string, unknown>, user: AuthUser) => Promise<unknown>;
+    };
+    svc.company.defaultTaxPercent = async () => 0;
+    await svc.update(7, { customerId: 2, date: '2026-10-01', lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }] }, editor);
+    const update = calls.updates.find((u) => u.data.status !== undefined) ?? calls.updates[0];
+    const due = update?.data.dueDate as Date | undefined;
+    expect(due).toBeInstanceOf(Date);
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-10-31');
+  });
 });
 
 describe('PriceStatementsService pricing floor & conversion (G7)', () => {

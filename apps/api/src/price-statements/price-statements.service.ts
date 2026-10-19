@@ -373,11 +373,13 @@ export class PriceStatementsService {
       customer,
       Number(user.maxItemDiscountPct),
     );
+    // R4-A1: عند غياب taxPercent في التعديل يُستخدم الافتراضي للشركة (كما في الإنشاء) بدل صفر.
+    const effectiveTaxPercent = dto.taxPercent ?? (await this.company.defaultTaxPercent(tenant)) ?? 0;
     const totals = calcStatementTotals({
       lines: resolved.map((r) => ({ qty: r.qty, unitPrice: r.unitPrice, discount: r.discount })),
       headerDiscount: dto.discount,
       shipping: dto.shipping,
-      taxPercent: dto.taxPercent,
+      taxPercent: effectiveTaxPercent,
     });
     if (dto.paid && dto.paid > totals.net) {
       throw new BadRequestException(`paid (${dto.paid}) cannot exceed net (${totals.net})`);
@@ -400,9 +402,12 @@ export class PriceStatementsService {
     const period = await this.periods.open(tenant);
     const required = resolved.map((r) => ({ itemId: r.item.id, qtyBase: roundQty(r.qty * r.factor) }));
     const lineRows = this.buildLineRows(resolved, totals, period?.id ?? null);
-    const headerData = this.buildHeaderData(dto, existing, customer.id, warehouse.id, totals, period?.id ?? null);
-
+    const headerData = this.buildHeaderData(dto, existing, customer.id, warehouse.id, totals, period?.id ?? null, customer.creditDays ?? 0, effectiveTaxPercent);
     if (approved) {
+      // R4-A3: إعادة ترحيل بيان معتمد تعيد الفحوصات نفسها قبل خصم المخزن/الترحيل الدفتري
+      // (الحد الائتماني BLOCK + توفر المخزون عند الإعداد).
+      await this.ops.assertCustomerCredit(customer.id, totals.net, tenant);
+      await this.stock.assertSalePermitted(warehouse.id, required, tenant);
       const snapshot = this.buildSnapshot(existing);
       await this.prisma.$transaction(async (tx) => {
         const agg = await tx.statementRevision.aggregate({
@@ -861,6 +866,7 @@ export class PriceStatementsService {
     totals: StatementTotals,
     periodId: number | null,
     creditDays: number | null = null,
+    taxPercent: number | null = null,
   ) {
     const date = dto.date ? new Date(dto.date) : existing.date;
     const dueDate = new Date(date);
@@ -876,7 +882,7 @@ export class PriceStatementsService {
       discountValue: dto.discount?.value ?? null,
       discountAmount: totals.headerDiscountAmount,
       shipping: totals.shipping,
-      taxPercent: dto.taxPercent ?? 0,
+      taxPercent: taxPercent ?? dto.taxPercent ?? 0,
       taxAmount: totals.tax,
       net: totals.net,
       paid: dto.paid ?? 0,
