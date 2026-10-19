@@ -1011,3 +1011,10 @@ Complete all phases 0â€“7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Tests:** +2 widget tests (`test/statements/new_statement_payment_step_test.dart`); full suite **289/289**. `flutter analyze` clean.
 - **Commits:** code `7d3e594`; docs (GAP row 264 ? ? FIXED + this entry).
 - **Next:** R3-F5 (settings screen), R3-F6 (drafts/uploaded view), G23/R3-E6 BullMQ + restore drill, G25/R3-E8 50k benchmark, R3-A13 currency, G26 Hijri/Arabic-numeral helper. Full audit vs `docs/bayan-design.md` + GAP reconcile at end.
+
+### Completed — R3-F5: mobile dedicated settings screen (2026-10-19)
+- **New screen:** `lib/features/settings/settings_screen.dart` (ConsumerWidget) — sections: ?????? (name/role/repCode/companyId from `authControllerProvider.user ?? session.user`), ?????? ???????? (deviceId, read-only server URL from `apiClientProvider.baseUrl`, last sync, pending/failed outbox counts, «?????? ????» ? `syncController.syncNow`), ?????? ???????? (30–120s slider reusing `shiftController.setInterval`, which also reschedules a live shift), ?????? (device-lock SwitchListTile ? `session.saveDeviceLockEnabled`), logout via `authController.logout`.
+- **Nav:** home popup menu new item «???????? ??????????» (`settings` case) with `Icons.settings_outlined`; kept the quick lock toggle + existing destructuring.
+- **Tests:** +1 widget test (`test/settings/settings_screen_test.dart`) with fake `ConnectivityStatus`, `Outbox()`, `ApiClient`, and `SharedPreferences.setMockInitialValues` (auth_user/device_id/interval/lock). Full suite **290/290**; analyze clean.
+- **Commits:** code `4c063dd`; docs (GAP row 265 ? ? FIXED + this entry).
+- **Next:** R3-F6 (unified drafts/uploaded view), G23/R3-E6 BullMQ + restore drill, G25/R3-E8 50k benchmark, R3-A13 currency, G26 Hijri/Arabic-numeral helper. Then full audit vs `docs/bayan-design.md` + GAP reconcile (backfill §5 status-log).
