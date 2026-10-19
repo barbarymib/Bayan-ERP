@@ -57,6 +57,9 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
   final TextEditingController _headerDiscount = TextEditingController();
   final TextEditingController _paid = TextEditingController();
   String _paymentTerm = 'CREDIT';
+
+  /// المستخدم غيّر نوع السداد يدوياً — لا نستنتج MIXED/CASH تلقائياً.
+  bool _termTouched = false;
   bool _saving = false;
 
   @override
@@ -203,10 +206,34 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
     );
   }
 
+  /// استنتاج نوع السداد تلقائياً من المدفوع إن لم يحدّده المستخدم يدوياً:
+  /// المدفوع = 0 → آجل، المدفوع = الصافي → نقدي، بينهما → مختلط (§5.6).
+  void _inferPaymentTerm(StatementTotals totals) {
+    if (_termTouched) return;
+    final paid = _num(_paid);
+    final next = paid <= 0
+        ? 'CREDIT'
+        : (paid + 0.005 >= totals.net ? 'CASH' : 'MIXED');
+    if (next != _paymentTerm) _paymentTerm = next;
+  }
+
   Future<void> _save() async {
     if (_customerId == null || _lines.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('اختر العميل وأضف بنداً واحداً')));
+      return;
+    }
+    final totals = calcStatementTotals(_totalsInput);
+    final paid = _num(_paid);
+    // الخادم يرفض المدفوع > الصافي (price-statements.service.ts) — نمنعه هنا قبل الإرسال.
+    if (paid > totals.net + 0.005) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'المدفوع (${paid.toStringAsFixed(2)}) أكبر من الصافي (${totals.net.toStringAsFixed(2)})',
+          ),
+        ),
+      );
       return;
     }
     setState(() => _saving = true);
@@ -215,7 +242,6 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
         .read(dataStoreProvider)
         .customers
         .firstWhere((c) => c.id == _customerId, orElse: () => throw StateError('customer missing'));
-    final totals = calcStatementTotals(_totalsInput);
     final payload = {
       'customerId': customer.id,
       'customerName': customer.name,
@@ -326,35 +352,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
             onChanged: (v) => setState(() => _customerId = v),
           ),
           const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _paymentTerm,
-            decoration: const InputDecoration(labelText: 'نوع السداد'),
-            items: const [
-              DropdownMenuItem(value: 'CASH', child: Text('نقدي')),
-              DropdownMenuItem(value: 'CREDIT', child: Text('آجل')),
-              DropdownMenuItem(value: 'MIXED', child: Text('مختلط')),
-            ],
-            onChanged: (v) => setState(() => _paymentTerm = v ?? 'CREDIT'),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _paid,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(labelText: 'المدفوع نقداً وقت الإصدار'),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Text('البنود', style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
-              FilledButton.tonal(onPressed: _addLine, child: const Text('+ بند')),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (var i = 0; i < _lines.length; i++) _lineCard(_lines[i], i),
-          const SizedBox(height: 16),
+          // خصم البيان يظهر قبل خطوة الدفع ليُحسب الصافي ثم يُعرض تحته (§8.2 #3).
           TextField(
             controller: _headerDiscount,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -371,20 +369,18 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _row('الإجمالي', totals.subtotal),
-                  _row('خصم البيان', totals.headerDiscountAmount),
-                  const Divider(),
-                  _row('الصافي', totals.net, emphasize: true),
-                ],
-              ),
-            ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text('البنود', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              FilledButton.tonal(onPressed: _addLine, child: const Text('+ بند')),
+            ],
           ),
+          const SizedBox(height: 8),
+          for (var i = 0; i < _lines.length; i++) _lineCard(_lines[i], i),
+          const SizedBox(height: 24),
+          _paymentStep(totals),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -399,7 +395,100 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
     );
   }
 
-  Widget _row(String label, double value, {bool emphasize = false}) => Padding(
+  /// خطوة الدفع (§8.2 #3): إجمالي ← خصم ← صافي ← مدفوع ← متبقي، مع أزرار سريعة
+  /// ونوع السداد المستنتج من المدفوع إن لم يحدّده المستخدم.
+  Widget _paymentStep(StatementTotals totals) {
+    final theme = Theme.of(context);
+    final paid = _num(_paid);
+    _inferPaymentTerm(totals);
+    final remaining = (totals.net - paid).clamp(0.0, double.infinity);
+    final over = paid > totals.net + 0.005;
+    final fullyPaid = !over && remaining < 0.005;
+    final paidColor = over
+        ? theme.colorScheme.error
+        : fullyPaid
+            ? Colors.green.shade700
+            : null;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('الدفع', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _row('الإجمالي', totals.subtotal),
+            _row('خصم البيان', totals.headerDiscountAmount),
+            const Divider(),
+            _row('الصافي', totals.net, emphasize: true),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _paid,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(labelText: 'المدفوع نقداً وقت الإصدار'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              children: [
+                ActionChip(
+                  label: const Text('صفر'),
+                  onPressed: () => setState(() => _paid.text = '0'),
+                ),
+                ActionChip(
+                  label: const Text('نصف'),
+                  onPressed: () => setState(
+                    () => _paid.text = (totals.net / 2).toStringAsFixed(2),
+                  ),
+                ),
+                ActionChip(
+                  label: const Text('الكل'),
+                  onPressed: () => setState(() => _paid.text = totals.net.toStringAsFixed(2)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _row('المتبقي', remaining, color: paidColor),
+            if (over)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'المدفوع أكبر من الصافي — عدّل المبلغ قبل الحفظ',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _paymentTerm,
+              decoration: const InputDecoration(labelText: 'نوع السداد'),
+              items: const [
+                DropdownMenuItem(value: 'CASH', child: Text('نقدي')),
+                DropdownMenuItem(value: 'CREDIT', child: Text('آجل')),
+                DropdownMenuItem(value: 'MIXED', child: Text('مختلط')),
+              ],
+              onChanged: (v) => setState(() {
+                _paymentTerm = v ?? 'CREDIT';
+                _termTouched = true;
+              }),
+            ),
+            if (!_termTouched && _paymentTerm != 'CREDIT')
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'مُستنتج من المدفوع — يمكنك تعديله يدوياً',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, double value, {bool emphasize = false, Color? color}) =>
+      Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
@@ -408,6 +497,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
             Text(
               value.toStringAsFixed(2),
               style: TextStyle(
+                color: color,
                 fontWeight: emphasize ? FontWeight.bold : FontWeight.normal,
                 fontSize: emphasize ? 18 : 14,
               ),
