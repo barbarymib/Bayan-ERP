@@ -120,5 +120,40 @@ void main() {
           reason: 'الأساس يبقى قابلاً للبيع دائماً — A/B مستثناة');
       expect(units.where((u) => u.unitId == 1 || u.unitId == 2), isEmpty);
     });
+
+    test('يُدرج الوحدة الأساسية في موضعها ضمن الترتيب عند كسور أصغر (G14)', () {
+      final item = _item(7, 'F', baseUnit: 'L', units: const [
+        ItemUnitSummary(unitId: 5, unitCode: 'TANK', factorToBase: 100),
+        ItemUnitSummary(unitId: 6, unitCode: 'ML', factorToBase: 0.5),
+      ]);
+      final units = saleUnits(item);
+      expect(units.map((u) => u.unitCode).toList(), ['ML', 'L', 'TANK'],
+          reason: 'الأساس (1) يليه الكسور ثم الكسور الأكبر — تصاعدي دائماً');
+      expect(units.map((u) => u.factorToBase).toList(), [0.5, 1, 100]);
+    });
+  });
+
+  group('selectLineUnit (§5.12/G14)', () {
+    final units = saleUnits(items[0]); // KG (عامل 1) + TON (1000)
+
+    test('وحدة الفحص البيعية تفوز على الافتراضية', () {
+      expect(selectLineUnit(units, scannedCode: 'TON'), 'TON');
+      expect(selectLineUnit(units, scannedCode: 'ton'), 'TON',
+          reason: 'مطابقة الفحص بلا حساسية حالة الأحرف');
+    });
+
+    test('وحدة الفحص غير البيعية أو المجهولة تُهمل → الأساسية', () {
+      expect(selectLineUnit(units, scannedCode: 'GAL'), 'KG');
+      expect(selectLineUnit(const [], scannedCode: 'TON'), isNull);
+      final nonSale = _item(9, 'NS', units: const [
+        ItemUnitSummary(unitId: 4, unitCode: 'BOX', factorToBase: 5, isSale: false),
+      ]);
+      expect(selectLineUnit(saleUnits(nonSale), scannedCode: 'BOX'), 'KG');
+    });
+
+    test('بدون فحص → الأساسية (عامل 1)، أو الأصغر عند غيابها', () {
+      expect(selectLineUnit(units), 'KG');
+      expect(selectLineUnit(const []), isNull);
+    });
   });
 }

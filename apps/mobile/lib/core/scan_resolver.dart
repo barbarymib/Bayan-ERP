@@ -52,14 +52,35 @@ CustomerSummary? resolveCustomerScan(String raw, List<CustomerSummary> customers
 }
 
 /// وحدات البيع المتاحة للصنف مرتّبة تصاعدياً بعامل التحويل (§5.2: التجزئة
-/// الكبرى ← الصغرى). تُضاف الوحدة الأساسية (عامل 1) إن لم تكن مُدرجة كوحدة.
+/// الكبرى ← الصغرى). تُضاف الوحدة الأساسية (عامل 1) إن لم تكن مُدرجة كوحدة —
+/// في موضعها الصارِف ضمن الترتيب (قد يكون العامل 1 أكبر من كسور وحدات أخرى).
 List<ItemUnitSummary> saleUnits(ItemSummary item) {
   final units = [
     for (final u in item.units)
       if (u.isSale && u.factorToBase > 0) u,
   ]..sort((a, b) => a.factorToBase.compareTo(b.factorToBase));
   if (!units.any((u) => u.factorToBase == 1)) {
-    units.insert(0, ItemUnitSummary(unitId: 0, unitCode: item.baseUnit, factorToBase: 1));
+    final at = units.indexWhere((u) => u.factorToBase > 1);
+    units.insert(at == -1 ? units.length : at, ItemUnitSummary(unitId: 0, unitCode: item.baseUnit, factorToBase: 1));
   }
   return units;
+}
+
+/// الوحدة المختارة لسطر بيان جديد (§5.12/G14): وحدة الفحص إن كانت من وحدات
+/// البيع الفعلية، وإلا الوحدة الأساسية (عامل 1) — أو الأصغر عاملًا عند غيابها.
+/// مطابقة الفحص بعد المسافات وبدون حساسية لحالة الأحرف.
+String? selectLineUnit(List<ItemUnitSummary> units, {String? scannedCode}) {
+  final needle = scannedCode?.trim().toLowerCase();
+  if (needle != null && needle.isNotEmpty) {
+    for (final u in units) {
+      final code = u.unitCode;
+      if (code != null && code.trim().toLowerCase() == needle && u.isSale && u.factorToBase > 0) {
+        return code;
+      }
+    }
+  }
+  for (final u in units) {
+    if (u.factorToBase == 1) return u.unitCode;
+  }
+  return units.isNotEmpty ? units.first.unitCode : null;
 }

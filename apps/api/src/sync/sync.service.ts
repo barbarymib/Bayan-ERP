@@ -467,9 +467,13 @@ export class SyncService {
           typeof rec['weightNote'] === 'string' && (rec['weightNote'] as string).trim().length > 0
             ? (rec['weightNote'] as string).trim()
             : undefined;
+        const unitCodeRaw =
+          typeof rec['unitCode'] === 'string' ? (rec['unitCode'] as string).trim() : '';
+        const unitCode = unitCodeRaw.length > 0 ? unitCodeRaw : undefined;
         return {
           itemCode: code,
           qty,
+          ...(unitCode !== undefined ? { unitCode } : {}),
           ...(unitPrice !== undefined ? { unitPrice } : {}),
           ...(weightNote !== undefined ? { weightNote } : {}),
           discount:

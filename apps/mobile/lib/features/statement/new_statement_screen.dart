@@ -19,7 +19,19 @@ class _Line {
   final TextEditingController discountValue = TextEditingController();
   final TextEditingController weightNote = TextEditingController();
 
-  _Line({required this.itemId, required this.name, this.isSteel = false, String? qtyText, String? priceText}) {
+  /// الوحدة المختارة (§5.12/G14) + وحدات البيع المتاحة للتبديل بينها.
+  String? unitCode;
+  final List<ItemUnitSummary> units;
+
+  _Line({
+    required this.itemId,
+    required this.name,
+    this.isSteel = false,
+    this.unitCode,
+    this.units = const [],
+    String? qtyText,
+    String? priceText,
+  }) {
     qty.text = qtyText ?? '';
     price.text = priceText ?? '';
   }
@@ -59,6 +71,10 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
 
   double _num(TextEditingController c) => double.tryParse(c.text.trim()) ?? 0;
 
+  /// عامل التحويل بلا كسور زائدة: 1000 → «1000»، 12.482 → «12.482».
+  static String _fmtFactor(double f) =>
+      f == f.roundToDouble() ? f.round().toString() : f.toString();
+
   List<StatementLineInput> get _inputs => _lines
       .map((l) => StatementLineInput(
             qty: _num(l.qty),
@@ -75,21 +91,37 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
         ),
       );
 
-  void _addItem(ItemSummary it) {
+  /// يضيف سطراً جديداً ويُعيد السطر (§5.12/G14). الوحدة: وحدة الفحص إن كانت
+  /// بيعية، وإلا الأساسية؛ والسعر: سعر الوحدة المختارة من قائمة أسعار العميل إن
+  /// وُجد، ثم سعر القائمة العام، ثم آخر سعر للصنف.
+  _Line _addItem(ItemSummary it, {String? scannedUnitCode}) {
     final store = ref.read(dataStoreProvider);
-    final listPrice = _customerId == null ? null : store.priceForCustomer(_customerId!, it.id);
-    final price = listPrice ?? it.lastPrice ?? 0;
-    setState(() => _lines.add(
-          _Line(
-            itemId: it.id,
-            name: it.name,
-            isSteel: it.isSteel,
-            priceText: price.toStringAsFixed(2),
-          ),
-        ));
+    final units = saleUnits(it);
+    final selected = selectLineUnit(units, scannedCode: scannedUnitCode);
+    double? price;
+    if (_customerId != null) {
+      for (final u in units) {
+        if (u.unitCode == selected && u.unitId > 0) {
+          price = store.priceForCustomer(_customerId!, it.id, unitId: u.unitId);
+          if (price != null) break;
+        }
+      }
+      price ??= store.priceForCustomer(_customerId!, it.id);
+    }
+    price ??= it.lastPrice ?? 0;
+    final line = _Line(
+      itemId: it.id,
+      name: it.name,
+      isSteel: it.isSteel,
+      unitCode: selected,
+      units: units,
+      priceText: price.toStringAsFixed(2),
+    );
+    setState(() => _lines.add(line));
+    return line;
   }
 
-  /// فحص باركود (صنف/وحدة) وإضافة سطر مباشرة (§9/G13).
+  /// فحص باركود (صنف/وحدة) وإضافة سطر مباشرة (§9/G13 + §5.12/G14).
   Future<void> _scanLine() async {
     final store = ref.read(dataStoreProvider);
     if (store.items.isEmpty) {
@@ -110,11 +142,34 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       );
       return;
     }
-    _addItem(target.item);
-    final unit = target.unit?.unitCode;
+    final scannedUnit = target.unit;
+    final line = _addItem(target.item, scannedUnitCode: scannedUnit?.unitCode);
+    final unit = line.unitCode;
+    final note = scannedUnit == null
+        ? ''
+        : unit == scannedUnit.unitCode
+            ? ' — وحدة $unit'
+            : ' — الوحدة ${scannedUnit.unitCode} غير مُصرَّح بها للبيع فبقيت ${unit ?? 'الأساسية'}';
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('أُضيف ${target.item.name}${unit == null ? '' : ' — وحدة $unit'}')),
+      SnackBar(content: Text('أُضيف ${target.item.name}$note')),
     );
+  }
+
+  /// تبديل وحدة السطر (§5.12/G14): يعيد التسعير إن وُجد سعر دقيق للوحدة.
+  void _changeUnit(_Line l, String? code) {
+    if (code == null || code == l.unitCode) return;
+    setState(() {
+      l.unitCode = code;
+      if (_customerId == null) return;
+      final store = ref.read(dataStoreProvider);
+      for (final u in l.units) {
+        if (u.unitCode == code && u.unitId > 0) {
+          final p = store.priceForCustomer(_customerId!, l.itemId, unitId: u.unitId);
+          if (p != null) l.price.text = p.toStringAsFixed(2);
+          return;
+        }
+      }
+    });
   }
 
   void _addLine() {
@@ -170,13 +225,14 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       'subtotal': totals.subtotal,
       'headerDiscountAmount': totals.headerDiscountAmount,
       'net': totals.net,
-      'lines': _lines.asMap().entries.map((e) {
-        final t = totals.lines[e.key];
-        final note = e.value.isSteel ? e.value.weightNote.text.trim() : '';
-        return {
-          'itemId': e.value.itemId,
-          'name': e.value.name,
-          'qty': _num(e.value.qty),
+        'lines': _lines.asMap().entries.map((e) {
+          final t = totals.lines[e.key];
+          final note = e.value.isSteel ? e.value.weightNote.text.trim() : '';
+          return {
+            'itemId': e.value.itemId,
+            'name': e.value.name,
+            if (e.value.unitCode != null) 'unitCode': e.value.unitCode,
+            'qty': _num(e.value.qty),
           'unitPrice': _num(e.value.price),
           'discountType': e.value.discountType.name,
           'discountValue': _num(e.value.discountValue),
@@ -380,6 +436,23 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
               ],
             ),
             const SizedBox(height: 8),
+            if (l.units.length > 1) ...[
+              DropdownButtonFormField<String>(
+                initialValue: l.unitCode,
+                key: ValueKey<String?>('${l.itemId}:${l.unitCode}'),
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'وحدة القياس', isDense: true),
+                items: [
+                  for (final u in l.units)
+                    DropdownMenuItem(
+                      value: u.unitCode,
+                      child: Text('${u.unitCode ?? ''} ×${_fmtFactor(u.factorToBase)}'),
+                    ),
+                ],
+                onChanged: (v) => _changeUnit(l, v),
+              ),
+              const SizedBox(height: 8),
+            ],
             Row(
               children: [
                 Expanded(
@@ -387,7 +460,10 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
                     controller: l.qty,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     textDirection: TextDirection.ltr,
-                    decoration: const InputDecoration(labelText: 'الكمية'),
+                    decoration: InputDecoration(
+                      labelText: 'الكمية',
+                      suffixText: l.unitCode,
+                    ),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),

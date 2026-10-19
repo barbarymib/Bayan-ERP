@@ -104,7 +104,7 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
       $transaction: async (fn: (t: unknown) => Promise<unknown>) => fn({}),
     } as unknown as PrismaService;
     const statements = {
-      create: vi.fn(async () => result),
+      create: vi.fn(async (_dto: unknown) => result),
     };
     const service = new SyncService(
       prisma,
@@ -150,6 +150,49 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
     });
     const res = await service.push(repUser, pushStatementDto(payload));
     expect((res.results[0] as { pricingAlerts?: unknown[] }).pricingAlerts).toBeUndefined();
+  });
+
+  it('يمرّر unitCode السطر (مبسّط) إلى statements.create — G14 §5.12', async () => {
+    const { service, statements } = harnessWithStatement({
+      id: 33,
+      net: 100,
+      status: 'DRAFT',
+      number: 'BP-000033',
+    });
+    await service.push(
+      repUser,
+      pushStatementDto({
+        customerId: 2,
+        net: 100,
+        lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50, unitCode: '  ton  ' }],
+      }),
+    );
+    const dto = statements.create.mock.calls[0]![0] as { lines: { unitCode?: string }[] };
+    expect(dto.lines).toHaveLength(1);
+    expect(dto.lines[0]!.unitCode).toBe('ton');
+  });
+
+  it('يُسقط unitCode الفارغ أو غير النصي — G14 §5.12', async () => {
+    const { service, statements } = harnessWithStatement({
+      id: 34,
+      net: 50,
+      status: 'DRAFT',
+      number: 'BP-000034',
+    });
+    await service.push(
+      repUser,
+      pushStatementDto({
+        customerId: 2,
+        net: 50,
+        lines: [
+          { itemCode: 'IR', qty: 1, unitPrice: 50, unitCode: '   ' },
+          { itemCode: 'PNT', qty: 1, unitPrice: 30, unitCode: 7 },
+        ],
+      }),
+    );
+    const dto = statements.create.mock.calls[0]![0] as { lines: { unitCode?: string }[] };
+    expect(dto.lines[0]!.unitCode).toBeUndefined();
+    expect(dto.lines[1]!.unitCode).toBeUndefined();
   });
 });
 
