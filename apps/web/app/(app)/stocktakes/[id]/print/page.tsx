@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams } from 'next/navigation';
 import { type StocktakeSession } from '@/lib/api';
-import { ErrorBox, formatDate, formatMoney } from '@/components/ui';
+import { ErrorBox, formatDate, formatMoney, toArabicNumerals } from '@/components/ui';
 import {
   PRINT_STATUS,
   PrintDocHeader,
@@ -83,8 +83,18 @@ export default function StocktakePrintPage() {
                   <div className="font-semibold">{l.item.nameAr}</div>
                   <div className="text-[10px] text-gray-500">{l.item.code}</div>
                 </td>
-                <td>{formatMoney(l.systemQtyBase)}</td>
-                <td>{l.countedQtyBase != null ? formatMoney(l.countedQtyBase) : 'لم يُعد'}</td>
+                <td>
+                  {formatMoney(l.systemQtyBase)}
+                  {l.systemQtyComposite ? (
+                    <div className="text-[10px] text-gray-600">{toArabicNumerals(l.systemQtyComposite)}</div>
+                  ) : null}
+                </td>
+                <td>
+                  {l.countedQtyBase != null ? formatMoney(l.countedQtyBase) : 'لم يُعد'}
+                  {l.countedQtyComposite ? (
+                    <div className="text-[10px] text-gray-600">{toArabicNumerals(l.countedQtyComposite)}</div>
+                  ) : null}
+                </td>
                 <td className={l.diffQty > 0 ? 'text-red-700' : l.diffQty < 0 ? 'text-blue-700' : ''}>
                   {l.diffQty > 0 ? `+${formatMoney(l.diffQty)}` : formatMoney(l.diffQty)}
                 </td>

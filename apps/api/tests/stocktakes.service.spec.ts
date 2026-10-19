@@ -12,6 +12,7 @@ interface Captured {
 
 interface Options {
   existingLine?: { id: number; systemQtyBase: number; countedQtyBase: unknown; counter: string | null } | null;
+  lines?: Record<string, unknown>[];
 }
 
 function makeService(opts: Options = {}) {
@@ -42,7 +43,7 @@ function makeService(opts: Options = {}) {
         warehouse: { id: 1, code: 'MAIN', nameAr: 'الرئيسي' },
         openedBy: { id: 1, name: 'Admin' },
         approvedBy: null,
-        lines: [],
+        lines: opts.lines ?? [],
       }),
       findFirst: async () => null,
       create: async (args: { data: Record<string, unknown> }) => {
@@ -111,6 +112,78 @@ describe('StocktakesService (§5.8)', () => {
     const { service, captured } = makeService();
     await service.open({ warehouseId: 1, scope: { itemIds: [4, 5] } }, user);
     expect(captured.balanceWhere[0]!.itemId).toEqual({ in: [4, 5] });
+  });
+
+  it('G12: get() يعيد العرض المركب لرصيد النظام (§5.2)', async () => {
+    const { service } = makeService({
+      lines: [
+        {
+          id: 1,
+          sessionId: 42,
+          itemId: 1,
+          batchId: '',
+          systemQtyBase: 22,
+          countedQtyBase: 4,
+          lastCost: 90,
+          diffQty: -18,
+          diffValue: -1620,
+          recountCount: 1,
+          counter: null,
+          countedById: 7,
+          item: {
+            id: 1,
+            code: 'PT-20-02',
+            nameAr: 'دهان',
+            minStock: 0,
+            lastPurchaseCost: 90,
+            trackBatch: false,
+            baseUnitId: 4,
+            baseUnit: { id: 4, nameAr: 'عبوة', measurement: 'COUNT' },
+            itemUnits: [{ unitId: 5, factorToBase: 4, allowDecimal: false, unit: { id: 5, nameAr: 'كرتونة' } }],
+          },
+          countedBy: { id: 7, name: 'Admin' },
+        },
+      ],
+    });
+    const out = await service.get(42, 1);
+    expect(out.lines[0]!.systemQtyComposite).toBe('5 كرتونة + 2 عبوة');
+    expect(out.lines[0]!.countedQtyComposite).toBe('1 كرتونة');
+  });
+
+  it('G12: بند بلا عد → countedQtyComposite = null', async () => {
+    const { service } = makeService({
+      lines: [
+        {
+          id: 2,
+          sessionId: 42,
+          itemId: 1,
+          batchId: '',
+          systemQtyBase: 10,
+          countedQtyBase: null,
+          lastCost: null,
+          diffQty: 10,
+          diffValue: 0,
+          recountCount: 0,
+          counter: null,
+          countedById: null,
+          item: {
+            id: 1,
+            code: 'PT-20-02',
+            nameAr: 'دهان',
+            minStock: 0,
+            lastPurchaseCost: null,
+            trackBatch: false,
+            baseUnitId: 4,
+            baseUnit: { id: 4, nameAr: 'عبوة', measurement: 'COUNT' },
+            itemUnits: [],
+          },
+          countedBy: null,
+        },
+      ],
+    });
+    const out = await service.get(42, 1);
+    expect(out.lines[0]!.systemQtyComposite).toBe('10 عبوة');
+    expect(out.lines[0]!.countedQtyComposite).toBeNull();
   });
 });
 

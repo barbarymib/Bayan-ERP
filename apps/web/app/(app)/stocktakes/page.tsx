@@ -34,6 +34,7 @@ import {
   Th,
   formatDate,
   formatMoney,
+  toArabicNumerals,
 } from '@/components/ui';
 
 const statusLabel: Record<string, string> = {
@@ -581,7 +582,14 @@ function DetailModal({
                           {l.bigDiff ? <Badge color="red">فرق كبير</Badge> : null}
                         </div>
                       </Td>
-                      <Td dir="ltr">{formatMoney(l.systemQtyBase)}</Td>
+                      <Td dir="ltr">
+                        {formatMoney(l.systemQtyBase)}
+                        {l.systemQtyComposite ? (
+                          <div className="text-[11px] font-normal text-gray-500" dir="rtl">
+                            {toArabicNumerals(l.systemQtyComposite)}
+                          </div>
+                        ) : null}
+                      </Td>
                       <Td>
                         {editable ? (
                           <TextInput
@@ -593,7 +601,14 @@ function DetailModal({
                             className="w-28"
                           />
                         ) : (
-                          formatMoney(l.countedQtyBase)
+                          <>
+                            {formatMoney(l.countedQtyBase)}
+                            {l.countedQtyComposite ? (
+                              <div className="text-[11px] font-normal text-gray-500" dir="rtl">
+                                {toArabicNumerals(l.countedQtyComposite)}
+                              </div>
+                            ) : null}
+                          </>
                         )}
                       </Td>
                       <Td dir="ltr" className={l.diffQty > 0 ? 'font-bold text-emerald-600' : l.diffQty < 0 ? 'font-bold text-red-600' : ''}>

@@ -3,6 +3,7 @@ import type { Prisma } from '../generated/prisma/client';
 import { roundMoney, roundQty } from '@bayan/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { compositeQty } from '../common/units.js';
 import { haversineM } from '../geo/geo.service.js';
 import type {
   QueryAgingDto,
@@ -43,7 +44,26 @@ export class ReportsService {
     const method: ValuationMethod = query.method ?? 'LAST';
     const balances = await this.prisma.stockBalance.findMany({
       where: { ...tenantWhere(companyId), ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}) },
-      include: { item: { select: { id: true, code: true, nameAr: true, baseUnitId: true, lastPurchaseCost: true } } },
+      include: {
+        item: {
+          select: {
+            id: true,
+            code: true,
+            nameAr: true,
+            baseUnitId: true,
+            lastPurchaseCost: true,
+            baseUnit: { select: { id: true, nameAr: true, measurement: true } },
+            itemUnits: {
+              select: {
+                unitId: true,
+                factorToBase: true,
+                allowDecimal: true,
+                unit: { select: { id: true, nameAr: true } },
+              },
+            },
+          },
+        },
+      },
     });
     const items = [...new Map(balances.map((b) => [b.itemId, b.item])).values()];
     const ids = items.map((i) => i.id);
@@ -137,6 +157,7 @@ export class ReportsService {
         warehouseId: b.warehouseId,
         batchId: b.batchId,
         qtyBase,
+        qtyComposite: compositeQty(qtyBase, b.item),
         unitCost,
         value,
         noPrice,
@@ -452,7 +473,19 @@ export class ReportsService {
     const balances = await this.prisma.stockBalance.findMany({
       where: { ...tenantWhere(companyId), ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}) },
       include: {
-        item: { select: { id: true, code: true, nameAr: true, lastPurchaseCost: true } },
+        item: {
+          select: {
+            id: true,
+            code: true,
+            nameAr: true,
+            baseUnitId: true,
+            lastPurchaseCost: true,
+            baseUnit: { select: { id: true, nameAr: true, measurement: true } },
+            itemUnits: {
+              select: { unitId: true, factorToBase: true, allowDecimal: true, unit: { select: { id: true, nameAr: true } } },
+            },
+          },
+        },
         warehouse: { select: { id: true, code: true, nameAr: true } },
       },
     });
@@ -483,10 +516,12 @@ export class ReportsService {
 
     const rows = [...byItem.entries()].map(([itemId, v]) => {
       const last = lastMov.get(itemId) ?? null;
+      const item = balances.find((b) => b.itemId === itemId)?.item;
       return {
         itemId,
-        item: { code: balances.find((b) => b.itemId === itemId)?.item.code ?? '', nameAr: balances.find((b) => b.itemId === itemId)?.item.nameAr ?? '' },
+        item: { code: item?.code ?? '', nameAr: item?.nameAr ?? '' },
         qtyBase: v.qtyBase,
+        qtyComposite: compositeQty(v.qtyBase, item),
         value: v.value,
         lastMovementAt: last,
         stagnant: last != null ? last < stale : true,

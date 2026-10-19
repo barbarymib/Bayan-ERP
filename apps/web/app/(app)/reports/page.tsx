@@ -30,6 +30,7 @@ import {
   Th,
   formatDate,
   formatMoney,
+  toArabicNumerals,
 } from '@/components/ui';
 
 type Tab = 'movements' | 'values' | 'noprice' | 'summary' | 'lowstock' | 'aging' | 'weightnotes';
@@ -384,7 +385,14 @@ function ValuesPane() {
                         <div className="text-xs font-mono text-gray-400">{r.code}</div>
                       </Td>
                       <Td>{data.byWarehouse.find((w) => w.warehouseId === r.warehouseId)?.warehouse.nameAr ?? `#${r.warehouseId}`}</Td>
-                      <Td dir="ltr">{formatMoney(r.qtyBase)}</Td>
+                      <Td dir="ltr">
+                        {formatMoney(r.qtyBase)}
+                        {r.qtyComposite ? (
+                          <div className="text-[11px] font-normal text-gray-500" dir="rtl">
+                            {toArabicNumerals(r.qtyComposite)}
+                          </div>
+                        ) : null}
+                      </Td>
                       <Td>{r.noPrice ? <Badge color="amber">بدون سعر</Badge> : formatMoney(r.unitCost)}</Td>
                       <Td className="font-bold">{formatMoney(r.value)}</Td>
                     </tr>
@@ -596,7 +604,14 @@ function SummaryPane() {
                     <div className="font-semibold">{r.item.nameAr}</div>
                     <div className="text-xs font-mono text-gray-400">{r.item.code}</div>
                   </Td>
-                  <Td dir="ltr">{formatMoney(r.qtyBase)}</Td>
+                  <Td dir="ltr">
+                    {formatMoney(r.qtyBase)}
+                    {r.qtyComposite ? (
+                      <div className="text-[11px] font-normal text-gray-500" dir="rtl">
+                        {toArabicNumerals(r.qtyComposite)}
+                      </div>
+                    ) : null}
+                  </Td>
                   <Td className="font-bold">{formatMoney(r.value)}</Td>
                   <Td>
                     {r.lastMovementAt ? (

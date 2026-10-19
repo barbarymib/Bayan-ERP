@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryItemsWithoutPriceDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStockValuesDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
+import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryItemsWithoutPriceDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStockSummaryDto, QueryStockValuesDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -903,7 +903,15 @@ interface ValuationBalance {
   warehouseId: number;
   batchId: string;
   qtyBase: number;
-  item: { id: number; code: string; nameAr: string; baseUnitId: number; lastPurchaseCost: number | null };
+  item: {
+    id: number;
+    code: string;
+    nameAr: string;
+    baseUnitId: number;
+    lastPurchaseCost: number | null;
+    baseUnit?: { id: number; nameAr: string; measurement: string } | null;
+    itemUnits?: { unitId: number; factorToBase: number; allowDecimal: boolean; unit: { id: number; nameAr: string } }[];
+  };
 }
 
 interface ValuationLookups {
@@ -1001,6 +1009,64 @@ describe('ReportsService.stockValues — تقييم بلا سعر (R3-C2 §5.8)'
     expect(out.rows[0]).toMatchObject({ unitCost: 120, value: 1200, noPrice: false });
     expect(out.rows[1]).toMatchObject({ noPrice: true, value: 0 });
     expect(out.totals).toMatchObject({ value: 1200, noPriceItems: 1 });
+  });
+
+  it('G12: الصفوف تحمل العرض المركب من وحدات الصنف (§5.2)', async () => {
+    const svc = buildValuation({
+      balances: [
+        vBal({
+          qtyBase: 22,
+          item: {
+            id: 1,
+            code: 'PT-20-02',
+            nameAr: 'دهان',
+            baseUnitId: 4,
+            lastPurchaseCost: 90,
+            baseUnit: { id: 4, nameAr: 'عبوة', measurement: 'COUNT' },
+            itemUnits: [{ unitId: 5, factorToBase: 4, allowDecimal: false, unit: { id: 5, nameAr: 'كرتونة' } }],
+          },
+        }),
+      ],
+      warehouses: [{ id: 1, code: 'MAIN', nameAr: 'رئيسي' }],
+    });
+    const out = await svc.stockValues({ method: 'LAST' } as QueryStockValuesDto);
+    expect(out.rows[0]!.qtyComposite).toBe('5 كرتونة + 2 عبوة');
+  });
+
+  it('G12: صنف بلا بيانات وحدات في المصدم → qtyComposite = null', async () => {
+    const svc = buildValuation({ balances: [vBal()], warehouses: [{ id: 1, code: 'MAIN', nameAr: 'رئيسي' }] });
+    const out = await svc.stockValues({ method: 'LAST' } as QueryStockValuesDto);
+    expect(out.rows[0]!.qtyComposite).toBeNull();
+  });
+});
+
+describe('ReportsService.stockSummary — عرض مركب لرصيد الصنف (G12 §5.2)', () => {
+  it('صفوف الملخص تحمل qtyComposite من وحدات الصنف', async () => {
+    const prisma = {
+      stockBalance: {
+        findMany: async () => [
+          {
+            itemId: 1,
+            warehouseId: 1,
+            batchId: '',
+            qtyBase: 2500,
+            item: {
+              id: 1,
+              code: 'IR-16-10',
+              nameAr: 'حديد',
+              baseUnitId: 1,
+              lastPurchaseCost: 90,
+              baseUnit: { id: 1, nameAr: 'كجم', measurement: 'WEIGHT' },
+              itemUnits: [{ unitId: 2, factorToBase: 1000, allowDecimal: true, unit: { id: 2, nameAr: 'طن' } }],
+            },
+            warehouse: { id: 1, code: 'MAIN', nameAr: 'رئيسي' },
+          },
+        ],
+      },
+      stockMovement: { groupBy: async () => [{ itemId: 1, _max: { createdAt: null } }] },
+    } as unknown as PrismaService;
+    const out = await new ReportsService(prisma).stockSummary({} as QueryStockSummaryDto);
+    expect(out.rows[0]!.qtyComposite).toBe('2 طن + 500 كجم');
   });
 });
 

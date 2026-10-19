@@ -2,6 +2,8 @@
 
 import type { ReactNode } from 'react';
 
+export { decomposeQty, type UnitDef, type UnitQty } from '@bayan/shared';
+
 export function Button({
   children,
   onClick,

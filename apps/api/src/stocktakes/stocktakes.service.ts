@@ -17,6 +17,7 @@ import { NumberingService } from '../numbering.service.js';
 import { PeriodsService } from '../common/periods.service.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
 import { tenantWhere } from '../common/tenant.js';
+import { compositeQty } from '../common/units.js';
 import type {
   AbortStocktakeDto,
   ApproveStocktakeDto,
@@ -146,7 +147,31 @@ export class StocktakesService {
         warehouse: true,
         openedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
-        lines: { include: { item: { select: { id: true, code: true, nameAr: true, minStock: true, lastPurchaseCost: true, trackBatch: true } }, countedBy: { select: { id: true, name: true } } } },
+        lines: {
+          include: {
+            item: {
+              select: {
+                id: true,
+                code: true,
+                nameAr: true,
+                minStock: true,
+                lastPurchaseCost: true,
+                trackBatch: true,
+                baseUnitId: true,
+                baseUnit: { select: { id: true, nameAr: true, measurement: true } },
+                itemUnits: {
+                  select: {
+                    unitId: true,
+                    factorToBase: true,
+                    allowDecimal: true,
+                    unit: { select: { id: true, nameAr: true } },
+                  },
+                },
+              },
+            },
+            countedBy: { select: { id: true, name: true } },
+          },
+        },
       },
     });
     if (!session || (session.companyId != null && session.companyId !== companyId)) {
@@ -157,7 +182,12 @@ export class StocktakesService {
     const th: StocktakeRecountThreshold = { value: policy.thresholdValue, qty: policy.thresholdQty };
     const flagged = lines.map((l) => {
       const d = diffOfStocktakeLine(toLineCalc(l));
-      return { ...l, bigDiff: isBigDiff(d.diffQty, d.diffValue, th) };
+      return {
+        ...l,
+        bigDiff: isBigDiff(d.diffQty, d.diffValue, th),
+        systemQtyComposite: compositeQty(Number(l.systemQtyBase), l.item),
+        countedQtyComposite: l.countedQtyBase == null ? null : compositeQty(Number(l.countedQtyBase), l.item),
+      };
     });
     return {
       ...rest,

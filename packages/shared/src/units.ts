@@ -1,4 +1,4 @@
-import { roundQty } from './money.js';
+﻿import { roundQty } from './money.js';
 
 export interface UnitDef {
   id: string;
@@ -86,3 +86,14 @@ export function decomposeQty(qtyBase: number, units: readonly UnitDef[]): UnitQt
   }
   return result.filter((r) => r.qty > 0);
 }
+
+/**
+ * يظهر الرصيد المجمع بصيغة "X Y + Z W".
+ */
+export function formatCompositeQty(qtyBase: number, units: readonly UnitDef[]): string {
+  const parts = decomposeQty(qtyBase, units);
+  if (parts.length === 0) return roundQty(qtyBase) === 0 ? '0' : roundQty(qtyBase).toString();
+  return parts.map((p) => `${p.qty} ${p.unit.name}`).join(' + ');
+}
+
+

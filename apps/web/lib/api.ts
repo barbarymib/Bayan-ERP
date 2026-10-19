@@ -719,7 +719,9 @@ export interface StocktakeLine {
   item: ItemBrief & { minStock: string; lastPurchaseCost: string | null; trackBatch: boolean };
   batchId: string;
   systemQtyBase: number;
+  systemQtyComposite?: string | null;
   countedQtyBase: number | null;
+  countedQtyComposite?: string | null;
   lastCost: number | null;
   diffQty: number;
   diffValue: number;
@@ -763,6 +765,7 @@ export interface StockValueRow {
   warehouseId: number;
   batchId: string;
   qtyBase: number;
+  qtyComposite?: string | null;
   unitCost: number;
   value: number;
   noPrice: boolean;
@@ -845,6 +848,7 @@ export interface StockSummaryRow {
   itemId: number;
   item: { code: string; nameAr: string };
   qtyBase: number;
+  qtyComposite?: string | null;
   value: number;
   lastMovementAt: string | null;
   stagnant: boolean;

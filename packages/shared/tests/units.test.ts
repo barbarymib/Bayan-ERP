@@ -4,6 +4,7 @@ import {
   assertQtyAllowed,
   convertQty,
   decomposeQty,
+  formatCompositeQty,
   fromBaseQty,
   toBaseQty,
   type UnitDef,
@@ -86,5 +87,27 @@ describe('decomposeQty — العرض المركب', () => {
 
   it('رصيد صفر يُرجع مصفوفة فارغة', () => {
     expect(decomposeQty(0, paintUnits)).toEqual([]);
+  });
+});
+
+describe('formatCompositeQty — نص العرض المركب (G12 §5.2)', () => {
+  it('22 عبوة = "5 كرتونة + 2 عبوة" (المثال من التصميم)', () => {
+    expect(formatCompositeQty(22, [bottle, carton])).toBe('5 كرتونة + 2 عبوة');
+  });
+
+  it('2500 كجم = "2 طن + 500 كجم"', () => {
+    expect(formatCompositeQty(2500, [kg, ton])).toBe('2 طن + 500 كجم');
+  });
+
+  it('الرصيد الصفر = "0"', () => {
+    expect(formatCompositeQty(0, [kg, ton])).toBe('0');
+  });
+
+  it('وحدة واحدة = القيمة باسم الوحدة', () => {
+    expect(formatCompositeQty(3, [carton])).toBe('3 كرتونة');
+  });
+
+  it('يرفض الكميات السالبة', () => {
+    expect(() => formatCompositeQty(-1, [kg, carton])).toThrow(/negative/);
   });
 });
