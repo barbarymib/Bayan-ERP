@@ -12,6 +12,7 @@ import '../../core/geo/shift_controller.dart';
 import '../geo/shift_screen.dart';
 import '../print/print_screen.dart';
 import '../return/new_return_screen.dart';
+import '../settings/settings_screen.dart';
 import '../statement/new_statement_screen.dart';
 import '../stocktake/stocktake_screen.dart';
 import '../statements/my_statements_screen.dart';
@@ -124,6 +125,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     context,
                     MaterialPageRoute<void>(builder: (_) => const StocktakeScreen()),
                   );
+                case 'settings':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+                  );
                 case 'lock':
                   _toggleDeviceLock();
               }
@@ -162,6 +168,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     title: Text('جرد المخزون'),
                   ),
                 ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('المزامنة والإعدادات'),
+                ),
+              ),
               CheckedPopupMenuItem(
                 value: 'lock',
                 checked: lockEnabled,
