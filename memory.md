@@ -1091,3 +1091,15 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Live verify 2026-10-19** (API rebuilt + restarted): created a temporary ACCOUNTANT user (role has `return.approve`, no `discount.approve`) → `GET /api/approvals` `200` (0 items); created a WAREHOUSEKEEPER user (no approve perms) → `403`. Both temp users soft-deleted then hard-deleted from `User`/`AuditLog`; env back to 2 users.
 - **Commits:** code `0cb88af`; docs `docs/GAP.md` (R4-B3 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
 - **Next:** Phase P5 — R4-B8, R4-B7, R4-B9, R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
+
+## 2026-10-19 — Round-4 P5 R4-B8 (rejection returns document to editable draft)
+
+- **Gap:** §6.1 loop `رفض --> C` ("rejection → back to editing") was violated — `ApprovalsService.rejectDocument` set the price statement (and return) to `CANCELLED` (`cancelReason`) instead of returning it to editable `DRAFT`, so a rejected-but-fixable document was destroyed rather than revised.
+- **Fix:** `rejectDocument` now keeps/returns the document to `DRAFT` — releases reservations, closes sibling PENDING approvals as `REJECTED`, and stores the approver's note in a new nullable `rejectedReason` (added to **both** `PriceStatement` and `ReturnStatement`). The audit action was renamed `approval.reject_cancel` → `approval.reject_reopen`.
+- **Schema/migration:** migration `20261019040000_statement_rejection_reason` (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS "rejectedReason" TEXT` on both tables). Applied via `npm run db:deploy` → live health now reports `migrations 39/39`. `rejectedReason` is returned automatically by `findWithDetail` (it uses `include`, i.e. all scalars).
+- **Decision (user):** return to DRAFT + store rejection note; applies to **both** statements and returns.
+- **Gotcha (important):** while renaming a field in the test file I used PowerShell `(... ) -replace ... | Set-Content`, which **corrupted the file** (all Arabic → `?` *and* stripped newlines). Recovered with `git checkout --` and redid the edit via the `edit` tool. **Never** use `Set-Content`/`-replace` on Arabic source — only `write`/`edit`.
+- **Tests:** approvals lifecycle specs updated to assert rejection → `DRAFT` + `rejectedReason` (statement + return). api typecheck 0 / lint 0 / **490/490**; web tc/lint/build 0; mobile analyze clean + 301/301.
+- **Live verify 2026-10-19** (API rebuilt + restarted, `migrations 39/39`): created a temporary SALES_OFFICE user (0 discount limits), created statement with a 30% line discount → `DRAFT` + PENDING `ITEM_DISCOUNT` approval; admin rejected → statement `status=DRAFT` + `rejectedReason` set (approval `REJECTED`); creator re-PATCHed with an in-limit discount → resubmitted → auto-`APPROVED` (net 200). Cleaned up (test statement + user + audit rows deleted); env back to 2 users.
+- **Commits:** code `6b8b32d`; docs `docs/GAP.md` (R4-B8 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
+- **Next:** Phase P5 — R4-B7, R4-B9, R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
