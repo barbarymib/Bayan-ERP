@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../auth/auth_controller.dart';
 import '../catalog/catalog_screen.dart';
 import '../collection/new_collection_screen.dart';
+import '../customers/customers_screen.dart';
 import '../../core/geo/shift_controller.dart';
 import '../geo/shift_screen.dart';
 import '../print/print_screen.dart';
@@ -99,15 +100,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               MaterialPageRoute<void>(builder: (_) => const PrintScreen()),
             ),
           ),
-          PopupMenuButton<String>(
-            tooltip: 'المزيد',
-            onSelected: (value) {
-              switch (value) {
-                case 'catalog':
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(builder: (_) => const CatalogScreen()),
-                  );
+            PopupMenuButton<String>(
+              tooltip: 'المزيد',
+              onSelected: (value) {
+                switch (value) {
+                  case 'customers':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(builder: (_) => const CustomersScreen()),
+                    );
+                  case 'catalog':
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(builder: (_) => const CatalogScreen()),
+                    );
                 case 'statements':
                   Navigator.push(
                     context,
@@ -122,15 +128,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _toggleDeviceLock();
               }
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'catalog',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.inventory_2_outlined),
-                  title: Text('الأصناف والأسعار'),
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'customers',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.people_outline),
+                    title: Text('عملائي'),
+                  ),
                 ),
-              ),
+                const PopupMenuItem(
+                  value: 'catalog',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.inventory_2_outlined),
+                    title: Text('الأصناف والأسعار'),
+                  ),
+                ),
               const PopupMenuItem(
                 value: 'statements',
                 child: ListTile(
