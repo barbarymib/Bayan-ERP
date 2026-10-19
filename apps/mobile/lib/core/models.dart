@@ -120,6 +120,8 @@ class ItemSummary {
   final String? baseUnit;
   final double? lastPrice;
   final String? categoryCode;
+  final String? barcode;
+  final List<ItemUnitSummary> units;
 
   const ItemSummary({
     required this.id,
@@ -128,6 +130,8 @@ class ItemSummary {
     this.baseUnit,
     this.lastPrice,
     this.categoryCode,
+    this.barcode,
+    this.units = const [],
   });
 
   /// صنف حديد — تُفعَّل له ملاحظة الوزن الفعلي (§5.2).
@@ -140,6 +144,41 @@ class ItemSummary {
         baseUnit: j['baseUnit'] as String?,
         lastPrice: (j['lastPrice'] as num?)?.toDouble(),
         categoryCode: j['categoryCode'] as String?,
+        barcode: j['barcode'] as String?,
+        units: ((j['units'] as List?) ?? const [])
+            .map((e) => ItemUnitSummary.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+      );
+}
+
+/// وحدة بيع/شراء مُزامَنة لصنف: باركود الوحدة + عامل التحويل للأساس (§5.1/G13).
+class ItemUnitSummary {
+  final int unitId;
+  final String? unitCode;
+  final double factorToBase;
+  final bool allowDecimal;
+  final String? barcode;
+  final bool isSale;
+  final bool isPurchase;
+
+  const ItemUnitSummary({
+    required this.unitId,
+    this.unitCode,
+    required this.factorToBase,
+    this.allowDecimal = true,
+    this.barcode,
+    this.isSale = true,
+    this.isPurchase = true,
+  });
+
+  factory ItemUnitSummary.fromJson(Map<String, dynamic> j) => ItemUnitSummary(
+        unitId: (j['unitId'] as num).toInt(),
+        unitCode: j['unitCode'] as String?,
+        factorToBase: (j['factorToBase'] as num?)?.toDouble() ?? 1,
+        allowDecimal: j['allowDecimal'] as bool? ?? true,
+        barcode: j['barcode'] as String?,
+        isSale: j['isSale'] as bool? ?? true,
+        isPurchase: j['isPurchase'] as bool? ?? true,
       );
 }
 

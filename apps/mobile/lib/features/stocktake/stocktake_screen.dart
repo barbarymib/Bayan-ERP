@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers.dart';
+import '../../core/scan_resolver.dart';
 import '../../core/theme.dart';
+import '../tools/scan_screen.dart';
 import 'stocktake_controller.dart';
 
 /// قائمة جلسات الجرد لمندوب المخزن (§5.8 خطوة 3): يختار جلسة مفتوحة/قيد العد
@@ -156,6 +159,24 @@ class _StocktakeCountScreenState extends ConsumerState<StocktakeCountScreen> {
     });
   }
 
+  /// فحص باركود صنف ثم حصر قائمة البنود على كوده (§9/G13).
+  Future<void> _scan() async {
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute<String>(builder: (_) => const ScanScreen(title: 'فحص صنف للجرد')),
+    );
+    if (!mounted || code == null) return;
+    final target = resolveScan(code, ref.read(dataStoreProvider).items);
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('لا يوجد صنف مطابق للباركود «$code»')),
+      );
+      return;
+    }
+    _search.text = target.item.code;
+    setState(() {});
+  }
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     final saved = await ref.read(stocktakeCountProvider.notifier).save();
@@ -210,9 +231,14 @@ class _StocktakeCountScreenState extends ConsumerState<StocktakeCountScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   child: TextField(
                     controller: _search,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'بحث بالكود أو الاسم…',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: IconButton(
+                        tooltip: 'فحص باركود',
+                        icon: const Icon(Icons.qr_code_scanner),
+                        onPressed: _scan,
+                      ),
                       isDense: true,
                     ),
                     onChanged: (_) => setState(() {}),

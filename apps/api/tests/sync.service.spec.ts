@@ -152,3 +152,107 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
     expect((res.results[0] as { pricingAlerts?: unknown[] }).pricingAlerts).toBeUndefined();
   });
 });
+
+describe('SyncService.delta — باركود الأصناف والوحدات (G13 §9)', () => {
+  function deltaHarness(items: unknown[]) {
+    const prisma = {
+      item: { findMany: async () => items },
+      customerRepAssignment: { findMany: async () => [] },
+      priceList: { findMany: async () => [] },
+      priceStatement: { findMany: async () => [] },
+      numberBlock: { findMany: async () => [] },
+    };
+    const service = new SyncService(
+      prisma as unknown as PrismaService,
+      {} as never,
+      {} as never,
+      {} as never,
+      { notify: async () => {} } as never,
+      {} as never,
+      {} as never,
+      { write: async () => {} } as never,
+    );
+    return service;
+  }
+
+  const deltaUser = { ...baseUser, repCode: 'REP1' } as unknown as AuthUser;
+
+  it('يُرسل باركود الصنف وباركود كل وحدة مع عوامل التحويل', async () => {
+    const service = deltaHarness([
+      {
+        id: 1,
+        code: 'IR',
+        nameAr: 'حديد',
+        barcode: '6221000000017',
+        baseUnit: { code: 'KG' },
+        category: { code: 'STEEL' },
+        itemUnits: [
+          {
+            unitId: 3,
+            factorToBase: 1000,
+            allowDecimal: false,
+            barcode: 'BOX-1',
+            isSale: true,
+            isPurchase: true,
+            unit: { code: 'TON' },
+          },
+          {
+            unitId: 5,
+            factorToBase: 1,
+            allowDecimal: true,
+            barcode: null,
+            isSale: true,
+            isPurchase: false,
+            unit: null,
+          },
+        ],
+      },
+    ]);
+    const res = await service.delta(deltaUser);
+    expect(res.items[0]).toEqual({
+      id: 1,
+      code: 'IR',
+      name: 'حديد',
+      baseUnit: 'KG',
+      categoryCode: 'STEEL',
+      lastPrice: null,
+      barcode: '6221000000017',
+      units: [
+        {
+          unitId: 3,
+          unitCode: 'TON',
+          factorToBase: 1000,
+          allowDecimal: false,
+          barcode: 'BOX-1',
+          isSale: true,
+          isPurchase: true,
+        },
+        {
+          unitId: 5,
+          unitCode: null,
+          factorToBase: 1,
+          allowDecimal: true,
+          barcode: null,
+          isSale: true,
+          isPurchase: false,
+        },
+      ],
+    });
+  });
+
+  it('يُرسل barcode=null وقائمة وحدات فارغة عند غيابها', async () => {
+    const service = deltaHarness([
+      {
+        id: 2,
+        code: 'PNT',
+        nameAr: 'دهان',
+        barcode: null,
+        baseUnit: { code: 'GLN' },
+        category: { code: 'PAINT' },
+        itemUnits: [],
+      },
+    ]);
+    const res = await service.delta(deltaUser);
+    expect(res.items[0]).toMatchObject({ id: 2, barcode: null, units: [] });
+  });
+});

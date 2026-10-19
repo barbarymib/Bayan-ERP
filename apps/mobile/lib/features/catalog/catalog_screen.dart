@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models.dart';
 import '../../core/print/receipt.dart';
 import '../../core/providers.dart';
+import '../../core/scan_resolver.dart';
+import '../tools/scan_screen.dart';
 import 'catalog_view.dart';
 
 /// شاشة الأصناف والأسعار (§5.12): يستعرض المندوب أصنافه وأسعارها من البيانات
@@ -18,6 +20,35 @@ class CatalogScreen extends ConsumerStatefulWidget {
 class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   String _query = '';
   int? _priceListId;
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// فحص باركود (صنف/وحدة) ثم حصر القائمة على الصنف المطابق (§9/G13).
+  Future<void> _scan() async {
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute<String>(builder: (_) => const ScanScreen(title: 'فحص صنف')),
+    );
+    if (!mounted || code == null) return;
+    final target = resolveScan(code, ref.read(dataStoreProvider).items);
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('لا يوجد صنف مطابق للباركود «$code»')),
+      );
+      return;
+    }
+    final unit = target.unit?.unitCode;
+    _search.text = target.item.code;
+    setState(() => _query = target.item.code);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${target.item.name}${unit == null ? '' : ' — وحدة $unit'}')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,9 +65,15 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextField(
-              decoration: const InputDecoration(
+              controller: _search,
+              decoration: InputDecoration(
                 labelText: 'بحث بالاسم أو الكود',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  tooltip: 'فحص باركود',
+                  icon: const Icon(Icons.qr_code_scanner),
+                  onPressed: _scan,
+                ),
               ),
               onChanged: (v) => setState(() => _query = v),
             ),

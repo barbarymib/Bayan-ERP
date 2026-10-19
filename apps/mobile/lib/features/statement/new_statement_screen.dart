@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/calc/calc.dart';
+import '../../core/models.dart';
 import '../../core/providers.dart';
+import '../../core/scan_resolver.dart';
 import '../../core/theme.dart';
 import '../sync/sync_controller.dart';
+import '../tools/scan_screen.dart';
 
 class _Line {
   final int itemId;
@@ -72,6 +75,48 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
         ),
       );
 
+  void _addItem(ItemSummary it) {
+    final store = ref.read(dataStoreProvider);
+    final listPrice = _customerId == null ? null : store.priceForCustomer(_customerId!, it.id);
+    final price = listPrice ?? it.lastPrice ?? 0;
+    setState(() => _lines.add(
+          _Line(
+            itemId: it.id,
+            name: it.name,
+            isSteel: it.isSteel,
+            priceText: price.toStringAsFixed(2),
+          ),
+        ));
+  }
+
+  /// فحص باركود (صنف/وحدة) وإضافة سطر مباشرة (§9/G13).
+  Future<void> _scanLine() async {
+    final store = ref.read(dataStoreProvider);
+    if (store.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد أصناف بعد — نزّل المزامنة أولاً')),
+      );
+      return;
+    }
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute<String>(builder: (_) => const ScanScreen(title: 'فحص صنف للبيان')),
+    );
+    if (!mounted || code == null) return;
+    final target = resolveScan(code, store.items);
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('لا يوجد صنف مطابق للباركود «$code»')),
+      );
+      return;
+    }
+    _addItem(target.item);
+    final unit = target.unit?.unitCode;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('أُضيف ${target.item.name}${unit == null ? '' : ' — وحدة $unit'}')),
+    );
+  }
+
   void _addLine() {
     final store = ref.read(dataStoreProvider);
     final items = store.items;
@@ -95,18 +140,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
               subtitle: Text(it.baseUnit ?? ''),
               onTap: () {
                 Navigator.pop(context);
-                final listPrice = _customerId == null
-                    ? null
-                    : store.priceForCustomer(_customerId!, it.id);
-                final price = listPrice ?? it.lastPrice ?? 0;
-                setState(() => _lines.add(
-                      _Line(
-                        itemId: it.id,
-                        name: it.name,
-                        isSteel: it.isSteel,
-                        priceText: price.toStringAsFixed(2),
-                      ),
-                    ));
+                _addItem(it);
               },
             ),
         ],
@@ -196,7 +230,16 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('بيان أسعار جديد')),
+      appBar: AppBar(
+        title: const Text('بيان أسعار جديد'),
+        actions: [
+          IconButton(
+            tooltip: 'فحص باركود',
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: _scanLine,
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

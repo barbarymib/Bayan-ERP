@@ -19,9 +19,27 @@ class Items extends Table {
   TextColumn get baseUnit => text().nullable()();
   RealColumn get lastPrice => real().nullable()();
   TextColumn get categoryCode => text().nullable()();
+  TextColumn get barcode => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
+}
+
+/// وحدات البيع/الشراء لكل صنف + باركود الوحدة وعامل التحويل للأساس (§5.1/G13).
+@TableIndex(name: 'idx_item_units_item', columns: {#itemId})
+@TableIndex(name: 'idx_item_units_barcode', columns: {#barcode})
+class ItemUnits extends Table {
+  IntColumn get itemId => integer()();
+  IntColumn get unitId => integer()();
+  TextColumn get unitCode => text().nullable()();
+  RealColumn get factorToBase => real()();
+  BoolColumn get allowDecimal => boolean().withDefault(const Constant(true))();
+  TextColumn get barcode => text().nullable()();
+  BoolColumn get isSale => boolean().withDefault(const Constant(true))();
+  BoolColumn get isPurchase => boolean().withDefault(const Constant(true))();
+
+  @override
+  Set<Column> get primaryKey => {itemId, unitId};
 }
 
 /// العملاء المرجعيون مع رصيدهم وقائمة الأسعار وآخر بيان.
@@ -112,6 +130,7 @@ class Meta extends Table {
 @DriftDatabase(
   tables: [
     Items,
+    ItemUnits,
     Customers,
     PriceLists,
     ItemPrices,
@@ -149,7 +168,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -172,6 +191,13 @@ class AppDatabase extends _$AppDatabase {
             ]) {
               await m.createIndex(index);
             }
+          }
+          if (from < 4) {
+            // G13 §9: باركود الصنف + جدول وحدات البيع/الشراء (باركود الوحدة + عامل التحويل).
+            await m.addColumn(items, items.barcode);
+            await m.createTable(itemUnits);
+            await m.createIndex(idxItemUnitsItem);
+            await m.createIndex(idxItemUnitsBarcode);
           }
         },
       );

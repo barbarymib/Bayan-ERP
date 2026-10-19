@@ -43,6 +43,19 @@ class DataStore {
   Future<List<ItemSummary>> _loadItems() async {
     final rows = await (_db.select(_db.items)..orderBy([(t) => OrderingTerm.asc(t.code)]))
         .get();
+    final unitRows = await _db.select(_db.itemUnits).get();
+    final byItem = <int, List<ItemUnitSummary>>{};
+    for (final u in unitRows) {
+      byItem.putIfAbsent(u.itemId, () => []).add(ItemUnitSummary(
+            unitId: u.unitId,
+            unitCode: u.unitCode,
+            factorToBase: u.factorToBase,
+            allowDecimal: u.allowDecimal,
+            barcode: u.barcode,
+            isSale: u.isSale,
+            isPurchase: u.isPurchase,
+          ));
+    }
     return rows
         .map((r) => ItemSummary(
               id: r.id,
@@ -51,6 +64,8 @@ class DataStore {
               baseUnit: r.baseUnit,
               lastPrice: r.lastPrice,
               categoryCode: r.categoryCode,
+              barcode: r.barcode,
+              units: byItem[r.id] ?? const [],
             ))
         .toList();
   }
@@ -127,6 +142,7 @@ class DataStore {
   }
 
   /// يدمج تصنيفات الأصناف في قاعدة SQLite (upsert بالمعرف).
+  /// الوحدات الواردة لصنف تُستبدل بالكامل (المزامنة ترسلها كاملة مع الصنف).
   Future<void> saveItems(List<ItemSummary> v) async {
     if (v.isEmpty) return;
     await _db.transaction(() async {
@@ -138,7 +154,27 @@ class DataStore {
               baseUnit: Value(i.baseUnit),
               lastPrice: Value(i.lastPrice),
               categoryCode: Value(i.categoryCode),
+              barcode: Value(i.barcode),
             ));
+        await _db.batch((batch) {
+          batch.deleteWhere(_db.itemUnits, (t) => t.itemId.equals(i.id));
+          for (final u in i.units) {
+            batch.insert(
+              _db.itemUnits,
+              ItemUnitsCompanion.insert(
+                itemId: i.id,
+                unitId: u.unitId,
+                unitCode: Value(u.unitCode),
+                factorToBase: u.factorToBase,
+                allowDecimal: Value(u.allowDecimal),
+                barcode: Value(u.barcode),
+                isSale: Value(u.isSale),
+                isPurchase: Value(u.isPurchase),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+          }
+        });
       }
     });
     _items = await _loadItems();

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:bayan_rep/core/data_store.dart';
 import 'package:bayan_rep/core/db/database.dart';
 import 'package:bayan_rep/core/models.dart';
+import 'package:bayan_rep/core/scan_resolver.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -22,12 +23,15 @@ Future<DataStore> _memoryStore() async {
   return store;
 }
 
-ItemSummary _item(int id, String code, {String? lastPrice}) => ItemSummary(
+ItemSummary _item(int id, String code, {String? lastPrice, String? barcode, List<ItemUnitSummary> units = const []}) =>
+    ItemSummary(
       id: id,
       code: code,
       name: 'صنف $code',
       baseUnit: 'ton',
       lastPrice: lastPrice == null ? null : double.parse(lastPrice),
+      barcode: barcode,
+      units: units,
     );
 
 CustomerSummary _customer(
@@ -149,6 +153,49 @@ void main() {
       final s2 = await _memoryStore();
       expect(s2.lastDelta, isNull);
       await s2.close();
+    });
+
+    test('باركود الصنف ووحداته يُحفظان ويُسترجعان ويُستبدلان بالكامل (G13)', () async {
+      final s = await _memoryStore();
+      await s.saveItems([
+        _item(1, 'IR', barcode: '6221000000017', units: const [
+          ItemUnitSummary(
+              unitId: 3,
+              unitCode: 'TON',
+              factorToBase: 1000,
+              allowDecimal: false,
+              barcode: 'BOX-1',
+              isPurchase: false),
+          ItemUnitSummary(unitId: 9, unitCode: 'KG', factorToBase: 1),
+        ]),
+        _item(2, 'PNT', units: const [
+          ItemUnitSummary(unitId: 4, unitCode: 'GAL', factorToBase: 3.785),
+        ]),
+      ]);
+
+      final ir = s.items.firstWhere((i) => i.id == 1);
+      expect(ir.barcode, '6221000000017');
+      expect(ir.units.length, 2);
+      expect(ir.units.first.barcode, 'BOX-1');
+      expect(ir.units.first.allowDecimal, isFalse);
+      expect(ir.units.first.isPurchase, isFalse);
+      expect(ir.units[1].factorToBase, 1);
+
+      final hit = resolveScan('box-1', s.items);
+      expect(hit?.item.id, 1);
+      expect(hit?.unit?.unitId, 3);
+      expect(hit?.kind, ScanMatchKind.unitBarcode);
+      expect(resolveScan('6221000000017', s.items)?.item.id, 1);
+      expect(resolveScan('pnt', s.items)?.kind, ScanMatchKind.itemCode);
+      expect(resolveScan('NOPE', s.items), isNull);
+
+      // إعادة مزامنة الصنف 1 بلا وحدات تستبدل وحداته وتُبقي وحدات الصنف 2.
+      await s.saveItems([_item(1, 'IR', barcode: '999')]);
+      final ir2 = s.items.firstWhere((i) => i.id == 1);
+      expect(ir2.barcode, '999');
+      expect(ir2.units, isEmpty);
+      expect(s.items.firstWhere((i) => i.id == 2).units.single.unitCode, 'GAL');
+      await s.close();
     });
 
     test('الصبر عبر قاعدة ملف حقيقي (SQLite دائم)', () async {

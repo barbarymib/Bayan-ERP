@@ -126,7 +126,21 @@ export class SyncService {
         ...tenantWhere(companyId),
         ...(cursor ? { updatedAt: { gt: cursor } } : {}),
       },
-      include: { baseUnit: { select: { code: true } }, category: { select: { code: true } } },
+      include: {
+        baseUnit: { select: { code: true } },
+        category: { select: { code: true } },
+        itemUnits: {
+          select: {
+            unitId: true,
+            factorToBase: true,
+            allowDecimal: true,
+            barcode: true,
+            isSale: true,
+            isPurchase: true,
+            unit: { select: { code: true } },
+          },
+        },
+      },
       orderBy: { id: 'asc' },
     });
 
@@ -234,6 +248,17 @@ export class SyncService {
         baseUnit: i.baseUnit?.code ?? null,
         categoryCode: i.category?.code ?? null,
         lastPrice: null, // يُرسل مع قائمة أسعار العميل في إصدار لاحق
+        // §9: باركود الصنف + باركودات وحدات البيع/الشراء (فحص الباركود على الموبايل).
+        barcode: i.barcode ?? null,
+        units: i.itemUnits.map((u) => ({
+          unitId: u.unitId,
+          unitCode: u.unit?.code ?? null,
+          factorToBase: Number(u.factorToBase),
+          allowDecimal: u.allowDecimal,
+          barcode: u.barcode ?? null,
+          isSale: u.isSale,
+          isPurchase: u.isPurchase,
+        })),
       })),
       customers: withBalance,
       priceLists: priceLists.map((p) => ({

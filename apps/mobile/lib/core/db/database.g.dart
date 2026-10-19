@@ -68,6 +68,17 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _barcodeMeta = const VerificationMeta(
+    'barcode',
+  );
+  @override
+  late final GeneratedColumn<String> barcode = GeneratedColumn<String>(
+    'barcode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -76,6 +87,7 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
     baseUnit,
     lastPrice,
     categoryCode,
+    barcode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -129,6 +141,12 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
         ),
       );
     }
+    if (data.containsKey('barcode')) {
+      context.handle(
+        _barcodeMeta,
+        barcode.isAcceptableOrUnknown(data['barcode']!, _barcodeMeta),
+      );
+    }
     return context;
   }
 
@@ -162,6 +180,10 @@ class $ItemsTable extends Items with TableInfo<$ItemsTable, Item> {
         DriftSqlType.string,
         data['${effectivePrefix}category_code'],
       ),
+      barcode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}barcode'],
+      ),
     );
   }
 
@@ -178,6 +200,7 @@ class Item extends DataClass implements Insertable<Item> {
   final String? baseUnit;
   final double? lastPrice;
   final String? categoryCode;
+  final String? barcode;
   const Item({
     required this.id,
     required this.code,
@@ -185,6 +208,7 @@ class Item extends DataClass implements Insertable<Item> {
     this.baseUnit,
     this.lastPrice,
     this.categoryCode,
+    this.barcode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -200,6 +224,9 @@ class Item extends DataClass implements Insertable<Item> {
     }
     if (!nullToAbsent || categoryCode != null) {
       map['category_code'] = Variable<String>(categoryCode);
+    }
+    if (!nullToAbsent || barcode != null) {
+      map['barcode'] = Variable<String>(barcode);
     }
     return map;
   }
@@ -218,6 +245,9 @@ class Item extends DataClass implements Insertable<Item> {
       categoryCode: categoryCode == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryCode),
+      barcode: barcode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(barcode),
     );
   }
 
@@ -233,6 +263,7 @@ class Item extends DataClass implements Insertable<Item> {
       baseUnit: serializer.fromJson<String?>(json['baseUnit']),
       lastPrice: serializer.fromJson<double?>(json['lastPrice']),
       categoryCode: serializer.fromJson<String?>(json['categoryCode']),
+      barcode: serializer.fromJson<String?>(json['barcode']),
     );
   }
   @override
@@ -245,6 +276,7 @@ class Item extends DataClass implements Insertable<Item> {
       'baseUnit': serializer.toJson<String?>(baseUnit),
       'lastPrice': serializer.toJson<double?>(lastPrice),
       'categoryCode': serializer.toJson<String?>(categoryCode),
+      'barcode': serializer.toJson<String?>(barcode),
     };
   }
 
@@ -255,6 +287,7 @@ class Item extends DataClass implements Insertable<Item> {
     Value<String?> baseUnit = const Value.absent(),
     Value<double?> lastPrice = const Value.absent(),
     Value<String?> categoryCode = const Value.absent(),
+    Value<String?> barcode = const Value.absent(),
   }) => Item(
     id: id ?? this.id,
     code: code ?? this.code,
@@ -262,6 +295,7 @@ class Item extends DataClass implements Insertable<Item> {
     baseUnit: baseUnit.present ? baseUnit.value : this.baseUnit,
     lastPrice: lastPrice.present ? lastPrice.value : this.lastPrice,
     categoryCode: categoryCode.present ? categoryCode.value : this.categoryCode,
+    barcode: barcode.present ? barcode.value : this.barcode,
   );
   Item copyWithCompanion(ItemsCompanion data) {
     return Item(
@@ -273,6 +307,7 @@ class Item extends DataClass implements Insertable<Item> {
       categoryCode: data.categoryCode.present
           ? data.categoryCode.value
           : this.categoryCode,
+      barcode: data.barcode.present ? data.barcode.value : this.barcode,
     );
   }
 
@@ -284,14 +319,15 @@ class Item extends DataClass implements Insertable<Item> {
           ..write('name: $name, ')
           ..write('baseUnit: $baseUnit, ')
           ..write('lastPrice: $lastPrice, ')
-          ..write('categoryCode: $categoryCode')
+          ..write('categoryCode: $categoryCode, ')
+          ..write('barcode: $barcode')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode =>
-      Object.hash(id, code, name, baseUnit, lastPrice, categoryCode);
+      Object.hash(id, code, name, baseUnit, lastPrice, categoryCode, barcode);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -301,7 +337,8 @@ class Item extends DataClass implements Insertable<Item> {
           other.name == this.name &&
           other.baseUnit == this.baseUnit &&
           other.lastPrice == this.lastPrice &&
-          other.categoryCode == this.categoryCode);
+          other.categoryCode == this.categoryCode &&
+          other.barcode == this.barcode);
 }
 
 class ItemsCompanion extends UpdateCompanion<Item> {
@@ -311,6 +348,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
   final Value<String?> baseUnit;
   final Value<double?> lastPrice;
   final Value<String?> categoryCode;
+  final Value<String?> barcode;
   const ItemsCompanion({
     this.id = const Value.absent(),
     this.code = const Value.absent(),
@@ -318,6 +356,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     this.baseUnit = const Value.absent(),
     this.lastPrice = const Value.absent(),
     this.categoryCode = const Value.absent(),
+    this.barcode = const Value.absent(),
   });
   ItemsCompanion.insert({
     this.id = const Value.absent(),
@@ -326,6 +365,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     this.baseUnit = const Value.absent(),
     this.lastPrice = const Value.absent(),
     this.categoryCode = const Value.absent(),
+    this.barcode = const Value.absent(),
   }) : code = Value(code),
        name = Value(name);
   static Insertable<Item> custom({
@@ -335,6 +375,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     Expression<String>? baseUnit,
     Expression<double>? lastPrice,
     Expression<String>? categoryCode,
+    Expression<String>? barcode,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -343,6 +384,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
       if (baseUnit != null) 'base_unit': baseUnit,
       if (lastPrice != null) 'last_price': lastPrice,
       if (categoryCode != null) 'category_code': categoryCode,
+      if (barcode != null) 'barcode': barcode,
     });
   }
 
@@ -353,6 +395,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     Value<String?>? baseUnit,
     Value<double?>? lastPrice,
     Value<String?>? categoryCode,
+    Value<String?>? barcode,
   }) {
     return ItemsCompanion(
       id: id ?? this.id,
@@ -361,6 +404,7 @@ class ItemsCompanion extends UpdateCompanion<Item> {
       baseUnit: baseUnit ?? this.baseUnit,
       lastPrice: lastPrice ?? this.lastPrice,
       categoryCode: categoryCode ?? this.categoryCode,
+      barcode: barcode ?? this.barcode,
     );
   }
 
@@ -385,6 +429,9 @@ class ItemsCompanion extends UpdateCompanion<Item> {
     if (categoryCode.present) {
       map['category_code'] = Variable<String>(categoryCode.value);
     }
+    if (barcode.present) {
+      map['barcode'] = Variable<String>(barcode.value);
+    }
     return map;
   }
 
@@ -396,7 +443,536 @@ class ItemsCompanion extends UpdateCompanion<Item> {
           ..write('name: $name, ')
           ..write('baseUnit: $baseUnit, ')
           ..write('lastPrice: $lastPrice, ')
-          ..write('categoryCode: $categoryCode')
+          ..write('categoryCode: $categoryCode, ')
+          ..write('barcode: $barcode')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ItemUnitsTable extends ItemUnits
+    with TableInfo<$ItemUnitsTable, ItemUnit> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ItemUnitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<int> itemId = GeneratedColumn<int>(
+    'item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitIdMeta = const VerificationMeta('unitId');
+  @override
+  late final GeneratedColumn<int> unitId = GeneratedColumn<int>(
+    'unit_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitCodeMeta = const VerificationMeta(
+    'unitCode',
+  );
+  @override
+  late final GeneratedColumn<String> unitCode = GeneratedColumn<String>(
+    'unit_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _factorToBaseMeta = const VerificationMeta(
+    'factorToBase',
+  );
+  @override
+  late final GeneratedColumn<double> factorToBase = GeneratedColumn<double>(
+    'factor_to_base',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _allowDecimalMeta = const VerificationMeta(
+    'allowDecimal',
+  );
+  @override
+  late final GeneratedColumn<bool> allowDecimal = GeneratedColumn<bool>(
+    'allow_decimal',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("allow_decimal" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _barcodeMeta = const VerificationMeta(
+    'barcode',
+  );
+  @override
+  late final GeneratedColumn<String> barcode = GeneratedColumn<String>(
+    'barcode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isSaleMeta = const VerificationMeta('isSale');
+  @override
+  late final GeneratedColumn<bool> isSale = GeneratedColumn<bool>(
+    'is_sale',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_sale" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isPurchaseMeta = const VerificationMeta(
+    'isPurchase',
+  );
+  @override
+  late final GeneratedColumn<bool> isPurchase = GeneratedColumn<bool>(
+    'is_purchase',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_purchase" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    itemId,
+    unitId,
+    unitCode,
+    factorToBase,
+    allowDecimal,
+    barcode,
+    isSale,
+    isPurchase,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'item_units';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ItemUnit> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('item_id')) {
+      context.handle(
+        _itemIdMeta,
+        itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemIdMeta);
+    }
+    if (data.containsKey('unit_id')) {
+      context.handle(
+        _unitIdMeta,
+        unitId.isAcceptableOrUnknown(data['unit_id']!, _unitIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_unitIdMeta);
+    }
+    if (data.containsKey('unit_code')) {
+      context.handle(
+        _unitCodeMeta,
+        unitCode.isAcceptableOrUnknown(data['unit_code']!, _unitCodeMeta),
+      );
+    }
+    if (data.containsKey('factor_to_base')) {
+      context.handle(
+        _factorToBaseMeta,
+        factorToBase.isAcceptableOrUnknown(
+          data['factor_to_base']!,
+          _factorToBaseMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_factorToBaseMeta);
+    }
+    if (data.containsKey('allow_decimal')) {
+      context.handle(
+        _allowDecimalMeta,
+        allowDecimal.isAcceptableOrUnknown(
+          data['allow_decimal']!,
+          _allowDecimalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('barcode')) {
+      context.handle(
+        _barcodeMeta,
+        barcode.isAcceptableOrUnknown(data['barcode']!, _barcodeMeta),
+      );
+    }
+    if (data.containsKey('is_sale')) {
+      context.handle(
+        _isSaleMeta,
+        isSale.isAcceptableOrUnknown(data['is_sale']!, _isSaleMeta),
+      );
+    }
+    if (data.containsKey('is_purchase')) {
+      context.handle(
+        _isPurchaseMeta,
+        isPurchase.isAcceptableOrUnknown(data['is_purchase']!, _isPurchaseMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {itemId, unitId};
+  @override
+  ItemUnit map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ItemUnit(
+      itemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}item_id'],
+      )!,
+      unitId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unit_id'],
+      )!,
+      unitCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit_code'],
+      ),
+      factorToBase: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}factor_to_base'],
+      )!,
+      allowDecimal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}allow_decimal'],
+      )!,
+      barcode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}barcode'],
+      ),
+      isSale: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_sale'],
+      )!,
+      isPurchase: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_purchase'],
+      )!,
+    );
+  }
+
+  @override
+  $ItemUnitsTable createAlias(String alias) {
+    return $ItemUnitsTable(attachedDatabase, alias);
+  }
+}
+
+class ItemUnit extends DataClass implements Insertable<ItemUnit> {
+  final int itemId;
+  final int unitId;
+  final String? unitCode;
+  final double factorToBase;
+  final bool allowDecimal;
+  final String? barcode;
+  final bool isSale;
+  final bool isPurchase;
+  const ItemUnit({
+    required this.itemId,
+    required this.unitId,
+    this.unitCode,
+    required this.factorToBase,
+    required this.allowDecimal,
+    this.barcode,
+    required this.isSale,
+    required this.isPurchase,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['item_id'] = Variable<int>(itemId);
+    map['unit_id'] = Variable<int>(unitId);
+    if (!nullToAbsent || unitCode != null) {
+      map['unit_code'] = Variable<String>(unitCode);
+    }
+    map['factor_to_base'] = Variable<double>(factorToBase);
+    map['allow_decimal'] = Variable<bool>(allowDecimal);
+    if (!nullToAbsent || barcode != null) {
+      map['barcode'] = Variable<String>(barcode);
+    }
+    map['is_sale'] = Variable<bool>(isSale);
+    map['is_purchase'] = Variable<bool>(isPurchase);
+    return map;
+  }
+
+  ItemUnitsCompanion toCompanion(bool nullToAbsent) {
+    return ItemUnitsCompanion(
+      itemId: Value(itemId),
+      unitId: Value(unitId),
+      unitCode: unitCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unitCode),
+      factorToBase: Value(factorToBase),
+      allowDecimal: Value(allowDecimal),
+      barcode: barcode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(barcode),
+      isSale: Value(isSale),
+      isPurchase: Value(isPurchase),
+    );
+  }
+
+  factory ItemUnit.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ItemUnit(
+      itemId: serializer.fromJson<int>(json['itemId']),
+      unitId: serializer.fromJson<int>(json['unitId']),
+      unitCode: serializer.fromJson<String?>(json['unitCode']),
+      factorToBase: serializer.fromJson<double>(json['factorToBase']),
+      allowDecimal: serializer.fromJson<bool>(json['allowDecimal']),
+      barcode: serializer.fromJson<String?>(json['barcode']),
+      isSale: serializer.fromJson<bool>(json['isSale']),
+      isPurchase: serializer.fromJson<bool>(json['isPurchase']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'itemId': serializer.toJson<int>(itemId),
+      'unitId': serializer.toJson<int>(unitId),
+      'unitCode': serializer.toJson<String?>(unitCode),
+      'factorToBase': serializer.toJson<double>(factorToBase),
+      'allowDecimal': serializer.toJson<bool>(allowDecimal),
+      'barcode': serializer.toJson<String?>(barcode),
+      'isSale': serializer.toJson<bool>(isSale),
+      'isPurchase': serializer.toJson<bool>(isPurchase),
+    };
+  }
+
+  ItemUnit copyWith({
+    int? itemId,
+    int? unitId,
+    Value<String?> unitCode = const Value.absent(),
+    double? factorToBase,
+    bool? allowDecimal,
+    Value<String?> barcode = const Value.absent(),
+    bool? isSale,
+    bool? isPurchase,
+  }) => ItemUnit(
+    itemId: itemId ?? this.itemId,
+    unitId: unitId ?? this.unitId,
+    unitCode: unitCode.present ? unitCode.value : this.unitCode,
+    factorToBase: factorToBase ?? this.factorToBase,
+    allowDecimal: allowDecimal ?? this.allowDecimal,
+    barcode: barcode.present ? barcode.value : this.barcode,
+    isSale: isSale ?? this.isSale,
+    isPurchase: isPurchase ?? this.isPurchase,
+  );
+  ItemUnit copyWithCompanion(ItemUnitsCompanion data) {
+    return ItemUnit(
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      unitId: data.unitId.present ? data.unitId.value : this.unitId,
+      unitCode: data.unitCode.present ? data.unitCode.value : this.unitCode,
+      factorToBase: data.factorToBase.present
+          ? data.factorToBase.value
+          : this.factorToBase,
+      allowDecimal: data.allowDecimal.present
+          ? data.allowDecimal.value
+          : this.allowDecimal,
+      barcode: data.barcode.present ? data.barcode.value : this.barcode,
+      isSale: data.isSale.present ? data.isSale.value : this.isSale,
+      isPurchase: data.isPurchase.present
+          ? data.isPurchase.value
+          : this.isPurchase,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ItemUnit(')
+          ..write('itemId: $itemId, ')
+          ..write('unitId: $unitId, ')
+          ..write('unitCode: $unitCode, ')
+          ..write('factorToBase: $factorToBase, ')
+          ..write('allowDecimal: $allowDecimal, ')
+          ..write('barcode: $barcode, ')
+          ..write('isSale: $isSale, ')
+          ..write('isPurchase: $isPurchase')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    itemId,
+    unitId,
+    unitCode,
+    factorToBase,
+    allowDecimal,
+    barcode,
+    isSale,
+    isPurchase,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ItemUnit &&
+          other.itemId == this.itemId &&
+          other.unitId == this.unitId &&
+          other.unitCode == this.unitCode &&
+          other.factorToBase == this.factorToBase &&
+          other.allowDecimal == this.allowDecimal &&
+          other.barcode == this.barcode &&
+          other.isSale == this.isSale &&
+          other.isPurchase == this.isPurchase);
+}
+
+class ItemUnitsCompanion extends UpdateCompanion<ItemUnit> {
+  final Value<int> itemId;
+  final Value<int> unitId;
+  final Value<String?> unitCode;
+  final Value<double> factorToBase;
+  final Value<bool> allowDecimal;
+  final Value<String?> barcode;
+  final Value<bool> isSale;
+  final Value<bool> isPurchase;
+  final Value<int> rowid;
+  const ItemUnitsCompanion({
+    this.itemId = const Value.absent(),
+    this.unitId = const Value.absent(),
+    this.unitCode = const Value.absent(),
+    this.factorToBase = const Value.absent(),
+    this.allowDecimal = const Value.absent(),
+    this.barcode = const Value.absent(),
+    this.isSale = const Value.absent(),
+    this.isPurchase = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ItemUnitsCompanion.insert({
+    required int itemId,
+    required int unitId,
+    this.unitCode = const Value.absent(),
+    required double factorToBase,
+    this.allowDecimal = const Value.absent(),
+    this.barcode = const Value.absent(),
+    this.isSale = const Value.absent(),
+    this.isPurchase = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : itemId = Value(itemId),
+       unitId = Value(unitId),
+       factorToBase = Value(factorToBase);
+  static Insertable<ItemUnit> custom({
+    Expression<int>? itemId,
+    Expression<int>? unitId,
+    Expression<String>? unitCode,
+    Expression<double>? factorToBase,
+    Expression<bool>? allowDecimal,
+    Expression<String>? barcode,
+    Expression<bool>? isSale,
+    Expression<bool>? isPurchase,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (itemId != null) 'item_id': itemId,
+      if (unitId != null) 'unit_id': unitId,
+      if (unitCode != null) 'unit_code': unitCode,
+      if (factorToBase != null) 'factor_to_base': factorToBase,
+      if (allowDecimal != null) 'allow_decimal': allowDecimal,
+      if (barcode != null) 'barcode': barcode,
+      if (isSale != null) 'is_sale': isSale,
+      if (isPurchase != null) 'is_purchase': isPurchase,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ItemUnitsCompanion copyWith({
+    Value<int>? itemId,
+    Value<int>? unitId,
+    Value<String?>? unitCode,
+    Value<double>? factorToBase,
+    Value<bool>? allowDecimal,
+    Value<String?>? barcode,
+    Value<bool>? isSale,
+    Value<bool>? isPurchase,
+    Value<int>? rowid,
+  }) {
+    return ItemUnitsCompanion(
+      itemId: itemId ?? this.itemId,
+      unitId: unitId ?? this.unitId,
+      unitCode: unitCode ?? this.unitCode,
+      factorToBase: factorToBase ?? this.factorToBase,
+      allowDecimal: allowDecimal ?? this.allowDecimal,
+      barcode: barcode ?? this.barcode,
+      isSale: isSale ?? this.isSale,
+      isPurchase: isPurchase ?? this.isPurchase,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (itemId.present) {
+      map['item_id'] = Variable<int>(itemId.value);
+    }
+    if (unitId.present) {
+      map['unit_id'] = Variable<int>(unitId.value);
+    }
+    if (unitCode.present) {
+      map['unit_code'] = Variable<String>(unitCode.value);
+    }
+    if (factorToBase.present) {
+      map['factor_to_base'] = Variable<double>(factorToBase.value);
+    }
+    if (allowDecimal.present) {
+      map['allow_decimal'] = Variable<bool>(allowDecimal.value);
+    }
+    if (barcode.present) {
+      map['barcode'] = Variable<String>(barcode.value);
+    }
+    if (isSale.present) {
+      map['is_sale'] = Variable<bool>(isSale.value);
+    }
+    if (isPurchase.present) {
+      map['is_purchase'] = Variable<bool>(isPurchase.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ItemUnitsCompanion(')
+          ..write('itemId: $itemId, ')
+          ..write('unitId: $unitId, ')
+          ..write('unitCode: $unitCode, ')
+          ..write('factorToBase: $factorToBase, ')
+          ..write('allowDecimal: $allowDecimal, ')
+          ..write('barcode: $barcode, ')
+          ..write('isSale: $isSale, ')
+          ..write('isPurchase: $isPurchase, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -2641,6 +3217,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ItemsTable items = $ItemsTable(this);
+  late final $ItemUnitsTable itemUnits = $ItemUnitsTable(this);
   late final $CustomersTable customers = $CustomersTable(this);
   late final $PriceListsTable priceLists = $PriceListsTable(this);
   late final $ItemPricesTable itemPrices = $ItemPricesTable(this);
@@ -2651,6 +3228,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index idxItemsCode = Index(
     'idx_items_code',
     'CREATE INDEX idx_items_code ON items (code)',
+  );
+  late final Index idxItemUnitsItem = Index(
+    'idx_item_units_item',
+    'CREATE INDEX idx_item_units_item ON item_units (item_id)',
+  );
+  late final Index idxItemUnitsBarcode = Index(
+    'idx_item_units_barcode',
+    'CREATE INDEX idx_item_units_barcode ON item_units (barcode)',
   );
   late final Index idxCustomersCode = Index(
     'idx_customers_code',
@@ -2686,6 +3271,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     items,
+    itemUnits,
     customers,
     priceLists,
     itemPrices,
@@ -2693,6 +3279,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     statementLineRows,
     meta,
     idxItemsCode,
+    idxItemUnitsItem,
+    idxItemUnitsBarcode,
     idxCustomersCode,
     idxCustomersName,
     idxItemPricesItem,
@@ -2711,6 +3299,7 @@ typedef $$ItemsTableCreateCompanionBuilder =
       Value<String?> baseUnit,
       Value<double?> lastPrice,
       Value<String?> categoryCode,
+      Value<String?> barcode,
     });
 typedef $$ItemsTableUpdateCompanionBuilder =
     ItemsCompanion Function({
@@ -2720,6 +3309,7 @@ typedef $$ItemsTableUpdateCompanionBuilder =
       Value<String?> baseUnit,
       Value<double?> lastPrice,
       Value<String?> categoryCode,
+      Value<String?> barcode,
     });
 
 class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
@@ -2757,6 +3347,11 @@ class $$ItemsTableFilterComposer extends Composer<_$AppDatabase, $ItemsTable> {
 
   ColumnFilters<String> get categoryCode => $composableBuilder(
     column: $table.categoryCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get barcode => $composableBuilder(
+    column: $table.barcode,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2799,6 +3394,11 @@ class $$ItemsTableOrderingComposer
     column: $table.categoryCode,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ItemsTableAnnotationComposer
@@ -2829,6 +3429,9 @@ class $$ItemsTableAnnotationComposer
     column: $table.categoryCode,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get barcode =>
+      $composableBuilder(column: $table.barcode, builder: (column) => column);
 }
 
 class $$ItemsTableTableManager
@@ -2865,6 +3468,7 @@ class $$ItemsTableTableManager
                 Value<String?> baseUnit = const Value.absent(),
                 Value<double?> lastPrice = const Value.absent(),
                 Value<String?> categoryCode = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
               }) => ItemsCompanion(
                 id: id,
                 code: code,
@@ -2872,6 +3476,7 @@ class $$ItemsTableTableManager
                 baseUnit: baseUnit,
                 lastPrice: lastPrice,
                 categoryCode: categoryCode,
+                barcode: barcode,
               ),
           createCompanionCallback:
               ({
@@ -2881,6 +3486,7 @@ class $$ItemsTableTableManager
                 Value<String?> baseUnit = const Value.absent(),
                 Value<double?> lastPrice = const Value.absent(),
                 Value<String?> categoryCode = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
               }) => ItemsCompanion.insert(
                 id: id,
                 code: code,
@@ -2888,6 +3494,7 @@ class $$ItemsTableTableManager
                 baseUnit: baseUnit,
                 lastPrice: lastPrice,
                 categoryCode: categoryCode,
+                barcode: barcode,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -2909,6 +3516,263 @@ typedef $$ItemsTableProcessedTableManager =
       $$ItemsTableUpdateCompanionBuilder,
       (Item, BaseReferences<_$AppDatabase, $ItemsTable, Item>),
       Item,
+      PrefetchHooks Function()
+    >;
+typedef $$ItemUnitsTableCreateCompanionBuilder =
+    ItemUnitsCompanion Function({
+      required int itemId,
+      required int unitId,
+      Value<String?> unitCode,
+      required double factorToBase,
+      Value<bool> allowDecimal,
+      Value<String?> barcode,
+      Value<bool> isSale,
+      Value<bool> isPurchase,
+      Value<int> rowid,
+    });
+typedef $$ItemUnitsTableUpdateCompanionBuilder =
+    ItemUnitsCompanion Function({
+      Value<int> itemId,
+      Value<int> unitId,
+      Value<String?> unitCode,
+      Value<double> factorToBase,
+      Value<bool> allowDecimal,
+      Value<String?> barcode,
+      Value<bool> isSale,
+      Value<bool> isPurchase,
+      Value<int> rowid,
+    });
+
+class $$ItemUnitsTableFilterComposer
+    extends Composer<_$AppDatabase, $ItemUnitsTable> {
+  $$ItemUnitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unitId => $composableBuilder(
+    column: $table.unitId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unitCode => $composableBuilder(
+    column: $table.unitCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get factorToBase => $composableBuilder(
+    column: $table.factorToBase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get allowDecimal => $composableBuilder(
+    column: $table.allowDecimal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isSale => $composableBuilder(
+    column: $table.isSale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPurchase => $composableBuilder(
+    column: $table.isPurchase,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ItemUnitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ItemUnitsTable> {
+  $$ItemUnitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unitId => $composableBuilder(
+    column: $table.unitId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unitCode => $composableBuilder(
+    column: $table.unitCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get factorToBase => $composableBuilder(
+    column: $table.factorToBase,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get allowDecimal => $composableBuilder(
+    column: $table.allowDecimal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isSale => $composableBuilder(
+    column: $table.isSale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isPurchase => $composableBuilder(
+    column: $table.isPurchase,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ItemUnitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ItemUnitsTable> {
+  $$ItemUnitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<int> get unitId =>
+      $composableBuilder(column: $table.unitId, builder: (column) => column);
+
+  GeneratedColumn<String> get unitCode =>
+      $composableBuilder(column: $table.unitCode, builder: (column) => column);
+
+  GeneratedColumn<double> get factorToBase => $composableBuilder(
+    column: $table.factorToBase,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get allowDecimal => $composableBuilder(
+    column: $table.allowDecimal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get barcode =>
+      $composableBuilder(column: $table.barcode, builder: (column) => column);
+
+  GeneratedColumn<bool> get isSale =>
+      $composableBuilder(column: $table.isSale, builder: (column) => column);
+
+  GeneratedColumn<bool> get isPurchase => $composableBuilder(
+    column: $table.isPurchase,
+    builder: (column) => column,
+  );
+}
+
+class $$ItemUnitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ItemUnitsTable,
+          ItemUnit,
+          $$ItemUnitsTableFilterComposer,
+          $$ItemUnitsTableOrderingComposer,
+          $$ItemUnitsTableAnnotationComposer,
+          $$ItemUnitsTableCreateCompanionBuilder,
+          $$ItemUnitsTableUpdateCompanionBuilder,
+          (ItemUnit, BaseReferences<_$AppDatabase, $ItemUnitsTable, ItemUnit>),
+          ItemUnit,
+          PrefetchHooks Function()
+        > {
+  $$ItemUnitsTableTableManager(_$AppDatabase db, $ItemUnitsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ItemUnitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ItemUnitsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ItemUnitsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> itemId = const Value.absent(),
+                Value<int> unitId = const Value.absent(),
+                Value<String?> unitCode = const Value.absent(),
+                Value<double> factorToBase = const Value.absent(),
+                Value<bool> allowDecimal = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
+                Value<bool> isSale = const Value.absent(),
+                Value<bool> isPurchase = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ItemUnitsCompanion(
+                itemId: itemId,
+                unitId: unitId,
+                unitCode: unitCode,
+                factorToBase: factorToBase,
+                allowDecimal: allowDecimal,
+                barcode: barcode,
+                isSale: isSale,
+                isPurchase: isPurchase,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int itemId,
+                required int unitId,
+                Value<String?> unitCode = const Value.absent(),
+                required double factorToBase,
+                Value<bool> allowDecimal = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
+                Value<bool> isSale = const Value.absent(),
+                Value<bool> isPurchase = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ItemUnitsCompanion.insert(
+                itemId: itemId,
+                unitId: unitId,
+                unitCode: unitCode,
+                factorToBase: factorToBase,
+                allowDecimal: allowDecimal,
+                barcode: barcode,
+                isSale: isSale,
+                isPurchase: isPurchase,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ItemUnitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ItemUnitsTable,
+      ItemUnit,
+      $$ItemUnitsTableFilterComposer,
+      $$ItemUnitsTableOrderingComposer,
+      $$ItemUnitsTableAnnotationComposer,
+      $$ItemUnitsTableCreateCompanionBuilder,
+      $$ItemUnitsTableUpdateCompanionBuilder,
+      (ItemUnit, BaseReferences<_$AppDatabase, $ItemUnitsTable, ItemUnit>),
+      ItemUnit,
       PrefetchHooks Function()
     >;
 typedef $$CustomersTableCreateCompanionBuilder =
@@ -4131,6 +4995,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$ItemsTableTableManager get items =>
       $$ItemsTableTableManager(_db, _db.items);
+  $$ItemUnitsTableTableManager get itemUnits =>
+      $$ItemUnitsTableTableManager(_db, _db.itemUnits);
   $$CustomersTableTableManager get customers =>
       $$CustomersTableTableManager(_db, _db.customers);
   $$PriceListsTableTableManager get priceLists =>
