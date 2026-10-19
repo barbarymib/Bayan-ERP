@@ -258,3 +258,50 @@ describe('ApprovalsService lifecycle', () => {
     expect(finalizeReturn).toHaveBeenCalledWith(9, returnUser);
   });
 });
+
+describe('ApprovalsService.list (R4-B3)', () => {
+  function listHarness() {
+    const calls: { where: Record<string, unknown> }[] = [];
+    const prisma = {
+      approval: {
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          calls.push(args);
+          return [];
+        },
+      },
+      priceStatement: { findMany: async () => [] },
+      returnStatement: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const svc = new ApprovalsService(
+      prisma,
+      {} as never,
+      {} as never,
+      { write: async () => undefined } as never,
+    );
+    return { svc, calls };
+  }
+
+  it('يحصر القائمة في أنواع الطلبات التي يملك المستخدم صلاحيتها', async () => {
+    const { svc, calls } = listHarness();
+    await svc.list({}, 1, ['return.approve']);
+    const where = calls[0]!.where as { type?: { in?: string[] } };
+    expect(where.type?.in).toEqual(['RETURN']);
+  });
+
+  it('يمنح حامل صلاحية الخصومات كل أنواع الخصم دون المرتجعات', async () => {
+    const { svc, calls } = listHarness();
+    await svc.list({}, 1, ['discount.approve']);
+    const where = calls[0]!.where as { type?: { in?: string[] } };
+    expect(where.type?.in).toEqual(
+      expect.arrayContaining(['ITEM_DISCOUNT', 'HEADER_DISCOUNT', 'BELOW_COST', 'BELOW_MIN_PRICE']),
+    );
+    expect(where.type?.in).not.toContain('RETURN');
+  });
+
+  it('بلا صلاحيات معروفة يعيد كل الأنواع (توافق خلفي)', async () => {
+    const { svc, calls } = listHarness();
+    await svc.list({}, 1);
+    const where = calls[0]!.where as { type?: unknown };
+    expect(where.type).toBeUndefined();
+  });
+});

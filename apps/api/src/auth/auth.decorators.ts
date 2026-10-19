@@ -8,6 +8,10 @@ export const PERMISSIONS_KEY = 'requiredPermissions';
 /** تتطلب صلاحيات محددة (من مصفوفة §4.2) */
 export const Permissions = (...codes: string[]) => SetMetadata(PERMISSIONS_KEY, codes);
 
+export const ANY_PERMISSIONS_KEY = 'requiredAnyPermissions';
+/** تتطلب إحدى الصلاحيات المذكورة (OR) — تُستخدم حين يختلف نوع الطلب (R4-B3). */
+export const AnyPermission = (...codes: string[]) => SetMetadata(ANY_PERMISSIONS_KEY, codes);
+
 export const GLOBAL_ADMIN_KEY = 'globalAdminOnly';
 /** مسار للمشرف العام للبيئة فقط (SaaS §12.4) */
 export const GlobalAdmin = () => SetMetadata(GLOBAL_ADMIN_KEY, true);

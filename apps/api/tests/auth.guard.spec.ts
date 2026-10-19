@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthGuard } from '../src/auth/auth.guard.js';
 import { FeaturesService } from '../src/auth/features.service.js';
-import { IS_PUBLIC_KEY, PERMISSIONS_KEY, type AuthUser } from '../src/auth/auth.decorators.js';
+import { IS_PUBLIC_KEY, PERMISSIONS_KEY, ANY_PERMISSIONS_KEY, type AuthUser } from '../src/auth/auth.decorators.js';
 
 function makeContext(overrides: {
   public?: boolean;
@@ -181,6 +181,46 @@ describe('AuthGuard', () => {
     });
     const { ctx } = makeContext({ header: 'Bearer abc' });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it('R4-B3: AnyPermission passes when the user holds at least one of the codes (OR)', async () => {
+    const guard = makeGuard({
+      reflector: {
+        getAllAndOverride: (key: string) => {
+          if (key === IS_PUBLIC_KEY) return false;
+          if (key === PERMISSIONS_KEY) return [];
+          if (key === ANY_PERMISSIONS_KEY) return ['discount.approve', 'return.approve'];
+          return undefined;
+        },
+      } as never,
+      jwt: {
+        verifyAsync: vi.fn(async (): Promise<AuthUser> => {
+          return { id: 1, sub: 1, name: 'x', roleCode: 'ACCOUNTANT', repCode: null, permissions: ['return.approve'] } as AuthUser;
+        }),
+      } as never,
+    });
+    const { ctx } = makeContext({ header: 'Bearer abc' });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it('R4-B3: AnyPermission rejects 403 when the user holds none of the codes', async () => {
+    const guard = makeGuard({
+      reflector: {
+        getAllAndOverride: (key: string) => {
+          if (key === IS_PUBLIC_KEY) return false;
+          if (key === PERMISSIONS_KEY) return [];
+          if (key === ANY_PERMISSIONS_KEY) return ['discount.approve', 'return.approve'];
+          return undefined;
+        },
+      } as never,
+      jwt: {
+        verifyAsync: vi.fn(async (): Promise<AuthUser> => {
+          return { id: 1, sub: 1, name: 'x', roleCode: 'REP', repCode: null, permissions: ['statement.create'] } as AuthUser;
+        }),
+      } as never,
+    });
+    const { ctx } = makeContext({ header: 'Bearer abc' });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rejects 403 when the user belongs to a disabled company', async () => {

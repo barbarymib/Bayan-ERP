@@ -16,6 +16,7 @@ import {
   GLOBAL_ADMIN_KEY,
   IS_PUBLIC_KEY,
   PERMISSIONS_KEY,
+  ANY_PERMISSIONS_KEY,
   type AuthUser,
 } from './auth.decorators.js';
 
@@ -105,6 +106,14 @@ export class AuthGuard implements CanActivate {
       if (missing.length) {
         throw new ForbiddenException(`Missing permissions: ${missing.join(', ')}`);
       }
+    }
+
+    const requiredAny = this.reflector.getAllAndOverride<string[]>(ANY_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (requiredAny?.length && !requiredAny.some((p) => payload.permissions?.includes(p))) {
+      throw new ForbiddenException(`Missing permissions (any of): ${requiredAny.join(', ')}`);
     }
 
     const requiredFeatures = this.reflector.getAllAndOverride<string[]>(FEATURES_KEY, [

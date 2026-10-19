@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.decorators.js';
+import type { ApprovalType } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { SalesOpsService } from '../common/sales-ops.service.js';
 import { StockService } from '../common/stock.service.js';
@@ -29,10 +30,20 @@ export class ApprovalsService {
     private readonly audits: AuditLogsService,
   ) {}
 
-  async list(query: QueryApprovalsDto, companyId: number | null = null) {
+  async list(query: QueryApprovalsDto, companyId: number | null = null, permissions?: string[]) {
     const limit = query.limit ?? 20;
+    // R4-B3: لا يُعرض إلا أنواع الطلبات التي يملك المستخدم صلاحية اعتمادها.
+    const allowedTypes = permissions
+      ? (Object.entries(TYPE_PERMISSION)
+          .filter(([, perm]) => permissions.includes(perm))
+          .map(([type]) => type) as ApprovalType[])
+      : undefined;
     const rows = await this.prisma.approval.findMany({
-      where: { ...tenantWhere(companyId), ...(query.status ? { status: query.status } : { status: 'PENDING' }) },
+      where: {
+        ...tenantWhere(companyId),
+        ...(allowedTypes ? { type: { in: allowedTypes } } : {}),
+        ...(query.status ? { status: query.status } : { status: 'PENDING' }),
+      },
       include: {
         requestedBy: { select: { id: true, name: true, repCode: true } },
         decidedBy: { select: { id: true, name: true } },
