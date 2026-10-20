@@ -462,6 +462,7 @@ export class SyncService {
 
     const lat = num(payload['lat']);
     const lng = num(payload['lng']);
+    const saveAsDraft = typeof payload['saveAsDraft'] === 'boolean' ? payload['saveAsDraft'] : undefined;
 
     const dto: CreateStatementDto = {
       customerId,
@@ -472,6 +473,7 @@ export class SyncService {
       ...(paymentTerm ? { paymentTerm } : {}),
       ...(lat !== undefined ? { lat } : {}),
       ...(lng !== undefined ? { lng } : {}),
+      ...(saveAsDraft !== undefined ? { saveAsDraft } : {}),
       discount,
       notes:
         typeof payload['notes'] === 'string'

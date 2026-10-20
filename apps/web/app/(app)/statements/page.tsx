@@ -338,7 +338,7 @@ function CreateStatementModal({
     setLines(next);
   }
 
-  async function submit() {
+  async function submit(saveAsDraft = false) {
     setBusy(true);
     setError(null);
     const cleaned = lines
@@ -379,13 +379,14 @@ function CreateStatementModal({
         taxPercent: Number(taxPercent) || 0,
         ...(pos ? { lat: pos.lat, lng: pos.lng } : {}),
         notes: notes.trim() || undefined,
+        ...(saveAsDraft ? { saveAsDraft: true } : {}),
       });
       const warning = res.creditWarning
         ? ` (تحذير: الرصيد المتوقع ${formatMoney(res.creditWarning.projectedBalance)} ج مقابل حد ${formatMoney(res.creditWarning.creditLimit)} ج)`
         : '';
       const freeze = res.freezeWarning ? ` [${res.freezeWarning}]` : '';
       onSaved(
-        `تم إنشاء ${res.number} برقم مرجعي ${res.id}${warning}${freeze}`,
+        `${saveAsDraft ? 'حُفظ كمسودة' : 'تم إنشاء'} ${res.number} برقم مرجعي ${res.id}${warning}${freeze}`,
         res.pricingAlerts ?? [],
       );
     } catch (err) {
@@ -590,8 +591,15 @@ function CreateStatementModal({
         <Button variant="secondary" onClick={onClose}>
           إلغاء
         </Button>
-        <Button onClick={submit} disabled={busy || !customerId || cleanedCount(lines) === 0}>
-          {busy ? 'جارِ الحفظ…' : 'حفظ البيان'}
+        <Button
+          variant="secondary"
+          onClick={() => submit(true)}
+          disabled={busy || !customerId || cleanedCount(lines) === 0}
+        >
+          حفظ كمسودة
+        </Button>
+        <Button onClick={() => submit()} disabled={busy || !customerId || cleanedCount(lines) === 0}>
+          {busy ? 'جارِ الحفظ…' : 'حفظ واعتماد'}
         </Button>
       </div>
     </Modal>

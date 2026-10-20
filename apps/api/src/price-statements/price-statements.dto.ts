@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsIn,
   IsNumber,
+  IsBoolean,
   IsOptional,
   IsString,
   Max,
@@ -141,6 +142,14 @@ export class CreateStatementDto {
   @IsOptional()
   @IsNumber()
   lng?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'حفظ كمسودة بدلاً من الاعتماد المباشر (§6.1 «حفظ كمسودة / اعتماد») — يبقى البيان DRAFT بلا ترحيل مخزني/دفتري حتى «اعتماد» لاحق.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  saveAsDraft?: boolean;
 }
 
 export class UpdateStatementDto extends CreateStatementDto {

@@ -217,7 +217,7 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
     if (next != _paymentTerm) _paymentTerm = next;
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool saveAsDraft = false}) async {
     if (_customerId == null || _lines.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('اختر العميل وأضف بنداً واحداً')));
@@ -267,6 +267,8 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
         };
       }).toList(),
       'createdAt': DateTime.now().toIso8601String(),
+      // «حفظ كمسودة / اعتماد» (§6.1): يبقى البيان مسودةً بلا ترحيل حتى الاعتماد اللاحق.
+      if (saveAsDraft) 'saveAsDraft': true,
     };
     // Best-effort issuance location; statement still saves if GPS is unavailable.
     try {
@@ -283,7 +285,11 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'حُفظ محلياً — بانتظار الرفع' : 'البيان موجود مسبقاً'),
+        content: Text(
+          ok
+              ? (saveAsDraft ? 'حُفظت كمسودة — بانتظار الرفع' : 'حُفظ محلياً — بانتظار الرفع')
+              : 'البيان موجود مسبقاً',
+        ),
         backgroundColor: ok ? BayanTheme.uploadedColor : null,
       ),
     );
@@ -386,9 +392,22 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ محلياً'),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _saving ? null : () => _save(saveAsDraft: true),
+                  child: const Text('حفظ كمسودة'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ واعتماد'),
+                ),
+              ),
+            ],
           ),
         ),
       ),

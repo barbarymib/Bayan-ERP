@@ -194,6 +194,30 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
     expect(dto.lines[0]!.unitCode).toBeUndefined();
     expect(dto.lines[1]!.unitCode).toBeUndefined();
   });
+
+  it('يمرّر saveAsDraft من حمولة الجهاز إلى statements.create — R4-B7 §6.1', async () => {
+    const { service, statements } = harnessWithStatement({
+      id: 35,
+      net: 100,
+      status: 'DRAFT',
+      number: 'BP-000035',
+    });
+    await service.push(repUser, pushStatementDto({ ...payload, saveAsDraft: true }));
+    const dto = statements.create.mock.calls[0]![0] as { saveAsDraft?: boolean };
+    expect(dto.saveAsDraft).toBe(true);
+  });
+
+  it('لا يمرّر saveAsDraft عند غيابه أو عند قيمة غير منطقية — R4-B7 §6.1', async () => {
+    const { service, statements } = harnessWithStatement({
+      id: 36,
+      net: 100,
+      status: 'APPROVED',
+      number: 'BP-000036',
+    });
+    await service.push(repUser, pushStatementDto({ ...payload, saveAsDraft: 'yes' }));
+    const dto = statements.create.mock.calls[0]![0] as { saveAsDraft?: boolean };
+    expect(dto.saveAsDraft).toBeUndefined();
+  });
 });
 
 describe('SyncService.delta — باركود الأصناف والوحدات (G13 §9)', () => {

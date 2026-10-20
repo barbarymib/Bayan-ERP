@@ -292,9 +292,10 @@ export class PriceStatementsService {
           refId: statement.id,
         });
       }
-    } else {
+    } else if (!dto.saveAsDraft) {
       await this.ops.finalizeStatement(statement.id, user);
     }
+    // «حفظ كمسودة» (§6.1): بيان نظيف يُحفظ DRAFT بلا ترحيل حتى الاعتماد اللاحق.
 
     // تدقيق إنشاء البيان مع الخصومات (§5.6/§9)
     await this.audits.write({
@@ -305,7 +306,7 @@ export class PriceStatementsService {
       afterJson: {
         number: statement.number,
         customerId: customer.id,
-        status: requiresApproval ? 'DRAFT' : 'APPROVED',
+        status: requiresApproval || dto.saveAsDraft ? 'DRAFT' : 'APPROVED',
         subtotal: totals.subtotal,
         discountType: dto.discount?.type ?? null,
         discountValue: dto.discount?.value ?? null,
@@ -506,7 +507,7 @@ export class PriceStatementsService {
             refId: id,
           });
         }
-      } else {
+      } else if (!dto.saveAsDraft) {
         await this.ops.finalizeStatement(id, user);
       }
     }
@@ -525,7 +526,7 @@ export class PriceStatementsService {
         discountAmount: Number(existing.discountAmount),
       },
       afterJson: {
-        status: approved || !requiresApproval ? 'APPROVED' : 'DRAFT',
+        status: approved || (!requiresApproval && !dto.saveAsDraft) ? 'APPROVED' : 'DRAFT',
         net: totals.net,
         subtotal: totals.subtotal,
         discountType: dto.discount?.type ?? null,

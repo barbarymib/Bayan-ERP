@@ -181,7 +181,13 @@ function harness(
     },
     unit: { findUnique: async () => ({ id: 6, code: 'PCS' }) },
     itemUnit: { findUnique: async () => null },
-    approval: { findMany: async () => [] },    customerRepAssignment: {
+    approval: {
+      findMany: async () => [],
+      createMany: async (args: { data: { type: string; refJson?: Record<string, unknown> }[] }) => {
+        calls.approvals.push(...args.data);
+        return { count: args.data.length };
+      },
+    },    customerRepAssignment: {
       findMany: async () => (opts.assignments ?? []).map((customerId) => ({ customerId })),
       findFirst: async (args: { where?: { customerId?: number } } = {}) =>
         (opts.assignments ?? []).includes(args.where?.customerId ?? -1) ? { id: 1 } : null,
@@ -713,5 +719,51 @@ describe('PriceStatementsService stale draft in list/get (R3-E4 §11)', () => {
     const res = await service.get(7, approver);
     expect(res.isStaleDraft).toBe(true);
     expect(res.ageDays).toBe(4);
+  });
+});
+
+describe('PriceStatementsService saveAsDraft (R4-B7 §6.1 «حفظ كمسودة / اعتماد»)', () => {
+  it('create: يحفظ كمسودة بلا ترحيل عند طلب saveAsDraft (بيان نظيف)', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' });
+    const dto = { customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 100 }], saveAsDraft: true };
+    await service.create(dto as never, approver);
+    expect(calls.finalized).toBe(false);
+    expect(calls.reservations).toHaveLength(0);
+    expect(calls.approvals).toHaveLength(0);
+    // الرأس يُنشأ دائماً بحالة مسودة
+    expect(calls.statementCreate[0]!.data.status).toBe('DRAFT');
+  });
+
+  it('create: يرحّل البيان تلقائياً عند غياب saveAsDraft (السلوك الافتراضي)', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' });
+    const dto = { customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 100 }] };
+    await service.create(dto as never, approver);
+    expect(calls.finalized).toBe(true);
+  });
+
+  it('create: saveAsDraft لا يمنع طلب الموافقة عند تجاوز الحد (يبقى مسودة + موافقة)', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' });
+    const dto = {
+      customerId: 2,
+      lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50, discount: { type: 'percent' as const, value: 30 } }],
+      saveAsDraft: true,
+    };
+    await service.create(dto as never, approver);
+    expect(calls.finalized).toBe(false);
+    expect(calls.approvals.length).toBeGreaterThan(0);
+  });
+
+  it('update: يبقي المسودة دون ترحيل عند saveAsDraft على بيان نظيف', async () => {
+    const { service, calls } = harness({ status: 'DRAFT', net: 100 });
+    await service.update(7, { ...editDto, saveAsDraft: true }, editor);
+    expect(calls.finalized).toBe(false);
+    const statusUpdate = calls.updates.find((u) => u.data.status === 'DRAFT');
+    expect(statusUpdate).toBeDefined();
+  });
+
+  it('update: اعتماد المسودة عبر saveAsDraft=false (افتراضي) يرحّل الأثر', async () => {
+    const { service, calls } = harness({ status: 'DRAFT', net: 100 });
+    await service.update(7, editDto, editor);
+    expect(calls.finalized).toBe(true);
   });
 });

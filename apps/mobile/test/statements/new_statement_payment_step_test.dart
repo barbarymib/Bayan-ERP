@@ -98,4 +98,11 @@ void main() {
     // المدفوع أصبح = الصافي → نوع السداد مستنتج «نقدي».
     expect(find.text('نقدي'), findsOneWidget);
   });
+
+  testWidgets('يعرض خياري «حفظ كمسودة» و«حفظ واعتماد» (§6.1)', (tester) async {
+    await pump(tester);
+
+    expect(find.text('حفظ كمسودة'), findsOneWidget);
+    expect(find.text('حفظ واعتماد'), findsOneWidget);
+  });
 }
