@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { can, del, get, patch, put, type CompanyFeatureItem, type CompanyFeaturesResponse, type CompanySettings } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CURRENCIES, setActiveCurrency } from '@/lib/currency';
+import { fileToDataUrl } from '@/lib/image';
 import { Badge, Button, ErrorBox, Field, Notice, PageHeader, Select, TextInput } from '@/components/ui';
 
 export default function CompanySettingsPage() {
@@ -17,6 +18,8 @@ export default function CompanySettingsPage() {
   const [contactName, setContactName] = useState('');
   const [taxPercent, setTaxPercent] = useState('');
   const [currency, setCurrency] = useState('EGP');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export default function CompanySettingsPage() {
           setContactName(d.company.contactName ?? '');
           setTaxPercent(String(d.company.taxPercent));
           setCurrency(d.company.currency ?? 'EGP');
+          setLogoUrl(d.company.logoUrl ?? null);
           setError(null);
         }
       })
@@ -61,16 +65,32 @@ export default function CompanySettingsPage() {
         contactName,
         taxPercent: Number(taxPercent) || 0,
         currency,
+        // R4-C4: أرسل الشعار فقط عند تغيّره (data URL كبير لا يُعاد كل حفظ).
+        ...(logoUrl !== (settings?.company.logoUrl ?? null) ? { logoUrl: logoUrl ?? '' } : {}),
       });
       setSettings((s) => (s ? { ...s, company: d.company } : s));
       setTaxPercent(String(d.company.taxPercent));
       setCurrency(d.company.currency ?? 'EGP');
+      setLogoUrl(d.company.logoUrl ?? null);
       setActiveCurrency(d.company.currency);
       setNotice('تم حفظ إعدادات الشركة');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل حفظ الإعدادات');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function pickLogo(file: File | null) {
+    if (!file) return;
+    setLogoBusy(true);
+    setError(null);
+    try {
+      setLogoUrl(await fileToDataUrl(file, 512, 0.85));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذّر قراءة الصورة');
+    } finally {
+      setLogoBusy(false);
     }
   }
 
@@ -137,6 +157,53 @@ export default function CompanySettingsPage() {
             <div className="mt-2 text-xs text-gray-400">
               تُستخدم في تفقيط المبالغ بالعربية وفي أوراق الطباعة والتصدير. الافتراضي: جنيه مصري.
             </div>
+          </div>
+
+          {/* R4-C4: شعار يظهر في ترويسة الطباعة وPDF (§5.6). */}
+          <div className="mt-4">
+            <Field label="شعار الشركة (للوصول والطباعة)">
+              <div className="flex items-center gap-3">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl}
+                    alt="شعار الشركة"
+                    className="h-14 w-14 rounded border border-gray-200 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed border-gray-300 text-xs text-gray-400">
+                    بلا شعار
+                  </div>
+                )}
+                {manage ? (
+                  <>
+                    <label className="cursor-pointer rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                      {logoBusy ? 'جارٍ المعالجة…' : logoUrl ? 'تغيير' : 'رفع صورة'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        disabled={logoBusy}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          e.target.value = '';
+                          void pickLogo(f);
+                        }}
+                      />
+                    </label>
+                    {logoUrl ? (
+                      <Button variant="ghost" onClick={() => setLogoUrl(null)}>
+                        إزالة
+                      </Button>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+            </Field>
+            <div className="mt-1 text-xs text-gray-400">يظهر في ترويسة طباعة بيان الأسعار وملف PDF — يُضغط تلقائياً إلى 512 بكسل.</div>
           </div>
 
           {!manage ? (

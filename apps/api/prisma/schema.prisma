@@ -293,6 +293,7 @@ model Company {
   phone       String?
   email       String?
   contactName String?
+  logoUrl     String? // R4-C4: print logo (data URL or https) - 5.6
   taxPercent  Decimal       @default(0) @db.Decimal(5, 2) // الضريبة الافتراضية للشركة (R3-B15)
   currency    String        @default("EGP") // عملة الشركة (§3): جنيه مصري افتراضياً (R3-A13)
   status      CompanyStatus @default(ACTIVE)

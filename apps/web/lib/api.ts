@@ -676,6 +676,7 @@ export interface CompanySettings {
     phone: string | null;
     email: string | null;
     contactName: string | null;
+    logoUrl?: string | null;
     taxPercent: number;
     currency: string;
   };

@@ -29,6 +29,12 @@ export class UpdateCompanySettingsDto {
   @MaxLength(200)
   contactName?: string;
 
+  @ApiPropertyOptional({ description: 'شعار الشركة للطباعة — data URL (image/…) أو رابط https؛ نص فارغ لحذفه (R4-C4 §5.6)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000_000)
+  logoUrl?: string;
+
   @ApiPropertyOptional({ description: 'الضريبة الافتراضية للشركة %', minimum: 0, maximum: 100 })
   @IsOptional()
   @IsNumber()

@@ -1,6 +1,12 @@
-import type { PriceStatement } from '@/lib/api';
-import { formatDate } from '@/components/ui';
+import type { CompanySettings, PriceStatement } from '@/lib/api';
+import { formatDate, formatDateHijri } from '@/components/ui';
 import { formatArabicAmount, numberToArabic } from '@/lib/tafqit';
+
+/** بيانات الشركة لترويسة الطباعة (R4-C4 §5.6). */
+export type PrintCompany = Pick<
+  CompanySettings['company'],
+  'nameAr' | 'phone' | 'email' | 'logoUrl'
+> | null;
 
 type PdfMake = {
   vfs: Record<string, string>;
@@ -56,25 +62,53 @@ async function ensurePdfMake(): Promise<PdfMake> {
   return pdfMake!;
 }
 
+/** تحويل شعار الشركة إلى data URL قابل للضمّ في PDF (رابط https يُجلب ويُحوّل). */
+async function resolveLogo(logoUrl: string | null | undefined): Promise<string | null> {
+  if (!logoUrl) return null;
+  if (logoUrl.startsWith('data:')) return logoUrl;
+  try {
+    const res = await fetch(logoUrl);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const mime = res.headers.get('content-type') || 'image/png';
+    return `data:${mime};base64,${btoa(bin)}`;
+  } catch {
+    return null;
+  }
+}
+
 /** تصدير PDF عربي RTL (تقييم pdfmake بخط مضمّن — ADR-7). */
-export async function downloadStatementPdf(st: PriceStatement, outstanding: number | null): Promise<void> {
+export async function downloadStatementPdf(
+  st: PriceStatement,
+  outstanding: number | null,
+  company: PrintCompany = null,
+): Promise<void> {
   const pm = await ensurePdfMake();
-  await pm.createPdf(statementDoc(st, outstanding)).download(`${st.number}.pdf`);
+  const logo = await resolveLogo(company?.logoUrl);
+  await pm.createPdf(statementDoc(st, outstanding, company, logo)).download(`${st.number}.pdf`);
 }
 
 /** PDF كـ Blob (للمشاركة عبر واتساب/Web Share — G18). */
-export async function statementPdfBlob(st: PriceStatement, outstanding: number | null): Promise<Blob> {
+export async function statementPdfBlob(
+  st: PriceStatement,
+  outstanding: number | null,
+  company: PrintCompany = null,
+): Promise<Blob> {
   const pm = await ensurePdfMake();
+  const logo = await resolveLogo(company?.logoUrl);
   return new Promise<Blob>((resolve, reject) => {
     try {
-      pm.createPdf(statementDoc(st, outstanding)).getBlob((b) => resolve(b));
+      pm.createPdf(statementDoc(st, outstanding, company, logo)).getBlob((b) => resolve(b));
     } catch (err) {
       reject(err);
     }
   });
 }
 
-function statementDoc(st: PriceStatement, outstanding: number | null): object {
+function statementDoc(st: PriceStatement, outstanding: number | null, company: PrintCompany, logo: string | null): object {
   const before = outstanding != null ? outstanding - Number(st.net) : null;
 
   const label = (text: string): object => ({ text: `${text}:`, bold: true, fontSize: 12, color: '#334155' });
@@ -118,9 +152,17 @@ function statementDoc(st: PriceStatement, outstanding: number | null): object {
       {
         columns: [
           [
+            ...(logo ? [{ image: logo, width: 56, margin: [0, 0, 0, 4] as [number, number, number, number] }] : []),
             { text: 'نظام بيان', fontSize: 20, bold: true, color: '#1d4ed8' },
-            { text: 'شركة تجارة الحديد والتشييد', fontSize: 12, color: '#64748b' },
-            { text: 'بريد: info@company.com  —  هاتف: 0100 000 0000', fontSize: 9, color: '#94a3b8' },
+            { text: company?.nameAr ?? 'بيان', fontSize: 12, color: '#64748b' },
+            {
+              text: [
+                ...(company?.email ? [`بريد: ${company.email}`] : []),
+                ...(company?.phone ? [`هاتف: ${company.phone}`] : []),
+              ].join('  —  ') || ' ',
+              fontSize: 9,
+              color: '#94a3b8',
+            },
           ],
           {
             alignment: 'center',
@@ -128,6 +170,8 @@ function statementDoc(st: PriceStatement, outstanding: number | null): object {
               { text: 'بيان أسعار', fontSize: 26, bold: true, color: '#0f172a' },
               { text: `الرقم: ${st.number}`, fontSize: 12, marginTop: 4 },
               { text: `التاريخ: ${formatDate(st.date)}`, fontSize: 12 },
+              // R4-B11: التاريخ الهجري بجانب الميلادي (§9).
+              { text: `هجري: ${formatDateHijri(st.date)}`, fontSize: 10, color: '#64748b' },
             ],
           },
         ],

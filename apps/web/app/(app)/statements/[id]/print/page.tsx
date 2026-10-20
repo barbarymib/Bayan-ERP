@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
   get,
+  type CompanySettings,
   type CustomerStatement,
   type PriceStatement,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { ErrorBox, formatDate, formatMoney } from '@/components/ui';
-import { downloadStatementPdf, statementPdfBlob } from '@/lib/statement-pdf';
+import { ErrorBox, formatDate, formatDateHijri, formatMoney } from '@/components/ui';
+import { downloadStatementPdf, statementPdfBlob, type PrintCompany } from '@/lib/statement-pdf';
 import { downloadBlob, shareFileOrWhatsApp, type WhatsAppLink } from '@/lib/share';
 import { formatArabicAmount } from '@/lib/tafqit';
 
@@ -19,6 +20,7 @@ export default function StatementPrintPage() {
   const { user } = useAuth();
   const [statement, setStatement] = useState<PriceStatement | null>(null);
   const [outstanding, setOutstanding] = useState<number | null>(null);
+  const [company, setCompany] = useState<PrintCompany>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
@@ -44,6 +46,14 @@ export default function StatementPrintPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'فشل تحميل البيان');
+      });
+    // R4-C4: هوية الشركة الحقيقية بدل النصوص المثبتة في الترويسة.
+    get<CompanySettings>('/company')
+      .then((c) => {
+        if (!cancelled) setCompany(c.company);
+      })
+      .catch(() => {
+        if (!cancelled) setCompany(null);
       });
     return () => {
       cancelled = true;
@@ -76,7 +86,7 @@ export default function StatementPrintPage() {
     setShareNotice(null);
     try {
       const link = await get<WhatsAppLink>(`/whatsapp/statement/${statement.customer.id}`);
-      const blob = await statementPdfBlob(statement, outstanding);
+      const blob = await statementPdfBlob(statement, outstanding, company);
       const file = new File([blob], `${statement.number}.pdf`, { type: 'application/pdf' });
       const outcome = await shareFileOrWhatsApp({ text: link.text, url: link.url, file });
       if (outcome === 'shared') return;
@@ -111,7 +121,7 @@ export default function StatementPrintPage() {
         <button
           onClick={() => {
             setPdfBusy(true);
-            downloadStatementPdf(statement, outstanding)
+            downloadStatementPdf(statement, outstanding, company)
               .catch(() => setError('تعذّر إنشاء ملف PDF'))
               .finally(() => setPdfBusy(false));
           }}
@@ -157,7 +167,7 @@ export default function StatementPrintPage() {
         className={`print-sheet mx-auto my-4 bg-white ${size === 'A4' ? 'w-a4' : size === 'A5' ? 'w-a5' : 'w-80'}`}
         dir="rtl"
       >
-        <PrintHeader statement={statement} />
+        <PrintHeader statement={statement} company={company} />
         <table className="w-full border-collapse text-right">
           <thead>
             <tr className="border-y-2 border-black text-sm font-black">
@@ -268,18 +278,33 @@ export default function StatementPrintPage() {
   );
 }
 
-function PrintHeader({ statement }: { statement: PriceStatement }) {
+function PrintHeader({ statement, company }: { statement: PriceStatement; company: PrintCompany }) {
   return (
     <div className="mb-3 flex items-start justify-between border-b-2 border-black pb-3">
       <div>
+        {company?.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={company.logoUrl}
+            alt={company.nameAr}
+            className="mb-1 h-14 w-14 object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : null}
         <div className="text-xl font-black">نظام بيان</div>
-        <div className="text-xs text-gray-600">شركة تجارة الحديد والتشييد</div>
-        <div className="text-[10px] text-gray-400">هاتف: 0100 000 0000 — info@company.com</div>
+        <div className="text-xs text-gray-600">{company?.nameAr ?? 'بيان'}</div>
+        <div className="text-[10px] text-gray-400">
+          {[company?.phone ? `هاتف: ${company.phone}` : null, company?.email ?? null].filter(Boolean).join(' — ')}
+        </div>
       </div>
       <div className="text-center">
         <div className="text-2xl font-black">بيان أسعار</div>
         <div>الرقم: {statement.number}</div>
         <div>التاريخ: {formatDate(statement.date)}</div>
+        {/* R4-B11: التاريخ الهجري بجانب الميلادي (§9). */}
+        <div className="text-[10px] text-gray-500">هجري: {formatDateHijri(statement.date)}</div>
       </div>
     </div>
   );

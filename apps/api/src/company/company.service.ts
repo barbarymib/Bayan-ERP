@@ -27,6 +27,7 @@ export class CompanyService {
         phone: company.phone,
         email: company.email,
         contactName: company.contactName,
+        logoUrl: company.logoUrl,
         taxPercent: Number(company.taxPercent),
         currency: company.currency,
       },
@@ -38,6 +39,14 @@ export class CompanyService {
     const id = this.requireCompanyId(companyId);
     const company = await this.prisma.company.findUnique({ where: { id } });
     if (!company) throw new NotFoundException(`Company ${id} not found`);
+    // R4-C4: الشعار data-URL صورة أو رابط https فقط (لا تخزين نصوص عشوائية).
+    let logoUrl: string | null | undefined;
+    if (dto.logoUrl !== undefined) {
+      const v = dto.logoUrl.trim();
+      if (v === '') logoUrl = null;
+      else if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v) || /^https:\/\//i.test(v)) logoUrl = v;
+      else throw new BadRequestException('logoUrl يجب أن يكون data URL لصورة أو رابط https');
+    }
     const updated = await this.prisma.company.update({
       where: { id },
       data: {
@@ -45,6 +54,7 @@ export class CompanyService {
         ...(dto.phone !== undefined ? { phone: dto.phone || null } : {}),
         ...(dto.email !== undefined ? { email: dto.email || null } : {}),
         ...(dto.contactName !== undefined ? { contactName: dto.contactName || null } : {}),
+        ...(logoUrl !== undefined ? { logoUrl } : {}),
         ...(dto.taxPercent != null ? { taxPercent: dto.taxPercent } : {}),
         ...(dto.currency != null ? { currency: dto.currency } : {}),
       },
@@ -59,6 +69,7 @@ export class CompanyService {
         phone: company.phone,
         email: company.email,
         contactName: company.contactName,
+        logoChanged: logoUrl !== undefined && logoUrl !== company.logoUrl,
         taxPercent: Number(company.taxPercent),
         currency: company.currency,
       },
@@ -67,6 +78,7 @@ export class CompanyService {
         phone: updated.phone,
         email: updated.email,
         contactName: updated.contactName,
+        logoChanged: logoUrl !== undefined && logoUrl !== company.logoUrl,
         taxPercent: Number(updated.taxPercent),
         currency: updated.currency,
         actor: actor ?? null,
@@ -80,6 +92,7 @@ export class CompanyService {
         phone: updated.phone,
         email: updated.email,
         contactName: updated.contactName,
+        logoUrl: updated.logoUrl,
         taxPercent: Number(updated.taxPercent),
         currency: updated.currency,
       },
