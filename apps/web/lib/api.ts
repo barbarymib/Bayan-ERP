@@ -1335,6 +1335,270 @@ export interface WeightNotesReport {
   rows: WeightNoteRow[];
 }
 
+export type SalesDimension = 'item' | 'category' | 'brand' | 'customer' | 'rep' | 'warehouse';
+export type DiscountDimension = 'user' | 'rep' | 'item';
+export type ReturnDimension = 'customer' | 'rep' | 'reason' | 'item';
+
+export interface SalesSummaryReport {
+  from: string | null;
+  to: string | null;
+  groupBy: 'day' | 'month';
+  rows: {
+    period: string;
+    count: number;
+    qtyBase: number;
+    gross: number;
+    discount: number;
+    net: number;
+    tax: number;
+    shipping: number;
+    total: number;
+    cost?: number;
+    profit?: number;
+  }[];
+  totals: {
+    count: number;
+    qtyBase: number;
+    gross: number;
+    discount: number;
+    net: number;
+    tax: number;
+    shipping: number;
+    total: number;
+    cost?: number;
+    profit?: number;
+    periods: number;
+  };
+}
+
+export interface SalesByReport {
+  by: SalesDimension;
+  from: string | null;
+  to: string | null;
+  rows: {
+    id: number | null;
+    code: string | null;
+    name: string;
+    qtyBase: number;
+    gross: number;
+    discount: number;
+    net: number;
+    cost?: number;
+    profit?: number;
+  }[];
+  totals: { qtyBase: number; gross: number; discount: number; net: number; cost?: number; profit?: number };
+}
+
+export interface DiscountsReport {
+  by: DiscountDimension;
+  from: string | null;
+  to: string | null;
+  rows: {
+    id: number | null;
+    code: string | null;
+    name: string;
+    count: number;
+    qtyBase: number;
+    net: number;
+    discount: number;
+    discountPct: number;
+  }[];
+  totals: { count: number; qtyBase: number; net: number; discount: number };
+}
+
+export type DiscountApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface DiscountApprovalsReport {
+  from: string | null;
+  to: string | null;
+  status: string | null;
+  count: number;
+  byStatus: { PENDING: number; APPROVED: number; REJECTED: number };
+  rows: {
+    id: number;
+    type: 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT';
+    status: DiscountApprovalStatus;
+    refType: string | null;
+    refId: number | null;
+    requestedBy: string | null;
+    decidedBy: string | null;
+    decidedAt: string | null;
+    note: string | null;
+    createdAt: string;
+  }[];
+}
+
+export interface ReturnsReport {
+  by: ReturnDimension;
+  from: string | null;
+  to: string | null;
+  rows: {
+    id: number | null;
+    code: string | null;
+    name: string;
+    count: number;
+    qtyBase: number;
+    total: number;
+    sharePct: number;
+  }[];
+  totals: { count: number; qtyBase: number; total: number; salesTotal: number; ratioPct: number };
+}
+
+export interface StoppedCustomersReport {
+  days: number;
+  cutoff: string;
+  rows: {
+    id: number;
+    code: string;
+    name: string;
+    phone: string | null;
+    active: boolean;
+    repId: number | null;
+    repName: string | null;
+    lastSaleDate: string | null;
+    daysSince: number | null;
+  }[];
+  totals: { count: number; scanned: number };
+}
+
+export interface StocktakeDiffReport {
+  onlyDiff: boolean;
+  from: string | null;
+  to: string | null;
+  rows: {
+    sessionId: number;
+    sessionNumber: string;
+    status: string;
+    warehouse: string;
+    itemId: number;
+    code: string;
+    name: string;
+    systemQtyBase: number;
+    countedQtyBase: number | null;
+    diffQty: number;
+    lastCost: number | null;
+    diffValue: number;
+  }[];
+  totals: {
+    sessions: number;
+    lines: number;
+    diffLines: number;
+    surplusQty: number;
+    shortageQty: number;
+    surplusValue: number;
+    shortageValue: number;
+    netValue: number;
+  };
+}
+
+export interface SupplierDebtReport {
+  asOf: string;
+  onlyOutstanding: boolean;
+  rows: {
+    id: number;
+    code: string;
+    name: string;
+    phone: string | null;
+    active: boolean;
+    openingBalance: number;
+    purchases: number;
+    paid: number;
+    payments: number;
+    balance: number;
+    lastPurchaseDate: string | null;
+  }[];
+  totals: {
+    suppliers: number;
+    openingBalance: number;
+    purchases: number;
+    paid: number;
+    payments: number;
+    balance: number;
+  };
+}
+
+export interface RepPerformanceReport {
+  from: string;
+  to: string;
+  rows: {
+    repId: number;
+    repCode: string | null;
+    name: string;
+    targetAmount: number;
+    achievedAmount: number;
+    commissionDue: number;
+    salesNet: number;
+    salesCount: number;
+    collected: number;
+    collectionRatePct: number;
+    visits: number;
+    visitsDone: number;
+    visitsMissed: number;
+    distanceKm: number;
+    achievementPct: number;
+  }[];
+  totals: {
+    reps: number;
+    targetAmount: number;
+    achievedAmount: number;
+    commissionDue: number;
+    salesNet: number;
+    salesCount: number;
+    collected: number;
+    visits: number;
+    distanceKm: number;
+  };
+}
+
+export interface ItemCardReport {
+  item: {
+    id: number;
+    code: string;
+    barcode: string | null;
+    nameAr: string;
+    nameEn: string | null;
+    minStock: number;
+    minSalePrice: number;
+    lastPurchaseCost: number | null;
+    baseUnit: { id: number; code: string; nameAr: string };
+    category: { id: number; nameAr: string };
+  };
+  from: string | null;
+  to: string | null;
+  warehouseId: number | null;
+  opening: { qty: number; value: number | null };
+  rows: {
+    id: number;
+    at: string;
+    type: string;
+    typeLabel: string;
+    refType: string | null;
+    refId: number | null;
+    warehouse: { id: number; code: string; nameAr: string };
+    batchId: number | null;
+    qtyBase: number;
+    in: number;
+    out: number;
+    unitCost: number | null;
+    value: number | null;
+    balance: number;
+  }[];
+  totals: {
+    in: number;
+    out: number;
+    net: number;
+    openingQty: number;
+    closingQty: number;
+    closingValue: number | null;
+  };
+  balances: {
+    warehouse: { id: number; code: string; nameAr: string };
+    batchId: number | null;
+    qtyBase: number;
+    value: number | null;
+  }[];
+}
+
 // ============================ D3: additional pages ============================
 
 export interface CategoryRow extends Category {
