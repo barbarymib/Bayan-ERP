@@ -14,6 +14,10 @@ class CsvQuery {
   @IsString()
   @MaxLength(10)
   format?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  noCache?: boolean;
 }
 
 export class QueryStockValuesDto extends CsvQuery {

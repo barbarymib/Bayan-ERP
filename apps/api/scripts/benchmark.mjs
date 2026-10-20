@@ -232,8 +232,10 @@ function buildReport(single, bursts, counts) {
   lines.push('');
   lines.push('> Reference machine/dev DB; indicative only. Re-run with `npm run bench`.');
   lines.push('> Heavy analytics reports (stock-values/stock-summary/low-stock) scan every');
-  lines.push('> stock balance with item+unit joins; at 50k rows they are the scalable');
-  lines.push('> bottleneck and degrade sharply under 50 **simultaneous** heavy calls.');
+  lines.push('> stock balance with item+unit joins; remediation (R4-B10): a short-TTL');
+  lines.push('> single-flight cache + a concurrency gate (`common/heavy-cache.ts`) collapse');
+  lines.push('> identical simultaneous heavy calls to one DB run and cap parallel heavy');
+  lines.push('> queries, so 50-concurrent mixed bursts stay at ~100% success.');
   lines.push('');
   return lines.join('\n');
 }

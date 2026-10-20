@@ -3,6 +3,7 @@ import type { Prisma } from '../generated/prisma/client';
 import { roundMoney, roundQty } from '@bayan/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
+import { createGate, createReportCache } from '../common/heavy-cache.js';
 import { compositeQty } from '../common/units.js';
 import { weightDeltaOf } from '../price-statements/price-statements.service.js';
 import { haversineM } from '../geo/geo.service.js';
@@ -40,8 +41,26 @@ export type ValuationMethod = 'LAST' | 'WEIGHTED' | 'SALES';
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * R4-B10 (§9): دمج/تخزين مؤقت قصير + بوابة تزامن لتقارير التحليلات الثقيلة.
+   * انفجار متزامن من الطلبات المتطابقة يُنفَّذ مرة واحدة، والاستعلامات الثقيلة
+   * المتنوّعة تتنافس على عدد محدود من الفتحات فلا تستنزف مجمّع الاتصالات.
+   */
+  private readonly heavyCache = createReportCache(2000);
+  private readonly heavyGate = createGate(4);
+
+  private heavy<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    return this.heavyCache.run(key, () => this.heavyGate.run(fn));
+  }
+
   /** تقييم أرصدة المخزون بطريقة تقييم مختارة (آخر شراء / متوسط مرجح / سعر البيع). */
   async stockValues(query: QueryStockValuesDto, companyId: number | null = null) {
+    const key = `stockValues|${companyId}|${query.method ?? 'LAST'}|${query.warehouseId ?? ''}`;
+    const compute = async () => this.computeStockValues(query, companyId);
+    return query.noCache ? compute() : this.heavy(key, compute);
+  }
+
+  private async computeStockValues(query: QueryStockValuesDto, companyId: number | null = null) {
     const method: ValuationMethod = query.method ?? 'LAST';
     const balances = await this.prisma.stockBalance.findMany({
       where: { ...tenantWhere(companyId), ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}) },
@@ -440,6 +459,10 @@ export class ReportsService {
 
   /** أصناف تحت الحد الأدنى عبر المخازن. */
   async lowStock(companyId: number | null = null) {
+    return this.heavy(`lowStock|${companyId}`, () => this.computeLowStock(companyId));
+  }
+
+  private async computeLowStock(companyId: number | null = null) {
     const balances = await this.prisma.stockBalance.findMany({
       where: { ...tenantWhere(companyId) },
       include: {
@@ -468,6 +491,12 @@ export class ReportsService {
 
   /** ملخص مخزون: كميات وقيم (آخر سعر شراء) وآخر حركة لكل صنف (لاكتشاف الراكد). */
   async stockSummary(query: QueryStockSummaryDto, companyId: number | null = null) {
+    const key = `stockSummary|${companyId}|${query.warehouseId ?? ''}|${query.stagnantDays ?? 90}`;
+    const compute = async () => this.computeStockSummary(query, companyId);
+    return query.noCache ? compute() : this.heavy(key, compute);
+  }
+
+  private async computeStockSummary(query: QueryStockSummaryDto, companyId: number | null = null) {
     const stale = new Date();
     stale.setDate(stale.getDate() - (query.stagnantDays ?? 90));
 
