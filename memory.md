@@ -1231,3 +1231,15 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Live smoke:** `GET /api/health` 200; web `/`, `/reports`, `/statements`, `/items`, `/customers` all 200.
 - **Commits:** docs (GAP.md final reconcile status-log entry) + this entry.
 - **State:** Round-4 remediation complete pending F2 (blocked on external Firebase credentials).
+
+## 2026-10-20 — F2 push transport (FCM HTTP v1 + no-op) §5.15
+
+- **Context:** F2 was marked BLOCKED on Firebase credentials. Split into the credential-independent part (doable now) vs live delivery (still needs creds) — same pattern as S3/object-storage.
+- **Provider abstraction:** `apps/api/src/common/push.ts` (`PUSH_PROVIDER` symbol, `PushProvider`/`PushMessage`/`PushResult`), `push.fcm.ts` (`FcmPushProvider` — OAuth2 JWT (RS256 via `node:crypto`) → access-token exchange at Google, token cached; FCM HTTP v1 `messages:send`; parse UNREGISTERED/INVALID_ARGUMENT/NOT_FOUND → `invalid`), `push.noop.ts` (`NoopPushProvider` records sends, always ok), `push.module.ts` (`@Global`; `readFcmEnv()` from `FCM_SERVICE_ACCOUNT`/`FCM_SERVICE_ACCOUNT_FILE` + `FCM_PROJECT_ID` → FCM, else no-op). Registered in `app.module.ts` next to `ObjectStorageModule`. **No new npm deps** (uses `node:crypto` + global `fetch`).
+- **Data:** `DeviceRegistration.pushToken String?` → migration `20261020040000_device_push_token` (ALTER TABLE public."DeviceRegistration").
+- **Wiring:** `NotificationsService.notify()` now fires `void this.pushToDevices(...)` best-effort (never fails the DB write); `pushToDevices` loads active devices with a token, `sendAll`, and nulls tokens reported `invalid`. `sync.dto.ts DeviceRegisterDto.pushToken` + `sync.service.registerDevice` persists it (create + update).
+- **Tests:** `tests/push-notifications.spec.ts` (9) — `readFcmEnv` null/valid/invalid, no-op send/sendAll, fan-out counts, empty, invalid-token revocation, data payload build; updated `tests/notifications-alerts.spec.ts` to pass `new NoopPushProvider()` + mock `deviceRegistration`.
+- **Live 2026-10-20:** startup log `[PushProvider] FCM credentials absent → no-op push transport`; `POST /sync/device/register` with `pushToken` → returned/stored token; `POST /notifications/refresh` → 200 no errors; health 45/45 migrations, 0 pending.
+- **Gates:** api typecheck 0 / lint 0 / **552/552** (+9). Rebuilt api before restart.
+- **Commits:** code `95bbf82`; docs (GAP.md 3 F2 lines + status log) + this entry.
+- **State:** F2 = transport implemented; **live delivery still pending Firebase service-account credentials** (set env vars to activate). Only remaining external dependency.

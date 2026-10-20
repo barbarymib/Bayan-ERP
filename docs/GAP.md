@@ -71,7 +71,7 @@
 - `users.device_id` ? dedicated `DeviceRegistration` table; `price_statements.tax` ? `taxPercent` + `taxAmount` (documented deviations).
 - Paint/steel calculators live in **mobile** only (intentionally not in API).
 - Quotations billing, electronic scale, tax-invoice integration, multi-branch, iOS client � deferred per `docs/PLAN.md` �4.
-- FCM push (�5.15) � **blocked** on Firebase credentials; notifications are DB/in-app only today.
+- FCM push (§5.15) — **transport implemented** (`common/push*.ts`: FCM HTTP v1 provider + no-op fallback selected by env, like object-storage). Live *delivery* still requires Firebase service-account credentials; without them the no-op transport runs and in-app/DB notifications keep working.
 
 ---
 
@@ -117,7 +117,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 22. **G28** Dockerfiles. ? done (api+web Dockerfiles + compose profile `apps` with migrate/init one-shots; commit `344cf85`)
 
 ### Blocked
-- **F2 / �5.15** FCM push � needs Firebase project + credentials.
+- **F2 / §5.15** FCM push: **transport implemented** (`common/push*.ts` — FCM HTTP v1 + no-op fallback by env). Live delivery still needs Firebase project + service-account credentials (records + in-app notifications already work).
 
 ---
 
@@ -200,6 +200,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-20 | **R4-B1** web screens for 10 §5.14 reports | ✅ FIXED (10 new report panes + tabs + CSV/XLSX buttons in web; types in `lib/api.ts`; all 10 endpoints live-verified 200; web tc/lint/build 0; commit `c8171e0`) |
 | 2026-10-20 | **R4-B10** heavy-report burst remediation + re-benchmark | ✅ FIXED (single-flight cache + concurrency gate; mixed burst 84%→100%, p95 33.6s→10.1s; `docs/PERFORMANCE.md` regenerated; api 543/543; commit `8c6a7a1`) |
 | 2026-10-20 | **Final reconcile + full regression** | ✅ All R4-B*/R4-C* rows FIXED; only F2/FCM remains (Firebase credentials). api **543/543**, typecheck 0, lint 0; web typecheck 0, lint 0, build 0; live smoke: health 200, /reports + /statements + /items + /customers 200. 44/44 migrations applied. |
+| 2026-10-20 | **F2** push transport (FCM HTTP v1 + no-op) | ✅ transport implemented (`common/push*.ts` provider abstraction chosen by env; `DeviceRegistration.pushToken` migration `20261020040000`; best-effort `notify()` fan-out + invalid-token revocation; `sync/device/register` stores token). Live *delivery* still pending Firebase creds. 9 new tests; api **552/552**; live: no-op selected, token stored, 45/45 migrations; commit `95bbf82`) |
 
 ---
 
@@ -421,7 +422,7 @@ Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full ga
 16. **R4-C2..C6** low cleanups (image gallery, steel weight delta, print logo, dead `assertMovable`, §14 test citation) — **Low** — ✅ **C2** gallery (`2618708`) + **C3** steel weight delta (`cc3bf52`) + **C4** logo (`9c92440`) + **C5** dead code + **C6** citation (`4b74e46`) done.
 
 ### Blocked
-- **F2 / �5.15** FCM push transport � needs Firebase project + credentials (notification *records* already work).
+- **F2 / §5.15** FCM push delivery — transport implemented (`FcmPushProvider` + `NoopPushProvider`, `DeviceRegistration.pushToken`); **live delivery pending** Firebase service-account credentials (set `FCM_SERVICE_ACCOUNT`/`FCM_SERVICE_ACCOUNT_FILE` + `FCM_PROJECT_ID`).
 
 ### Migration note � schema `bayan`
 The RLS migration (`20261012000000_rls_tenant_isolation`) does `CREATE SCHEMA IF NOT EXISTS bayan` and puts the helper `bayan.current_company_id()` there. Because the DB role is named `bayan`, its default `search_path` is `bayan, public`, so an **unqualified `CREATE TABLE` in any migration after RLS lands in schema `bayan`, not `public`** (where all 72 app tables live) ? Prisma Client (which resolves via `public`) fails at runtime with `relation "�" does not exist`. **Rule: new-table migrations MUST schema-qualify `public."Table"` (and FKs `REFERENCES public."�"`).** Column-only (`ALTER TABLE`) migrations are unaffected.
