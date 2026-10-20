@@ -97,7 +97,7 @@ interface PricingAlert {
   threshold: number;
 }
 
-type ApprovalKind = 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST' | 'BELOW_MIN_PRICE';
+type ApprovalKind = 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST' | 'BELOW_MIN_PRICE' | 'CREDIT_LIMIT';
 
 type StatementTotals = ReturnType<typeof calcStatementTotals>;
 
@@ -197,14 +197,22 @@ export class PriceStatementsService {
     }
 
     const headerExceeds = this.headerDiscountExceeds(dto.discount, totals.subtotal, Number(user.maxInvoiceDiscountPct));
+    const creditBreach = await this.ops.creditBreach(customer.id, totals.net, tenant);
     const requiresApproval =
-      discountFlags.length > 0 || headerExceeds || belowCostLines.length > 0 || belowMinPriceLines.length > 0;
+      discountFlags.length > 0 ||
+      headerExceeds ||
+      belowCostLines.length > 0 ||
+      belowMinPriceLines.length > 0 ||
+      creditBreach.breach;
     const pricingAlerts = this.buildAlerts(belowCostLines, belowMinPriceLines);
 
     const period = await this.periods.open(tenant);
     const creditWarning = await this.checkCreditLimit(customer.id, totals.net, tenant);
     // منع تجاوز الحد الائتماني عند الإنشاء حسب الإعداد credit.limit.enforce = BLOCK (§5.4)
-    await this.ops.assertCustomerCredit(customer.id, totals.net, tenant);
+    // R4-B9: عند الخرق لا نرمي — بل نُنشئ «طلب استثناء» CREDIT_LIMIT ليُعتمد لاحقاً.
+    if (!creditBreach.breach) {
+      await this.ops.assertCustomerCredit(customer.id, totals.net, tenant);
+    }
 
     // منع تجاوز المتاح (مع احترام حجوزات المسودات) حسب الإعداد stock.sale.enforce = BLOCK
     await this.stock.assertSalePermitted(
@@ -268,6 +276,7 @@ export class PriceStatementsService {
         belowCostLines,
         belowMinPriceLines,
         Number(user.maxInvoiceDiscountPct),
+        creditBreach,
       );
 
       await this.prisma.approval.createMany({
@@ -281,17 +290,8 @@ export class PriceStatementsService {
           companyId: tenant,
         })),
       });
-      // إشعار من يملك صلاحية الاعتماد (§5.15)
-      const targetIds = await this.notifications.userIdsWithPermission('discount.approve');
-      for (let i = 0; i < approvals.length; i++) {
-        await this.notifications.notifyMany(targetIds, {
-          type: 'discount_approval',
-          title: 'طلب موافقة على خصم يتجاوز الحد',
-          body: `${statement.number} — ${customer.nameAr}`,
-          refType: 'price_statement',
-          refId: statement.id,
-        });
-      }
+      // إشعار من يملك صلاحية الاعتماد (§5.15) — لكل نوع صلاحيته
+      await this.notifyApprovalRequests(approvals, statement.number, customer.nameAr, statement.id);
     } else if (!dto.saveAsDraft) {
       await this.ops.finalizeStatement(statement.id, user);
     }
@@ -386,8 +386,17 @@ export class PriceStatementsService {
       throw new BadRequestException(`paid (${dto.paid}) cannot exceed net (${totals.net})`);
     }
     const headerExceeds = this.headerDiscountExceeds(dto.discount, totals.subtotal, Number(user.maxInvoiceDiscountPct));
+    // R4-B9: خرق الحد الائتماني على مسودة ⇒ طلب استثناء بدل الرمي. أما تعديل بيان معتمد
+    // فيُبقي الفحص الصارم كما هو (R4-A3) لأن مسار إعادة الترحيل لا يمرّ عبر الموافقات.
+    const creditBreach = approved
+      ? { breach: false, projected: 0, limit: 0 }
+      : await this.ops.creditBreach(customer.id, totals.net, tenant);
     const requiresApproval =
-      discountFlags.length > 0 || headerExceeds || belowCostLines.length > 0 || belowMinPriceLines.length > 0;
+      discountFlags.length > 0 ||
+      headerExceeds ||
+      belowCostLines.length > 0 ||
+      belowMinPriceLines.length > 0 ||
+      creditBreach.breach;
     const pricingAlerts = this.buildAlerts(belowCostLines, belowMinPriceLines);
     const approvals = requiresApproval
       ? this.buildApprovals(
@@ -397,6 +406,7 @@ export class PriceStatementsService {
           belowCostLines,
           belowMinPriceLines,
           Number(user.maxInvoiceDiscountPct),
+          creditBreach,
         )
       : [];
 
@@ -497,16 +507,7 @@ export class PriceStatementsService {
         }
       });
       if (requiresApproval) {
-        const targetIds = await this.notifications.userIdsWithPermission('discount.approve');
-        for (let i = 0; i < approvals.length; i++) {
-          await this.notifications.notifyMany(targetIds, {
-            type: 'discount_approval',
-            title: 'طلب موافقة على خصم يتجاوز الحد',
-            body: `${existing.number} — ${customer.nameAr}`,
-            refType: 'price_statement',
-            refId: id,
-          });
-        }
+        await this.notifyApprovalRequests(approvals, existing.number, customer.nameAr, id);
       } else if (!dto.saveAsDraft) {
         await this.ops.finalizeStatement(id, user);
       }
@@ -824,6 +825,27 @@ export class PriceStatementsService {
     });
   }
 
+  /** إشعار حاملي صلاحية الاعتماد بحسب نوع كل طلب (§5.15): الخصومات vs استثناء الحد الائتماني. */
+  private async notifyApprovalRequests(
+    approvals: { type: ApprovalKind; refJson: object }[],
+    number: string,
+    customerName: string,
+    refId: number,
+  ): Promise<void> {
+    const discountApprovers = await this.notifications.userIdsWithPermission('discount.approve');
+    const creditApprovers = await this.notifications.userIdsWithPermission('credit.exception.approve');
+    for (const approval of approvals) {
+      const isCredit = approval.type === 'CREDIT_LIMIT';
+      await this.notifications.notifyMany(isCredit ? creditApprovers : discountApprovers, {
+        type: 'discount_approval',
+        title: isCredit ? 'طلب استثناء تجاوز الحد الائتماني' : 'طلب موافقة على خصم يتجاوز الحد',
+        body: `${number} — ${customerName}`,
+        refType: 'price_statement',
+        refId,
+      });
+    }
+  }
+
   private buildApprovals(
     discountFlags: DiscountFlag[],
     headerExceeds: boolean,
@@ -831,6 +853,7 @@ export class PriceStatementsService {
     belowCostLines: PriceViolation[],
     belowMinPriceLines: PriceViolation[],
     maxInvoiceDiscountPct: number,
+    creditBreach: { breach: boolean; projected: number; limit: number } = { breach: false, projected: 0, limit: 0 },
   ): { type: ApprovalKind; refJson: object }[] {
     const approvals: { type: ApprovalKind; refJson: object }[] = discountFlags.map((flag) => ({
       type: 'ITEM_DISCOUNT',
@@ -854,6 +877,12 @@ export class PriceStatementsService {
       approvals.push({
         type: 'BELOW_MIN_PRICE',
         refJson: { note: 'Selling below the item minimum sale price', lines: belowMinPriceLines } as object,
+      });
+    }
+    if (creditBreach.breach) {
+      approvals.push({
+        type: 'CREDIT_LIMIT',
+        refJson: { projected: creditBreach.projected, limit: creditBreach.limit } as object,
       });
     }
     return approvals;

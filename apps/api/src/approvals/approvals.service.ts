@@ -19,6 +19,7 @@ const TYPE_PERMISSION: Record<string, string> = {
   BELOW_COST: 'discount.approve',
   BELOW_MIN_PRICE: 'discount.approve',
   RETURN: 'return.approve',
+  CREDIT_LIMIT: 'credit.exception.approve',
 };
 
 @Injectable()
@@ -147,8 +148,22 @@ export class ApprovalsService {
         throw new NotFoundException(`Statement ${approval.refId} not found`);
       }
       if (st.status === 'CANCELLED') throw new BadRequestException('كشف الحساب ملغي — لا يمكن اعتماده');
+      // R4-B9: إن وُجد «طلب استثناء» CREDIT_LIMIT لهذا البيان فلا يُطبّق فحص الحد الصارم —
+      // فالاستثناء هو المسار المعتمد لتجاوز الحد (يُعتمد explcitly عبر صلاحية credit.exception.approve).
+      const creditException = await this.prisma.approval.findFirst({
+        where: {
+          refType: 'price_statement',
+          refId: approval.refId,
+          type: 'CREDIT_LIMIT',
+          status: { in: ['PENDING', 'APPROVED'] },
+          ...tenantWhere(companyId),
+        },
+        select: { id: true },
+      });
       // إعادة فحص الحد الائتماني عند الاعتماد (§5.4) — قد تتغيّر الأرصدة بين الإنشاء والاعتماد
-      await this.ops.assertCustomerCredit(st.customerId, Number(st.net), companyId);
+      if (!creditException) {
+        await this.ops.assertCustomerCredit(st.customerId, Number(st.net), companyId);
+      }
       // R3-B11: إعادة فحص الرصيد المتاح عند الاعتماد (§5.6) — قد يتغيّر المخزون بين الإنشاء والاعتماد
       // (يُستثنى حجز البيان نفسه). يُنفَّذ قبل تغيير حالة الموافقة حتى لا يُعلّق قرار بلا ترحيل.
       await this.stock.assertSalePermitted(

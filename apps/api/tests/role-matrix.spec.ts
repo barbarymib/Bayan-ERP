@@ -116,4 +116,13 @@ describe('§4.2 permission matrix', () => {
       expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).not.toContain('company.manage');
     }
   });
+
+  it('R4-B9: credit.exception.approve ممنوحة لـ ADMIN/OWNER/ACCOUNTANT/REP_SUPERVISOR وغير ممنوحة للمناديب/المخزن', () => {
+    for (const role of ['ADMIN', 'OWNER', 'ACCOUNTANT', 'REP_SUPERVISOR']) {
+      expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).toContain('credit.exception.approve');
+    }
+    for (const role of ['SALES_REP', 'SALES_OFFICE', 'WAREHOUSEKEEPER']) {
+      expect(ROLE_PERMISSIONS_MERGED[role] ?? [], role).not.toContain('credit.exception.approve');
+    }
+  });
 });

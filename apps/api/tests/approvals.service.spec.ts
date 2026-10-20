@@ -49,6 +49,7 @@ function build(dispatch: Dispatch = { refType: 'price_statement', refId: 5 }) {
   const prisma = {
     approval: {
       findUnique: async () => ({ id: 1, type: 'BELOW_COST', refType: dispatch.refType, refId: dispatch.refId, status: 'PENDING' }),
+      findFirst: async () => null,
       update: async (args: unknown) => {
         calls.decisionUpdates.push(args as Record<string, unknown>);
         return {};
@@ -120,6 +121,7 @@ describe('ApprovalsService lifecycle', () => {
           refId: 5,
           status: 'PENDING',
         }),
+        findFirst: async () => null,
         update: async () => ({}),
       },
     } as unknown as PrismaService;
@@ -260,6 +262,102 @@ describe('ApprovalsService lifecycle', () => {
     );
     await svc.decide(7, { approved: true }, returnUser);
     expect(finalizeReturn).toHaveBeenCalledWith(9, returnUser);
+  });
+});
+
+const TYPE_PERMISSION_TEST =
+  'ApprovalsService credit exception (R4-B9 §5.4)';
+
+describe(TYPE_PERMISSION_TEST, () => {
+  it('CREDIT_LIMIT مرتبط بصلاحية credit.exception.approve ويُنفّذ التثبيت', async () => {
+    const { prisma } = build();
+    const creditPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({
+          id: 8,
+          type: 'CREDIT_LIMIT',
+          refType: 'price_statement',
+          refId: 5,
+          status: 'PENDING',
+        }),
+        findFirst: async () => null,
+        update: async () => ({}),
+      },
+    } as unknown as PrismaService;
+    const finalizeStatement = vi.fn(async () => true);
+    const svc = new ApprovalsService(
+      creditPrisma,
+      { finalizeStatement, finalizeReturn: async () => true, assertCustomerCredit: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    const creditUser = { id: 2, permissions: ['credit.exception.approve'] } as unknown as AuthUser;
+    await svc.decide(8, { approved: true }, creditUser);
+    expect(finalizeStatement).toHaveBeenCalledWith(5, creditUser);
+  });
+
+  it('حامل credit.exception.approve لا يملك اعتماد CREDIT_LIMIT بصلاحية الخصم', async () => {
+    const { prisma } = build();
+    const creditPrisma = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({ id: 8, type: 'CREDIT_LIMIT', refType: 'price_statement', refId: 5, status: 'PENDING' }),
+        update: async () => ({}),
+      },
+    } as unknown as PrismaService;
+    const svc = new ApprovalsService(
+      creditPrisma,
+      { finalizeStatement: async () => true, finalizeReturn: async () => true, assertCustomerCredit: async () => undefined } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    await expect(svc.decide(8, { approved: true }, user)).rejects.toThrow(/credit\.exception\.approve/);
+  });
+
+  it('list: حامل credit.exception.approve يرى CREDIT_LIMIT فقط', async () => {
+    const calls: { where: Record<string, unknown> }[] = [];
+    const prisma = {
+      approval: {
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          calls.push(args);
+          return [];
+        },
+      },
+      priceStatement: { findMany: async () => [] },
+      returnStatement: { findMany: async () => [] },
+    } as unknown as PrismaService;
+    const svc = new ApprovalsService(prisma, {} as never, {} as never, { write: async () => undefined } as never);
+    await svc.list({}, 1, ['credit.exception.approve']);
+    const where = calls[0]!.where as { type?: { in?: string[] } };
+    expect(where.type?.in).toEqual(['CREDIT_LIMIT']);
+  });
+
+  it('assertDecidable: عند وجود طلب استثناء CREDIT_LIMIT يتخطّى فحص الحد الائتماني الصارم', async () => {
+    const { prisma, assertCustomerCredit } = build();
+    const withCredit = {
+      ...prisma,
+      approval: {
+        findUnique: async () => ({
+          id: 8,
+          type: 'CREDIT_LIMIT',
+          refType: 'price_statement',
+          refId: 5,
+          status: 'PENDING',
+        }),
+        findFirst: async () => ({ id: 8, type: 'CREDIT_LIMIT', status: 'APPROVED' }),
+        update: async () => ({}),
+      },
+    } as unknown as PrismaService;
+    const svc = new ApprovalsService(
+      withCredit,
+      { finalizeStatement: async () => true, finalizeReturn: async () => true, assertCustomerCredit } as never,
+      { releaseReservations: async () => undefined, assertSalePermitted: async () => undefined } as never,
+      { write: async () => undefined } as never,
+    );
+    const creditUser = { id: 2, permissions: ['credit.exception.approve'] } as unknown as AuthUser;
+    await svc.decide(8, { approved: true }, creditUser);
+    expect(assertCustomerCredit).not.toHaveBeenCalled();
   });
 });
 

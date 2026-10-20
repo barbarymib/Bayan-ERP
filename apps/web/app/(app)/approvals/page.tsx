@@ -22,21 +22,27 @@ const typePermission: Record<string, string> = {
   ITEM_DISCOUNT: 'discount.approve',
   HEADER_DISCOUNT: 'discount.approve',
   BELOW_COST: 'discount.approve',
+  BELOW_MIN_PRICE: 'discount.approve',
   RETURN: 'return.approve',
+  CREDIT_LIMIT: 'credit.exception.approve',
 };
 
 const typeLabel: Record<string, string> = {
   ITEM_DISCOUNT: 'خصم بند',
   HEADER_DISCOUNT: 'خصم بيان',
   BELOW_COST: 'بيع أقل من التكلفة',
+  BELOW_MIN_PRICE: 'بيع أقل من أدنى سعر',
   RETURN: 'مرتجع',
+  CREDIT_LIMIT: 'استثناء تجاوز الحد الائتماني',
 };
 
 const typeColor: Record<string, string> = {
   ITEM_DISCOUNT: 'blue',
   HEADER_DISCOUNT: 'blue',
   BELOW_COST: 'red',
+  BELOW_MIN_PRICE: 'red',
   RETURN: 'gray',
+  CREDIT_LIMIT: 'amber',
 };
 
 const statusLabel: Record<string, string> = {
@@ -53,7 +59,8 @@ const statusColor: Record<string, string> = {
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
-  const canApprove = can(user, 'discount.approve') || can(user, 'return.approve');
+  const canApprove =
+    can(user, 'discount.approve') || can(user, 'return.approve') || can(user, 'credit.exception.approve');
 
   const [rows, setRows] = useState<Approval[]>([]);
   const [status, setStatus] = useState('');

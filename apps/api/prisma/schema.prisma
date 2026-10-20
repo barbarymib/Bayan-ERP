@@ -98,6 +98,7 @@ enum ApprovalType {
   BELOW_COST
   BELOW_MIN_PRICE
   RETURN
+  CREDIT_LIMIT
 }
 
 enum ApprovalStatus {

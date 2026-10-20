@@ -225,6 +225,7 @@ function buildCredit(opts: {
   credit?: number;
   net?: number;
   stockBlocked?: boolean;
+  creditException?: boolean;
 }) {
   const st = {
     id: 5,
@@ -248,6 +249,7 @@ function buildCredit(opts: {
         opts.creditLimit === null ? null : { id: 9, creditLimit: opts.creditLimit ?? 0, openingBalance: opts.opening ?? 0 },
     },
     priceStatement: { findUnique: async () => st },
+    approval: { findFirst: async () => (opts.creditException ? { id: 99 } : null) },
     $transaction: async (cb: (t: unknown) => Promise<unknown>) =>
       cb({ priceStatement: { update: async () => ({}) }, receipt: { create: async () => ({ id: 1, number: 'RC-1' }) } }),
   } as unknown as PrismaService;
@@ -315,5 +317,46 @@ describe('SalesOpsService.assertCustomerCredit (R3-B1 §5.4)', () => {
     await expect(service.finalizeStatement(5, user)).rejects.toThrow(/تتجاوز المتاح/);
     expect(assertSalePermitted).toHaveBeenCalledTimes(1);
     expect(saleOut).not.toHaveBeenCalled();
+  });
+});
+
+describe('SalesOpsService.creditBreach (R4-B9 §5.4)', () => {
+  it('BLOCK مع تجاوز: يعيد breach=true مع الرصيد المتوقع والحد', async () => {
+    const { service } = buildCredit({ mode: 'BLOCK', creditLimit: 100, debit: 90, net: 20 });
+    const res = await service.creditBreach(9, 20, 1);
+    expect(res.breach).toBe(true);
+    expect(res.limit).toBe(100);
+    expect(res.projected).toBe(110);
+  });
+
+  it('BLOCK ضمن الحد: لا خرق', async () => {
+    const { service } = buildCredit({ mode: 'BLOCK', creditLimit: 1000, debit: 90 });
+    const res = await service.creditBreach(9, 20, 1);
+    expect(res.breach).toBe(false);
+    expect(res.limit).toBe(1000);
+  });
+
+  it('WARN: لا خرق حتى عند التجاوز (الفحص إعلامي فقط)', async () => {
+    const { service } = buildCredit({ mode: 'WARN', creditLimit: 100, debit: 150 });
+    const res = await service.creditBreach(9, 20, 1);
+    expect(res.breach).toBe(false);
+  });
+
+  it('بلا إعداد وبلا حد ائتماني: لا خرق', async () => {
+    const { service } = buildCredit({ mode: null, creditLimit: 0, debit: 999 });
+    const res = await service.creditBreach(9, 20, 1);
+    expect(res.breach).toBe(false);
+    expect(res.limit).toBe(0);
+  });
+
+  it('assertCustomerCredit يستخدم creditBreach ويطلق عند الخرق', async () => {
+    const { service } = buildCredit({ mode: 'BLOCK', creditLimit: 50, net: 100 });
+    await expect(service.assertCustomerCredit(9, 100, 1)).rejects.toThrow(/الحد الائتماني/);
+  });
+
+  it('finalizeStatement: يتخطّى فحص الحد عند وجود استثناء CREDIT_LIMIT معتمد (R4-B9)', async () => {
+    const { service, saleOut } = buildCredit({ mode: 'BLOCK', creditLimit: 50, net: 100, creditException: true });
+    await expect(service.finalizeStatement(5, user)).resolves.toBe(true);
+    expect(saleOut).toHaveBeenCalled();
   });
 });

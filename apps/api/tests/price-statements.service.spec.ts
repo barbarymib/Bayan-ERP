@@ -95,6 +95,7 @@ function harness(
   opts: {
     customer?: Record<string, unknown>;
     blockCredit?: boolean;
+    creditBreach?: { breach: boolean; projected: number; limit: number };
     assignments?: number[];
     staleDays?: number;
     listRows?: Record<string, unknown>[];
@@ -235,6 +236,7 @@ function harness(
       calls.creditChecks.push({ customerId, newNet });
       if (opts.blockCredit) throw new BadRequestException('تجاوز الحد الائتماني');
     },
+    creditBreach: async () => opts.creditBreach ?? { breach: false, projected: 0, limit: 0 },
   } as unknown as SalesOpsService;
 
   const notifications = {
@@ -537,6 +539,33 @@ describe('PriceStatementsService.create credit limit (R3-B1 §5.4)', () => {
   it('عند رفض فحص الحد (BLOCK) يُسقط الإنشاء ولا يثبّت البيان', async () => {
     const { service, calls } = harness({}, null, {}, { customer: { creditLimit: 50 }, blockCredit: true });
     await expect(service.create(createDto, approver)).rejects.toThrow(/الحد الائتماني/);
+    expect(calls.finalized).toBe(false);
+  });
+});
+
+describe('PriceStatementsService credit exception request (R4-B9 §5.4)', () => {
+  const createDto = { customerId: 2, lines: [{ itemCode: 'IR', qty: 2, unitPrice: 50 }] };
+
+  it('create: عند خرق الحد الائتماني (BLOCK) يُنشئ طلب استثناء CREDIT_LIMIT بدل الرمي، ويبقى مسودة', async () => {
+    const { service, calls } = harness({}, null, {}, { creditBreach: { breach: true, projected: 150, limit: 100 } });
+    await service.create(createDto, approver);
+    expect(calls.approvals).toContainEqual(
+      expect.objectContaining({ type: 'CREDIT_LIMIT' }),
+    );
+    expect(calls.finalized).toBe(false);
+    expect(calls.reservations).toHaveLength(1);
+  });
+
+  it('create: عند عدم الخرق لا يُنشأ طلب استثناء CREDIT_LIMIT', async () => {
+    const { service, calls } = harness({}, null, {}, { creditBreach: { breach: false, projected: 50, limit: 100 } });
+    await service.create(createDto, approver);
+    expect(calls.approvals.find((a) => a.type === 'CREDIT_LIMIT')).toBeUndefined();
+  });
+
+  it('update: عند خرق الحد الائتماني (مسودة) يُنشئ طلب استثناء CREDIT_LIMIT', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, {}, { creditBreach: { breach: true, projected: 150, limit: 100 } });
+    await service.update(7, editDto, editor);
+    expect(calls.approvals).toContainEqual(expect.objectContaining({ type: 'CREDIT_LIMIT' }));
     expect(calls.finalized).toBe(false);
   });
 });

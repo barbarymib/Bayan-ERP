@@ -42,8 +42,21 @@ export class SalesOpsService {
     if (st.status === 'CANCELLED') throw new BadRequestException('Statement is cancelled — cannot finalize');
 
     const tenant = by.companyId ?? null;
-    // منع تجاوز الحد الائتماني عند الاعتماد حسب الإعداد (§5.4)
-    await this.assertCustomerCredit(st.customerId, Number(st.net), tenant);
+    // منع تجاوز الحد الائتماني عند الاعتماد حسب الإعداد (§5.4) — إلا إذا وُجد «طلب استثناء»
+    // معتمد (R4-B9) فهذا هو المسار المُصرّح لتجاوز الحد.
+    const creditException = await this.prisma.approval.findFirst({
+      where: {
+        refType: 'price_statement',
+        refId: st.id,
+        type: 'CREDIT_LIMIT',
+        status: 'APPROVED',
+        ...tenantWhere(tenant),
+      },
+      select: { id: true },
+    });
+    if (!creditException) {
+      await this.assertCustomerCredit(st.customerId, Number(st.net), tenant);
+    }
     // R3-B11: إعادة فحص الرصيد المتاح عند الاعتماد/الترحيل حسب الإعداد stock.sale.enforce = BLOCK
     // (قد يتغيّر الرصيد بين الإنشاء والاعتماد). يُستثنى حجز هذا البيان نفسه لأنه سيُحرَّر داخل المعاملة.
     await this.stock.assertSalePermitted(
@@ -132,20 +145,34 @@ export class SalesOpsService {
   }
 
   /**
+   * فحص غير رامٍ لتجاوز الحد الائتماني (§5.4). يُستخدم لبناء «طلب استثناء» (R4-B9)
+   * عندما يكون الإعداد BLOCK، فيُحجز البيان للمراجعة بدل الفشل المباشر.
+   * يُعيد `breach=false` إن لم يكن للعميل حد أو كان الإعداد WARN.
+   */
+  async creditBreach(
+    customerId: number,
+    newNet: number,
+    companyId: number | null,
+  ): Promise<{ breach: boolean; projected: number; limit: number }> {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'credit.limit.enforce' } });
+    if ((setting?.value ?? 'WARN') !== 'BLOCK') return { breach: false, projected: 0, limit: 0 };
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer || Number(customer.creditLimit) <= 0) return { breach: false, projected: 0, limit: 0 };
+    const { debit, credit } = await this.ledger.balanceOf('CUSTOMER', customerId, companyId);
+    const limit = Number(customer.creditLimit);
+    const projected = Number(customer.openingBalance) + debit - credit + newNet;
+    return { breach: projected > limit, projected, limit };
+  }
+
+  /**
    * منع تجاوز الحد الائتماني عند الاعتماد/التعديل حسب الإعداد `credit.limit.enforce` = BLOCK (§5.4).
    * WARN (الافتراضي): لا يمنع؛ التحذير يظهر عبر `checkCreditLimit` في إنشاء بيان الأسعار.
    * يُطبَّق على مسار الاعتماد (assertDecidable) وعلى الترحيل المباشر (finalizeStatement).
    * يُتجاوز إن لم يكن للعميل حد ائتماني أو كان الإعداد WARN.
    */
   async assertCustomerCredit(customerId: number, newNet: number, companyId: number | null): Promise<void> {
-    const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'credit.limit.enforce' } });
-    if ((setting?.value ?? 'WARN') !== 'BLOCK') return;
-    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer || Number(customer.creditLimit) <= 0) return;
-    const { debit, credit } = await this.ledger.balanceOf('CUSTOMER', customerId, companyId);
-    const limit = Number(customer.creditLimit);
-    const projected = Number(customer.openingBalance) + debit - credit + newNet;
-    if (projected > limit) {
+    const { breach, projected, limit } = await this.creditBreach(customerId, newNet, companyId);
+    if (breach) {
       throw new BadRequestException(
         `تجاوز الحد الائتماني: الرصيد المتوقع ${projected.toFixed(2)} يتجاوز الحد ${limit.toFixed(2)}`,
       );
