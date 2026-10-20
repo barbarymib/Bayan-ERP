@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
 } from '@nestjs/common';
@@ -70,6 +71,52 @@ export class ItemsController {
   @ApiOkResponse({ description: 'صورة الصنف (تمرير data URL، تحويل روابط http، أو تحميل من التخزين)' })
   async image(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser, @Res() res: Response) {
     const src = await this.items.getImageSource(id, user.companyId ?? null);
+    if (src.kind === 'redirect') {
+      res.redirect(src.url);
+      return;
+    }
+    res.header('Content-Type', src.mime).send(src.buffer);
+  }
+
+  @Post(':id/images')
+  @Permissions('item.manage')
+  @ApiCreatedResponse({ description: 'رفع صورة إلى معرض الصنف (§5.1 · R4-C2)' })
+  uploadGalleryImage(@Param('id', ParseIntPipe) id: number, @Body() dto: UploadItemImageDto, @CurrentUser() user: AuthUser) {
+    return this.items.uploadGalleryImage(id, dto.dataUrl, user.companyId ?? null, user.id);
+  }
+
+  @Delete(':id/images/:imageId')
+  @Permissions('item.manage')
+  @ApiOkResponse({ description: 'إزالة صورة من معرض الصنف' })
+  removeGalleryImage(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.items.removeGalleryImage(id, imageId, user.companyId ?? null, user.id);
+  }
+
+  @Put(':id/images/:imageId/cover')
+  @Permissions('item.manage')
+  @ApiOkResponse({ description: 'تعيين صورة المعرض كصورة رئيسية للصنف' })
+  setGalleryCover(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.items.setCoverFromGallery(id, imageId, user.companyId ?? null, user.id);
+  }
+
+  @Get(':id/images/:imageId')
+  @Header('Cache-Control', 'private, max-age=300')
+  @ApiOkResponse({ description: 'صورة من معرض الصنف' })
+  async galleryImage(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+  ) {
+    const src = await this.items.getGalleryImageSource(id, imageId, user.companyId ?? null);
     if (src.kind === 'redirect') {
       res.redirect(src.url);
       return;

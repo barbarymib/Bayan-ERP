@@ -73,11 +73,20 @@ export interface Item {
   lastPurchaseCost: string | null;
   lastPurchaseAt: string | null;
   imageUrl: string | null;
+  images?: ItemImage[];
   parentItemId: number | null;
   parent?: { id: number; code: string; nameAr: string } | null;
   _count?: { variants: number };
   trackBatch: boolean;
   active: boolean;
+}
+
+// صورة من معرض الصنف (§5.1 «صور للصنف» · R4-C2) — الصورة الرئيسية تبقى imageUrl
+export interface ItemImage {
+  id: number;
+  itemId?: number;
+  url: string;
+  sortOrder: number;
 }
 
 export interface Brand {

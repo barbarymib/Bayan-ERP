@@ -148,6 +148,7 @@ export class ItemsService {
           itemUnits: { include: { unit: true } },
           prices: { include: { priceList: true }, orderBy: { priceListId: 'asc' } },
           parent: { select: { id: true, code: true, nameAr: true } },
+          images: { orderBy: { sortOrder: 'asc' as const } },
           _count: { select: { variants: true } },
         },
         orderBy: { nameAr: 'asc' },
@@ -170,6 +171,7 @@ export class ItemsService {
         attributes: true,
         itemUnits: { include: { unit: true } },
         prices: { include: { priceList: true } },
+        images: { orderBy: { sortOrder: 'asc' as const } },
         variants: { select: { id: true, code: true, nameAr: true, active: true } },
       },
     });
@@ -328,6 +330,107 @@ export class ItemsService {
     if (url.startsWith('data:')) {
       const match = /^data:([^;,]+);base64,(.*)$/s.exec(url);
       if (!match) throw new NotFoundException(`Item #${id} image data URL is malformed`);
+      return { kind: 'buffer', mime: match[1] ?? 'application/octet-stream', buffer: Buffer.from(match[2] ?? '', 'base64') };
+    }
+    if (/^https?:\/\//.test(url)) return { kind: 'redirect', url };
+    if (!this.storage) throw new NotFoundException('Object storage is not configured');
+    const buffer = await this.storage.load(url);
+    const ext = url.split('.').pop()?.toLowerCase() ?? '';
+    return { kind: 'buffer', mime: IMAGE_MIME[ext] ?? 'application/octet-stream', buffer };
+  }
+
+  /** يرفع صورة إلى معرض الصنف (§5.1 «صور للصنف» · R4-C2) في التخزين مع ترتيب صاعد. */
+  async uploadGalleryImage(id: number, dataUrl: string, companyId: number | null = null, userId?: number) {
+    await this.findOne(id, companyId);
+    if (!this.storage) {
+      throw new ConflictException('Object storage is not configured');
+    }
+    const match = DATA_URL_RE.exec(dataUrl);
+    if (!match) {
+      throw new UnsupportedMediaTypeException('dataUrl must be a base64 image data URL (png/jpeg/webp/gif)');
+    }
+    const mime = match[1] ?? '';
+    const buffer = Buffer.from(match[2] ?? '', 'base64');
+    if (buffer.length === 0) throw new UnsupportedMediaTypeException('Image is empty');
+    if (buffer.length > MAX_IMAGE_BYTES) {
+      throw new PayloadTooLargeException(`Image exceeds ${MAX_IMAGE_BYTES} bytes`);
+    }
+    const ext = (mime.split('/')[1] ?? 'png').replace('jpeg', 'jpg');
+    const relPath = `items/${companyId ?? 'global'}/${id}/${Date.now()}.${ext}`;
+    const storageId = await this.storage.save(relPath, buffer);
+    let created: { id: number; sortOrder: number };
+    try {
+      const sortOrder = await this.prisma.itemImage.count({ where: { itemId: id } });
+      created = await this.prisma.itemImage.create({ data: { itemId: id, url: storageId, sortOrder } });
+    } catch (err) {
+      await this.storage.remove(storageId).catch(() => undefined);
+      throw err;
+    }
+    await this.audits.write({
+      userId,
+      action: 'item.gallery.add',
+      entity: 'ItemImage',
+      entityId: created.id,
+      afterJson: { itemId: id, url: storageId, sortOrder: created.sortOrder ?? 0 },
+    });
+    return this.findOne(id, companyId);
+  }
+
+  /** يزيل صورة من المعرض (حذف أفضل الجهد للملف من التخزين). */
+  async removeGalleryImage(id: number, imageId: number, companyId: number | null = null, userId?: number) {
+    await this.findOne(id, companyId);
+    const row = await this.prisma.itemImage.findUnique({ where: { id: imageId } });
+    if (!row || row.itemId !== id) throw new NotFoundException(`Item #${id} image #${imageId} not found`);
+    await this.prisma.itemImage.delete({ where: { id: imageId } });
+    if (this.storage && !row.url.startsWith('data:') && !/^https?:\/\//.test(row.url)) {
+      await this.storage.remove(row.url).catch(() => undefined);
+    }
+    await this.audits.write({
+      userId,
+      action: 'item.gallery.remove',
+      entity: 'ItemImage',
+      entityId: imageId,
+      beforeJson: { itemId: id, url: row.url },
+    });
+    return this.findOne(id, companyId);
+  }
+
+  /** يعيّن صورة معرض كصورة رئيسية (تبديل imageUrl مع صف المعرض؛ بلا غلاف سابق يُحذف الصف). */
+  async setCoverFromGallery(id: number, imageId: number, companyId: number | null = null, userId?: number) {
+    const item = await this.findOne(id, companyId);
+    const row = await this.prisma.itemImage.findUnique({ where: { id: imageId } });
+    if (!row || row.itemId !== id) throw new NotFoundException(`Item #${id} image #${imageId} not found`);
+    const previousCover = item.imageUrl;
+    await this.prisma.item.update({
+      where: { id },
+      data: { imageUrl: row.url },
+      include: { category: true, baseUnit: true, brand: true, itemUnits: { include: { unit: true } }, attributes: true },
+    });
+    if (previousCover) {
+      await this.prisma.itemImage.update({ where: { id: imageId }, data: { url: previousCover } });
+    } else {
+      await this.prisma.itemImage.delete({ where: { id: imageId } });
+    }
+    await this.audits.write({
+      userId,
+      action: 'item.gallery.cover',
+      entity: 'Item',
+      entityId: id,
+      beforeJson: { imageUrl: previousCover },
+      afterJson: { imageUrl: row.url },
+    });
+    return this.findOne(id, companyId);
+  }
+
+  /** مصدر صورة معرض (§5.1): data URL→تمرير، http(s)→تحويل، وإلا كائن مخزّن→تحميل. */
+  async getGalleryImageSource(id: number, imageId: number, companyId: number | null = null): Promise<ItemImageSource> {
+    await this.findOne(id, companyId);
+    const row = await this.prisma.itemImage.findUnique({ where: { id: imageId } });
+    if (!row || row.itemId !== id) throw new NotFoundException(`Item #${id} image #${imageId} not found`);
+    const url = row.url;
+    if (url.startsWith('data:')) {
+      const match = /^data:([^;,]+);base64,(.*)$/s.exec(url);
+      if (!match) throw new NotFoundException(`Item #${id} image #${imageId} data URL is malformed`);
       return { kind: 'buffer', mime: match[1] ?? 'application/octet-stream', buffer: Buffer.from(match[2] ?? '', 'base64') };
     }
     if (/^https?:\/\//.test(url)) return { kind: 'redirect', url };

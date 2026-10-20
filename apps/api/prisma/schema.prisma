@@ -422,6 +422,7 @@ model Item {
 
   attributes          ItemAttribute[]
   itemUnits           ItemUnit[]
+  images              ItemImage[]
   prices              ItemPrice[]
   priceHistory        PriceHistory[]
   stockBalances       StockBalance[]
@@ -443,6 +444,19 @@ model Item {
   @@index([updatedAt])
   @@unique([companyId, code])
   @@unique([companyId, barcode])
+}
+
+// معرض صور الصنف (§5.1 «صور للصنف» · R4-C2) — الصورة الرئيسية تبقى Item.imageUrl
+// والصفوف هنا صور إضافية؛ يُحمى عبر الصنف الأب (نفس نمط الأسطر الابنة).
+model ItemImage {
+  id        Int      @id @default(autoincrement())
+  itemId    Int
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  url       String // storageId في ObjectStorage | data URL | https
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([itemId, sortOrder])
 }
 
 // دفعات الأصناف (اختياري §5.1) — كود الدفعة + تواريخ الإنتاج/الصلاحية (للبويات مثلاً)

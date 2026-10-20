@@ -6,6 +6,7 @@ import {
   can,
   get,
   post,
+  put,
   patch,
   del,
   qs,
@@ -14,6 +15,7 @@ import {
   type Brand,
   type Category,
   type Item,
+  type ItemImage,
   type ItemsPage,
   type Unit,
 } from '@/lib/api';
@@ -707,6 +709,8 @@ function EditItemModal({
   const [barcode, setBarcode] = useState(item.barcode ?? '');
   const [imageDataUrl, setImageDataUrl] = useState('');
   const [hasImage, setHasImage] = useState(!!item.imageUrl);
+  const [gallery, setGallery] = useState<ItemImage[]>(item.images ?? []);
+  const [galleryBusy, setGalleryBusy] = useState(false);
   const [trackBatch, setTrackBatch] = useState(item.trackBatch);
   const [active, setActive] = useState(item.active);
   const [parentItemId, setParentItemId] = useState(item.parentItemId ? String(item.parentItemId) : '');
@@ -759,6 +763,50 @@ function EditItemModal({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل تحديث الصنف');
       setBusy(false);
+    }
+  }
+
+  async function addGalleryImage(file: File) {
+    setGalleryBusy(true);
+    setError(null);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const updated = await post<Item>(`/items/${item.id}/images`, { dataUrl });
+      setGallery(updated.images ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذّر رفع الصورة');
+    } finally {
+      setGalleryBusy(false);
+    }
+  }
+
+  async function removeGalleryImage(img: ItemImage) {
+    setGalleryBusy(true);
+    setError(null);
+    try {
+      const updated = await del(`/items/${item.id}/images/${img.id}`).then(() =>
+        get<Item>(`/items/${item.id}`),
+      );
+      setGallery(updated.images ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذّر حذف الصورة');
+    } finally {
+      setGalleryBusy(false);
+    }
+  }
+
+  async function coverGalleryImage(img: ItemImage) {
+    setGalleryBusy(true);
+    setError(null);
+    try {
+      const updated = await put<Item>(`/items/${item.id}/images/${img.id}/cover`, {});
+      setGallery(updated.images ?? []);
+      setHasImage(true);
+      setImageDataUrl('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذّر تعيين الصورة الرئيسية');
+    } finally {
+      setGalleryBusy(false);
     }
   }
 
@@ -870,6 +918,51 @@ function EditItemModal({
             ) : null}
           </div>
         </Field>
+      </div>
+      <div className="mb-4 rounded-lg border border-gray-200 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-800">معرض الصور</h3>
+          <label className="text-sm text-gray-600 file:me-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-1">
+            <input
+              type="file"
+              accept="image/*"
+              disabled={galleryBusy}
+              className="text-sm text-gray-600"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void addGalleryImage(file);
+              }}
+            />
+          </label>
+        </div>
+        {gallery.length ? (
+          <div className="flex flex-wrap gap-3">
+            {gallery.map((img) => (
+              <div key={img.id} className="w-28">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`${API_URL}/items/${item.id}/images/${img.id}`}
+                  alt=""
+                  className="h-20 w-28 rounded border object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <div className="mt-1 flex justify-center gap-1">
+                  <Button variant="ghost" disabled={galleryBusy} onClick={() => void coverGalleryImage(img)}>
+                    رئيسية
+                  </Button>
+                  <Button variant="ghost" disabled={galleryBusy} onClick={() => void removeGalleryImage(img)}>
+                    حذف
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">لا توجد صور إضافية — الصورة الرئيسية أعلاه.</p>
+        )}
       </div>
       <div className="mb-2 flex flex-wrap gap-4 text-sm text-gray-700">
         <label className="flex items-center gap-1.5">
