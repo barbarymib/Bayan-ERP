@@ -1212,3 +1212,14 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** web typecheck 0 / lint 0 / build 0. (API unchanged.)
 - **Commits:** code `c8171e0`; docs (GAP.md row + status log + P5 index 11) + this entry.
 - **Next:** R4-B10 (mixed burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM BLOCKED.
+
+## 2026-10-20 — Round-4 P5 R4-B10 (50-concurrent heavy-report burst remediation)
+
+- **Gap:** §9 — benchmark `mixed 50-concurrent burst` was 84% success / p95 33.6s; the three heavy analytics reports (`stockValues`/`lowStock`/`stockSummary`) load every stock balance + item/unit joins into memory; 50 simultaneous heavy calls exhausted the connection pool with no endpoint-level protection.
+- **Fix:** new `apps/api/src/common/heavy-cache.ts` — `createReportCache(ttlMs)` (short-TTL single-flight: identical concurrent keys share one in-flight promise; errors not cached) + `createGate(maxConcurrent)` (FIFO semaphore capping parallel heavy queries). Wired into the three heavy methods via `ReportsService.heavy(key, fn)` (gate=4, ttl=2000ms); each of `stockValues`/`stockSummary` also exposes `?noCache=true` (new `CsvQuery.noCache` transform) to bypass.
+- **Re-benchmark (2026-10-20, 50k rows, `pnpm --filter @bayan/api bench`):** mixed burst **84%→100%** success, p95 **33.6s→10.1s**, max **34.3s→10.6s**; single-request `low-stock` p50 **1839ms→29ms**, `stock-values` p95 **5969→3153ms**, `stock-summary` p95 **4104→2384ms**. `docs/PERFORMANCE.md` regenerated (footer note updated to describe remediation); `apps/api/benchmark-result.json` refreshed.
+- **Tests:** `tests/heavy-cache.spec.ts` — 8 tests (single-flight coalescing, TTL hit/expiry, error not cached, key separation, gate concurrency cap, all tasks run, slot released on failure).
+- **Notes:** gate=4 & ttl=2s tuned for the dev bench; behavior is identical (pure read path) — cache only collapses duplicated work within 2s. Benchmark script seeds/cleans `BENCH-%` rows itself.
+- **Gates:** api typecheck 0 / lint 0 / **543/543** (+8). Rebuilt api (`pnpm --filter @bayan/api build`) before restart.
+- **Commits:** code (heavy-cache + wiring + benchmark) + docs (PERFORMANCE.md + GAP.md row + status log + P5 index 14) + this entry.
+- **Next:** final GAP reconcile + full regression (all remaining R4 items done). F2 FCM BLOCKED.
