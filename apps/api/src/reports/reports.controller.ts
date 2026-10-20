@@ -199,8 +199,8 @@ export class ReportsController {
 
   @Get('reports/aging')
   @Permissions('report.view')
-  aging(@Query() query: QueryAgingDto, @CurrentUser() user: AuthUser) {
-    return this.reports.aging(query, user.companyId ?? null);
+  aging(@Query() query: QueryAgingDto, @CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
+    return this.reports.aging(query, user.companyId ?? null).then((data) => this.respond(res, query, data));
   }
 }
 

@@ -343,7 +343,7 @@ export class QuerySupplierDebtDto extends CsvQuery {
   limit?: number;
 }
 
-export class QueryAgingDto {
+export class QueryAgingDto extends CsvQuery {
   @IsOptional()
   @IsDateString()
   asOf?: string;

@@ -113,8 +113,9 @@ function WarehousesSelect({ value, onChange }: { value: string; onChange: (v: st
   );
 }
 
-function downloadCsv(path: string, setErr: (m: string) => void) {
+function downloadReport(path: string, setErr: (m: string) => void) {
   const token = getToken();
+  const xlsx = path.includes('format=xlsx');
   fetch(`${API_URL}${path}`, {
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   })
@@ -134,11 +135,27 @@ function downloadCsv(path: string, setErr: (m: string) => void) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'report.csv';
+      a.download = xlsx ? 'report.xlsx' : 'report.csv';
       a.click();
       URL.revokeObjectURL(url);
     })
     .catch(() => setErr('تعذّر تصدير الملف'));
+}
+
+/** زرّا تصدير (CSV + XLSX) من نفس مسار التقرير مع تبديل `format`. */
+function ExportButtons({ path, setErr }: { path: string; setErr: (m: string) => void }) {
+  const csvPath = path.replace(/format=xlsx/g, 'format=csv');
+  const xlsxPath = csvPath.replace(/format=csv/g, 'format=xlsx');
+  return (
+    <div className="flex gap-2">
+      <Button variant="secondary" onClick={() => downloadReport(csvPath, setErr)}>
+        تصدير CSV
+      </Button>
+      <Button variant="secondary" onClick={() => downloadReport(xlsxPath, setErr)}>
+        تصدير XLSX
+      </Button>
+    </div>
+  );
 }
 
 function MovementsPane() {
@@ -188,9 +205,7 @@ function MovementsPane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
-        <Button variant="secondary" onClick={() => downloadCsv(`/reports/movements${qs({ format: 'csv', warehouseId: warehouseId, from: from, to: to })}`, setError)}>
-          تصدير CSV
-        </Button>
+        <ExportButtons path={`/reports/movements${qs({ format: 'csv', warehouseId: warehouseId, from: from, to: to })}`} setErr={setError} />
         <Button variant="secondary" onClick={() => window.print()}>
           طباعة
         </Button>
@@ -319,9 +334,7 @@ function ValuesPane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
-        <Button variant="secondary" onClick={() => downloadCsv(`/stock-values${qs({ format: 'csv', warehouseId: warehouseId, method: method })}`, setError)}>
-          تصدير CSV
-        </Button>
+        <ExportButtons path={`/stock-values${qs({ format: 'csv', warehouseId: warehouseId, method: method })}`} setErr={setError} />
       </div>
 
       {data ? (
@@ -466,9 +479,7 @@ function NoPricePane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
-        <Button variant="secondary" onClick={() => downloadCsv(`/reports/items-without-price${qs({ format: 'csv', categoryId: categoryId })}`, setError)}>
-          تصدير CSV
-        </Button>
+        <ExportButtons path={`/reports/items-without-price${qs({ format: 'csv', categoryId: categoryId })}`} setErr={setError} />
       </div>
 
       {data ? (
@@ -556,9 +567,7 @@ function SummaryPane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
-        <Button variant="secondary" onClick={() => downloadCsv(`/reports/stock-summary${qs({ format: 'csv', warehouseId: warehouseId })}`, setError)}>
-          تصدير CSV
-        </Button>
+        <ExportButtons path={`/reports/stock-summary${qs({ format: 'csv', warehouseId: warehouseId })}`} setErr={setError} />
       </div>
 
       {data ? (
@@ -666,9 +675,7 @@ function LowStockPane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
-        <Button variant="secondary" onClick={() => downloadCsv('/reports/low-stock?format=csv', setError)}>
-          تصدير CSV
-        </Button>
+        <ExportButtons path={'/reports/low-stock?format=csv'} setErr={setError} />
         <span className="text-sm text-gray-500">{data?.count ?? 0} صنف تحت الحد الأدنى</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -763,9 +770,7 @@ function WeightNotesPane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
-        <Button variant="secondary" onClick={() => downloadCsv(`/reports/weight-notes${qs({ format: 'csv', from: from, to: to, status: status })}`, setError)}>
-          تصدير CSV
-        </Button>
+        <ExportButtons path={`/reports/weight-notes${qs({ format: 'csv', from: from, to: to, status: status })}`} setErr={setError} />
         <span className="text-sm text-gray-500">{data?.count ?? 0} بند</span>
       </div>
 
@@ -857,6 +862,7 @@ function AgingPane() {
         <Button variant="secondary" onClick={() => setRefresh((x) => x + 1)}>
           تحديث
         </Button>
+        <ExportButtons path={'/reports/aging?format=csv'} setErr={setError} />
         <span className="text-sm text-gray-500">
           {data ? `حتى ${formatDate(data.asOf)} — ` : ''}
           {formatMoney(total)} إجمالي مستحق

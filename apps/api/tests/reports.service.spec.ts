@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReportsService } from '../src/reports/reports.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
-import type { QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryItemsWithoutPriceDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStockSummaryDto, QueryStockValuesDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
+import type { QueryAgingDto, QueryDiscountApprovalsDto, QueryDiscountsDto, QueryItemCardDto, QueryItemsWithoutPriceDto, QueryRepPerformanceDto, QueryReturnsDto, QuerySalesByDto, QuerySalesSummaryDto, QueryStockSummaryDto, QueryStockValuesDto, QueryStocktakeDiffDto, QueryStoppedCustomersDto, QuerySupplierDebtDto, QueryWeightNotesDto } from '../src/reports/reports.dto.js';
 
 interface Line {
   itemId?: number;
@@ -1131,6 +1131,32 @@ describe('ReportsService.itemsWithoutPrice — أصناف بلا آخر سعر �
     const svc = buildValuation({ noPriceItems: [] });
     const out = await svc.itemsWithoutPrice({} as QueryItemsWithoutPriceDto, 1);
     expect(out.count).toBe(0);
+    expect(out.rows).toEqual([]);
+  });
+});
+
+describe('ReportsService.aging — تصدير صفوف مسطّحة (R4-B2 §5.14)', () => {
+  function buildAging(customers: { id: number; code: string; nameAr: string; openingBalance: number }[], entries: { accountId: number; entryDate: Date; debit: number; credit: number }[]) {
+    const prisma = {
+      customer: { findMany: async () => customers },
+      ledgerEntry: { findMany: async () => entries },
+    } as unknown as PrismaService;
+    return new ReportsService(prisma);
+  }
+
+  it('يُدرج صفوفاً مسطّحة (customerName/balance/current) للتصدير', async () => {
+    const svc = buildAging(
+      [{ id: 2, code: 'CUST-02', nameAr: 'عميل اثنان', openingBalance: 500 }],
+      [],
+    );
+    const out = await svc.aging({} as QueryAgingDto);
+    expect(out.items[0]).toMatchObject({ balance: 500, b91: 500 });
+    expect(out.rows[0]).toMatchObject({ customerId: 2, customerCode: 'CUST-02', customerName: 'عميل اثنان', balance: 500, b91: 500 });
+  });
+
+  it('صفوف بلا عملاء = مصفوفة فارغة', async () => {
+    const svc = buildAging([], []);
+    const out = await svc.aging({} as QueryAgingDto);
     expect(out.rows).toEqual([]);
   });
 });

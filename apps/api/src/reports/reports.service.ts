@@ -1607,6 +1607,16 @@ export class ReportsService {
       days3: d3,
       total: rows.length,
       items,
+      rows: items.map((r) => ({
+        customerId: r.customer.id,
+        customerCode: r.customer.code,
+        customerName: r.customer.nameAr,
+        balance: r.balance,
+        current: r.current,
+        b31: r.b31,
+        b61: r.b61,
+        b91: r.b91,
+      })),
       totals: {
         balance: roundMoney(totals.balance),
         current: roundMoney(totals.current),

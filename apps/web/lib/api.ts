@@ -1287,6 +1287,16 @@ export interface AgingReport {
   days3: number;
   total: number;
   items: AgingRow[];
+  rows?: {
+    customerId: number;
+    customerCode: string;
+    customerName: string;
+    balance: number;
+    current: number;
+    b31: number;
+    b61: number;
+    b91: number;
+  }[];
   totals: {
     balance: number;
     current: number;
