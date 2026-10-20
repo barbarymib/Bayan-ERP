@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دليل المستخدم — نظام بيان ERP</title>
+<style>
+  :root{
+    --blue:#1d4ed8; --blue-dark:#1e3a8a; --blue-light:#eff6ff;
+    --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f8fafc;
+    --green:#059669; --amber:#d97706; --red:#dc2626; --violet:#7c3aed;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:"Segoe UI","Tahoma","Arial",sans-serif;background:var(--bg);color:var(--ink);margin:0;line-height:1.85;font-size:15.5px}
+
+  /* ===== Cover ===== */
+  .cover{background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 55%,#2563eb 100%);color:#fff;padding:70px 40px 55px;text-align:center}
+  .cover .logo{width:84px;height:84px;border-radius:22px;background:#fff;color:var(--blue);font-size:46px;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .cover h1{font-size:38px;margin:0 0 8px;font-weight:900}
+  .cover p.sub{font-size:17px;opacity:.92;margin:4px 0}
+  .cover .meta{display:inline-flex;gap:14px;margin-top:22px;flex-wrap:wrap;justify-content:center}
+  .cover .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);padding:5px 16px;border-radius:999px;font-size:13px}
+
+  /* ===== Layout ===== */
+  .wrap{display:flex;max-width:1240px;margin:0 auto;gap:26px;padding:26px 20px}
+  nav.toc{width:270px;flex-shrink:0;position:sticky;top:16px;align-self:flex-start;max-height:calc(100vh - 40px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
+  nav.toc h3{margin:0 0 10px;font-size:14px;color:var(--muted);font-weight:700}
+  nav.toc a{display:block;padding:5px 10px;border-radius:8px;color:#374151;text-decoration:none;font-size:13.5px}
+  nav.toc a:hover{background:var(--blue-light);color:var(--blue)}
+  main{flex:1;min-width:0}
+
+  /* ===== Search ===== */
+  .search{width:100%;padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;margin-bottom:14px;background:#fff}
+  .search:focus{outline:none;border-color:var(--blue)}
+
+  /* ===== Sections ===== */
+  section.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 28px;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  h2.sec{font-size:24px;color:var(--blue-dark);margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  h2.sec .num{background:var(--blue);color:#fff;min-width:38px;height:38px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;font-size:17px}
+  h3{color:var(--blue-dark);font-size:18px;margin:22px 0 8px;border-inline-start:4px solid var(--blue);padding-inline-start:10px}
+  h4{font-size:15.5px;margin:16px 0 6px;color:#1f2937}
+
+  /* ===== Callouts ===== */
+  .note,.warn,.tip,.danger{border-radius:12px;padding:12px 16px;margin:12px 0;font-size:14.5px;border:1px solid}
+  .note{background:#eff6ff;border-color:#bfdbfe}.note::before{content:"ℹ️ ملاحظة: ";font-weight:800}
+  .warn{background:#fffbeb;border-color:#fde68a}.warn::before{content:"⚠️ تنبيه: ";font-weight:800}
+  .tip{background:#ecfdf5;border-color:#a7f3d0}.tip::before{content:"💡 نصيحة: ";font-weight:800}
+  .danger{background:#fef2f2;border-color:#fecaca}.danger::before{content:"⛔ هام: ";font-weight:800}
+
+  /* ===== Tables ===== */
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;background:#fff}
+  th{background:var(--blue-dark);color:#fff;padding:9px 12px;text-align:right;font-size:13.5px}
+  td{border:1px solid var(--line);padding:8px 12px}
+  tr:nth-child(even) td{background:#f9fafb}
+  table.scrolled{display:block;overflow-x:auto;white-space:nowrap}
+
+  /* ===== Steps ===== */
+  ol.steps{counter-reset:st;list-style:none;padding:0;margin:10px 0}
+  ol.steps li{counter-increment:st;position:relative;padding:6px 44px 6px 0;margin:7px 0}
+  ol.steps li::before{content:counter(st);position:absolute;right:0;top:4px;width:30px;height:30px;background:var(--blue-light);color:var(--blue);font-weight:800;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;border:1.5px solid #bfdbfe}
+
+  /* ===== Figures ===== */
+  figure.shot{margin:16px 0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  figure.shot img{width:100%;display:block;border-bottom:1px solid var(--line)}
+  figure.shot figcaption{padding:9px 14px;font-size:13px;color:var(--muted);background:#fbfcfe}
+  figure.shot figcaption b{color:var(--blue-dark)}
+
+  /* ===== Pills & chips ===== */
+  .pill{display:inline-block;padding:2px 11px;border-radius:999px;font-size:12px;font-weight:700}
+  .p-draft{background:#dbeafe;color:#1d4ed8}.p-approved{background:#d1fae5;color:#047857}
+  .p-cancel{background:#fee2e2;color:#b91c1c}.p-review{background:#fef3c7;color:#b45309}
+  .p-arch{background:#ede9fe;color:#6d28d9}
+  .chip{display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;color:#334155;border-radius:7px;padding:1px 8px;font-size:12px;font-family:Consolas,monospace;direction:ltr}
+
+  /* ===== Flow diagram ===== */
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;padding:14px;margin:12px 0}
+  .flow .fnode{background:#fff;border:1.5px solid var(--blue);color:var(--blue-dark);border-radius:10px;padding:6px 13px;font-size:13.5px;font-weight:700}
+  .flow .fnode.alt{border-color:var(--green);color:var(--green)}
+  .flow .fnode.bad{border-color:var(--red);color:var(--red)}
+  .flow .arr{color:var(--muted);font-size:17px;font-weight:900}
+
+  /* ===== Phone mockups ===== */
+  .phones{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin:18px 0}
+  .phone{width:280px;background:#0f172a;border-radius:34px;padding:12px;box-shadow:0 14px 34px rgba(0,0,0,.28)}
+  .phone .scr{background:#f1f5f9;border-radius:24px;overflow:hidden;min-height:520px;display:flex;flex-direction:column}
+  .phone .appbar{background:var(--blue);color:#fff;padding:13px 16px;font-size:14.5px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+  .phone .body{padding:12px;display:flex;flex-direction:column;gap:9px;font-size:12.5px}
+  .pcard{background:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid #eef2f7}
+  .pcard b{font-size:13px}.pcard .row{display:flex;justify-content:space-between;margin-top:3px;color:#475569}
+  .pbtn{background:var(--blue);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:800;font-size:13px}
+  .pbtn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+  .pbtn.green{background:var(--green)}
+  .badge-off{background:#fef3c7;color:#b45309;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:800;align-self:center}
+  .phone-cap{text-align:center;font-size:12.5px;color:var(--muted);margin-top:8px}
+
+  /* ===== Scenario cards ===== */
+  .scn{background:linear-gradient(180deg,#fff,#fbfdff);border:1.5px solid #dbeafe;border-radius:14px;padding:18px 20px;margin:14px 0}
+  .scn h4{margin:0 0 8px;color:var(--blue-dark);font-size:16.5px}
+  .scn .tag{background:var(--blue);color:#fff;border-radius:8px;padding:2px 11px;font-size:12px;margin-inline-start:8px}
+
+  details.faq{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:9px 0}
+  details.faq summary{font-weight:800;cursor:pointer;color:var(--blue-dark)}
+  details.faq p{margin:8px 0 2px;color:#374151}
+
+  footer{background:var(--blue-dark);color:#cbd5e1;text-align:center;padding:26px;font-size:13.5px;margin-top:30px}
+  footer b{color:#fff}
+
+  @media print{
+    nav.toc,.search{display:none}
+    body{background:#fff;font-size:12.5px}
+    .wrap{display:block;padding:0;max-width:none}
+    section.card{border:none;box-shadow:none;padding:8px 0;page-break-inside:avoid}
+    h2.sec{page-break-before:always}
+    .cover{padding:120px 40px}
+    figure.shot{page-break-inside:avoid}
+  }
+  @media (max-width:900px){.wrap{flex-direction:column}nav.toc{position:static;width:auto;max-height:none}}
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="logo">ب</div>
+  <h1>دليل المستخدم الشامل</h1>
+  <p class="sub">نظام «بيان» لإدارة مبيعات الحديد والبويات — جملة وقطاعي</p>
+  <p class="sub" style="font-size:14px;opacity:.8">الويب · تطبيق المناديب · لوحة المشرف العام</p>
+  <div class="meta">
+    <span>الإصدار 1.0</span>
+    <span>أكتوبر 2026</span>
+    <span>واجهة عربية RTL</span>
+    <span>مع لقطات شاشة حقيقية</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ============ TOC ============ -->
+<nav class="toc">
+  <h3>📑 المحتويات</h3>
+  <input class="search" id="tocFilter" type="search" placeholder="🔍 بحث في الفهرس…">
+  <div id="tocLinks">
+    <a href="#s1">1. نظرة عامة على النظام</a>
+    <a href="#s2">2. الدخول والخروج</a>
+    <a href="#s3">3. الأدوار والصلاحيات</a>
+    <a href="#s4">4. لوحة المعلومات</a>
+    <a href="#s5">5. البيانات الأساسية</a>
+    <a href="#s6">6. المخازن والأرصدة</a>
+    <a href="#s7">7. بيان الأسعار (الفاتورة)</a>
+    <a href="#s8">8. المرتجعات</a>
+    <a href="#s9">9. التحصيل والخزينة</a>
+    <a href="#s10">10. الموردين والمشتريات</a>
+    <a href="#s11">11. عروض الأسعار</a>
+    <a href="#s12">12. الجرد</a>
+    <a href="#s13">13. التحويلات والرصيد الافتتاحي</a>
+    <a href="#s14">14. العروض والأسعار الخاصة</a>
+    <a href="#s15">15. تارجت المناديب والعمولات</a>
+    <a href="#s16">16. الزيارات والتتبع الجغرافي</a>
+    <a href="#s17">17. الموافقات</a>
+    <a href="#s18">18. التقارير والتصدير</a>
+    <a href="#s19">19. الإشعارات والتنبيهات</a>
+    <a href="#s20">20. الترحيل والأرشفة</a>
+    <a href="#s21">21. النسخ الاحتياطي</a>
+    <a href="#s22">22. سجل التدقيق</a>
+    <a href="#s23">23. الأدوات المساعدة</a>
+    <a href="#s24">24. إعدادات الشركة</a>
+    <a href="#s25">25. المستخدمون والأجهزة</a>
+    <a href="#s26">26. تطبيق المناديب (الموبايل)</a>
+    <a href="#s27">27. السيناريوهات الكاملة</a>
+    <a href="#s28">28. أسئلة ومشكلات شائعة</a>
+    <a href="#s29">29. قائمة تحقق التسليم</a>
+  </div>
+</nav>
+
+<!-- ============ MAIN ============ -->
+<main>
+
+<!-- ==================== 1 ==================== -->
+<section class="card" id="s1">
+  <h2 class="sec"><span class="num">1</span> نظرة عامة على النظام</h2>
+  <p>«بيان» نظام متكامل لإدارة دورة البيع والمخزون في شركات الحديد والبويات، ويتكوّن من ثلاث واجهات تعمل على قاعدة بيانات واحدة:</p>
+  <table>
+    <tr><th>الواجهة</th><th>المستخدم</th><th>الوصف</th></tr>
+    <tr><td><b>لوحة الويب</b></td><td>المكتب، الإدارة، المحاسبة، المخازن، المالك</td><td>شاشة كاملة على المتصفح لكل الوظائف والتقارير</td></tr>
+    <tr><td><b>تطبيق المناديب</b></td><td>مندوب المبيعات (أندرويد)</td><td>يعمل <b>بدون إنترنت (Offline)</b> ويزامن البيانات عند توفر الاتصال</td></tr>
+    <tr><td><b>لوحة المشرف العام</b></td><td>مدير البيئة (SaaS)</td><td>إدارة الشركات والميزات والتقارير العامة</td></tr>
+  </table>
+
+  <h3>مفاهيم أساسية يجب فهمها أولاً</h3>
+  <ul>
+    <li><b>بيان الأسعار (BP-):</b> هي الفاتورة في هذا النظام. مراحلها: <span class="pill p-draft">مسودة</span> ← <span class="pill p-approved">معتمد</span> ← <span class="pill p-arch">مرحّل للأرشيف</span>، مع حالة جانبية <span class="pill p-cancel">ملغي</span>.</li>
+    <li><b>بيان التوريد (PR-):</b> فاتورة الشراء من المورد.</li>
+    <li><b>بيان المرتجع (RT-):</b> مستند إرجاع البضاعة المباعة.</li>
+    <li><b>الوحدة الأساسية:</b> أصغر وحدة تخزين للصنف (مثل «كجم»). كل الأرصدة تُخزَّن بها وتُعرض بأي وحدة — مثل «3 كرتونة + 2 عبوة».</li>
+    <li><b>قائمة الأسعار:</b> لكل عميل قائمة افتراضية: قطاعي / جملة / جملة الجملة / مشاريع ومقاولين.</li>
+    <li><b>حد الخصم:</b> نسبة قصوى لكل دور/مستخدم على الصنف وعلى البيان؛ أي تجاوز يتحول تلقائياً إلى <b>طلب موافقة</b>.</li>
+    <li><b>الفترة المحاسبية:</b> كل حركة مرتبطة بفترة؛ أساس عملية الترحيل الدوري للأرشفة.</li>
+  </ul>
+
+  <div class="flow">
+    <span class="fnode">مسودة</span><span class="arr">←</span>
+    <span class="fnode alt">معتمد</span><span class="arr">←</span>
+    <span class="fnode">مرحّل للأرشيف</span>
+    <span class="arr">|</span>
+    <span class="fnode bad">ملغي (بحالة جانبية)</span>
+  </div>
+</section>
+
+<!-- ==================== 2 ==================== -->
+<section class="card" id="s2">
+  <h2 class="sec"><span class="num">2</span> الدخول والخروج وإدارة الحساب</h2>
+  <h3>2.1 تسجيل الدخول</h3>
+  <ol class="steps">
+    <li>افتح رابط النظام في المتصفح.</li>
+    <li>أدخل <b>البريد الإلكتروني أو رقم الهاتف</b> (حسب طريقة إنشاء حسابك) وكلمة المرور.</li>
+    <li>اضغط <b>دخول</b> — ستنتقل مباشرة إلى لوحة المعلومات.</li>
+  </ol>
+  <figure class="shot"><img src="shots/01-login.jpg" alt="شاشة تسجيل الدخول" loading="lazy"><figcaption><b>شاشة تسجيل الدخول</b> — يدخل موظفو المكتب بالبريد الإلكتروني، ويدخل المندوب برقم هاتفه على التطبيق. رابط «دخول المشرف العام للبيئة» مخصص للوحة SaaS.</figcaption></figure>
+
+  <h3>2.2 تسجيل الخروج</h3>
+  <p>من <b>أسفل الشريط الجانبي</b> اضغط <b>تسجيل الخروج</b>.</p>
+  <div class="danger">لا تشارك حسابك مع أحد — كل عملية في النظام تُسجَّل باسمك في <b>سجل التدقيق</b> (البند 22) وأنت مسؤول عن ما يُجرى بحسابك.</div>
+
+  <h3>2.3 نسيت كلمة المرور</h3>
+  <p>تواصل مع مدير النظام لإعادة تعيينها من شاشة «المستخدمون والأدوار» (البند 25).</p>
+</section>
+
+<!-- ==================== 3 ==================== -->
+<section class="card" id="s3">
+  <h2 class="sec"><span class="num">3</span> الأدوار والصلاحيات</h2>
+  <p>النظام يعتمد نموذج <b>أدوار (Roles)</b> يحمل كل دور مجموعة صلاحيات محددة، مع إمكانية تخصيص حدود خصم إضافية لكل مستخدم على حدة.</p>
+
+  <h3>3.1 الأدوار السبعة</h3>
+  <table>
+    <tr><th>الدور</th><th>المسؤوليات الأساسية</th></tr>
+    <tr><td><b>مدير النظام (ADMIN)</b></td><td>كل الصلاحيات: المستخدمون، الإعدادات، الترحيل، الأجهزة</td></tr>
+    <tr><td><b>المالك (OWNER)</b></td><td>كل التقارير، اعتماد الخصومات الكبيرة، اعتماد الجرد، الخزينة، الإقفال اليومي</td></tr>
+    <tr><td><b>المحاسب (ACCOUNTANT)</b></td><td>الأسعار، المشتريات، المرتجعات، حسابات العملاء والموردين، التحصيل</td></tr>
+    <tr><td><b>أمين المخزن (WAREHOUSEKEEPER)</b></td><td>الاستلام والصرف، التحويلات، تنفيذ الجرد، استلام المرتجعات</td></tr>
+    <tr><td><b>موظف المبيعات (SALES_OFFICE)</b></td><td>إصدار بيانات الأسعار من المكتب أو المعرض</td></tr>
+    <tr><td><b>مندوب المبيعات (SALES_REP)</b></td><td>التطبيق فقط: عملاؤه، بياناته، تحصيله، مرتجعاته، زياراته</td></tr>
+    <tr><td><b>مشرف المناديب (REP_SUPERVISOR)</b></td><td>متابعة المناديب على الخريطة، مراجعة بياناتهم، اعتماد الخصومات</td></tr>
+  </table>
+
+  <h3>3.2 مصفوفة الصلاحيات المختصرة</h3>
+  <table class="scrolled">
+    <tr><th>الوظيفة</th><th>مدير</th><th>مالك</th><th>محاسب</th><th>أمين مخزن</th><th>مبيعات مكتب</th><th>مندوب</th><th>مشرف</th></tr>
+    <tr><td>إنشاء بيان أسعار</td><td>✔</td><td>✔</td><td>✔</td><td>✘</td><td>✔</td><td>✔ عملاؤه</td><td>✔</td></tr>
+    <tr><td>تعديل بعد الاعتماد</td><td>✔</td><td>✔</td><td>✔</td><td>✘</td><td>✘</td><td>قبل الاعتماد</td><td>✔</td></tr>
+    <tr><td>خصم الصنف / البيان</td><td>✔</td><td>✔</td><td>حد أقصى</td><td>✘</td><td>حد أقصى</td><td>حد أقصى</td><td>حد أعلى</td></tr>
+    <tr><td>رؤية التكلفة</td><td>✔</td><td>✔</td><td>✔</td><td>✘</td><td>✘</td><td>✘</td><td>✘</td></tr>
+    <tr><td>المرتجعات</td><td>✔</td><td>✔</td><td>✔</td><td>استلام فقط</td><td>✔</td><td>✔ عملاؤه</td><td>اعتماد</td></tr>
+    <tr><td>الجرد</td><td>✔</td><td>اعتماد</td><td>عرض</td><td>تنفيذ</td><td>✘</td><td>✘</td><td>✘</td></tr>
+    <tr><td>الترحيل والأرشفة</td><td>✔</td><td>✔</td><td>✘</td><td>✘</td><td>✘</td><td>✘</td><td>✘</td></tr>
+    <tr><td>تتبع المناديب</td><td>✔</td><td>✔</td><td>✘</td><td>✘</td><td>✘</td><td>✘</td><td>✔</td></tr>
+  </table>
+
+  <div class="tip">ما لا يظهر في شاشتك ليس عطلاً — الشاشات والأزرار تظهر <b>فقط حسب صلاحيات دورك</b>. إن لم تجد زراً تتوقعه فراجع مدير النظام.</div>
+
+  <h3>3.3 حدود الخصم</h3>
+  <p>تُضبط لكل دور ولكل مستخدم (نسبة قصوى على الصنف وأخرى على البيان). عند التجاوز لا يُرفض البيع — بل يُنشأ <b>طلب موافقة</b> يصل للمشرف أو المالك (البند 17)، وكل تعديل خصم يُسجَّل في سجل التدقيق.</p>
+</section>
+
+<!-- ==================== 4 ==================== -->
+<section class="card" id="s4">
+  <h2 class="sec"><span class="num">4</span> لوحة المعلومات</h2>
+  <p>أول شاشة بعد الدخول، وتعرض أرقام اللحظة: مبيعات <b>اليوم/الشهر/الفترة</b>، التحصيلات، صافي مبيعات الشهر، عدد بيانات كل حالة، <b>أصناف تحت الحد الأدنى</b>، طلبات تحتاج حدّاً الذاتي، أعلى المبيعات، وأشهر العملاء تأخيراً، وتقديم المخازن (تقييم إجمالي).</p>
+  <figure class="shot"><img src="shots/02-dashboard.jpg" alt="لوحة المعلومات" loading="lazy"><figcaption><b>لوحة المعلومات</b> — بطاقات المؤشرات أعلى، وأدنى الشاشة: أعلَى الأصناف مبيعاً، أبطأ العملاء سداداً، وتقديم المخازن بالقيمة.</figcaption></figure>
+</section>
+
+<!-- ==================== 5 ==================== -->
+<section class="card" id="s5">
+  <h2 class="sec"><span class="num">5</span> البيانات الأساسية</h2>
+
+  <h3>5.1 الأصناف</h3>
+  <p><b>الغرض:</b> تعريف كل منتج ببياناته ووحداته وأسعاره وصوره وباركوده.</p>
+  <ol class="steps">
+    <li>من الشريط الجانبي اختر <b>الأصناف</b> ← <b>+ صنف جديد</b>.</li>
+    <li>أدخل: الكود، الباركود (اختياري)، الاسم عربي/إنجليزي، التصنيف (حديد/بويات/أدوات/إكسسوارات)، الماركة، المنشأ.</li>
+    <li>الحالة (نشط/موقوف) و<b>الحد الأدنى للمخزون</b> (نقطة إعادة الطلب).</li>
+    <li>خصائص حسب التصنيف: <b>حديد</b> (القطر، الطول، الدرجة، الوزن النظري) أو <b>بويات</b> (اللون، السعة، النوع، التشغيلة والصلاحية).</li>
+    <li>أضف الوحدات المتعددة (5.2) والصور، ثم <b>حفظ</b>.</li>
+  </ol>
+  <figure class="shot"><img src="shots/18-items.jpg" alt="شاشة الأصناف" loading="lazy"><figcaption><b>شاشة الأصناف</b> — البحث والتصفية، الحالة، الحد الأدنى، والتعديل.</figcaption></figure>
+  <p><b>الأصناف المتغيرة (Variants):</b> صنف أساسي بعدة تنويعات (دهان واحد بألوان وعبوات متعددة) دون تكرار البيانات.</p>
+  <p><b>الباركود/QR:</b> من شاشة الصنف يمكنك طباعة <b>ملصق باركود/QR</b> (يحتاج صلاحية <span class="chip">label.view</span>).</p>
+
+  <h3>5.2 الوحدات المتعددة للصنف</h3>
+  <p>لكل صنف <b>وحدة أساسية</b> ووحدات بديلة بمعامل تحويل. المخزون يُخزَّن دائماً بالوحدة الأساسية ويُعرض بأي وحدة.</p>
+  <table>
+    <tr><th>الصنف</th><th>الأساسية</th><th>وحدات أخرى</th></tr>
+    <tr><td>حديد تسليح 12 مم</td><td>كجم</td><td>سيخ = 10.656 كجم · طن = 1000 كجم · حزمة = N سيخ</td></tr>
+    <tr><td>دهان بلاستيك 18 لتر</td><td>عبوة</td><td>كرتونة = 1/4 عبوات (حسب الصنف)</td></tr>
+    <tr><td>أسمنت / جبس / معجون</td><td>كجم</td><td>شيكارة = 50 كجم</td></tr>
+    <tr><td>مسامير</td><td>كجم</td><td>علبة / كرتونة</td></tr>
+  </table>
+  <ul>
+    <li><b>نوع القياس:</b> عددي (أعداد صحيحة فقط) أو وزني (كسور بدقة 3 خانات).</li>
+    <li>لكل وحدة: معامل تحويل، سعر بيع مستقل (اختياري)، باركود مستقل (اختياري)، ونوع الاستخدام (بيع/شراء/كلاهما).</li>
+    <li>مسموح البيع بوحدة مختلفة عن الشراء مع تحويل تلقائي.</li>
+  </ul>
+
+  <h3>5.3 قوائم الأسعار والتسعير اليومي للحديد</h3>
+  <p>أسعار الشراء (التكلفة)، آخر سعر شراء وتاريخه، ومتوسط التكلفة المرجح. عدة قوائم بيع: <b>قطاعي، جملة، جملة الجملة، مشاريع/مقاولين</b>.</p>
+  <ol class="steps">
+    <li>من <b>الأسعار</b> اختر شاشة <b>التحديث الجماعي</b> (تسعير يومي للحديد).</li>
+    <li>طبّق التغيير <b>بنسبة % أو بقيمة</b> أو بإدخال جماعي دفعة واحدة.</li>
+    <li>احفظ — يُسجَّل كل تغيير (من غيّر، متى، من كم إلى كم) في <b>سجل تغيرات الأسعار</b>.</li>
+  </ol>
+  <figure class="shot"><img src="shots/19-prices.jpg" alt="شاشة الأسعار" loading="lazy"><figcaption><b>شاشة الأسعار</b> — القوائم المتعددة، آخر سعر شراء، والتعديل.</figcaption></figure>
+  <div class="warn">عند البيع <b>أقل من التكلفة</b> أو أقل من حد أدنى للسعر يظهر تنبيه — البيع يحتاج صلاحية استثناء بموافقة.</div>
+
+  <h3>5.4 العملاء</h3>
+  <ol class="steps">
+    <li><b>العملاء</b> ← <b>+ عميل جديد</b>.</li>
+    <li>أدخل: الاسم، النشاط، العنوان، <b>الموقع على الخريطة</b>، الهاتف، الرقم الضريبي، <b>المندوب المسؤول</b>، <b>قائمة السعر الافتراضية</b>.</li>
+    <li>حدّد <b>الحد الائتماني</b> و<b>مدة السداد</b>، ثم احفظ.</li>
+  </ol>
+  <figure class="shot"><img src="shots/21-customers.jpg" alt="شاشة العملاء" loading="lazy"><figcaption><b>شاشة العملاء</b> — الأرصدة، حدود الائتمان، المندوب المسؤول، وقائمة الأسعار.</figcaption></figure>
+  <ul>
+    <li><b>تقادم الديون:</b> 0-30 / 31-60 / 61-90 / +90 يوم (تقرير «أعمار الديون»).</li>
+    <li><b>تصنيف العملاء</b> (A/B/C) و<b>تقييم السداد</b> (يحتاج <span class="chip">customer.rating</span>).</li>
+    <li><b>تعيين عميل لمندوب أو أكثر</b> مع تاريخ التحويل بين المناديب.</li>
+    <li><b>كشف الحساب</b> يجمع: بيانات، مرتجعات، تحصيلات، رصيد افتتاحي.</li>
+  </ul>
+
+  <h3>5.5 الموردين</h3>
+  <p>بيانات المورد وبيانات الاتصال والرقم الضريبي، وكشف حساب المورد والسداد ومرتجع المشتريات (البند 10).</p>
+  <figure class="shot"><img src="shots/22-suppliers.jpg" alt="شاشة الموردين" loading="lazy"><figcaption><b>شاشة الموردين</b>.</figcaption></figure>
+
+  <h3>5.6 التصنيفات والماركات والفروع</h3>
+  <figure class="shot"><img src="shots/24-categories.jpg" alt="التصنيفات" loading="lazy"><figcaption><b>التصنيفات</b> (حديد/بويات/أدوات/إكسسوارات).</figcaption></figure>
+  <figure class="shot"><img src="shots/25-brands.jpg" alt="الماركات" loading="lazy"><figcaption><b>الماركات</b>.</figcaption></figure>
+  <figure class="shot"><img src="shots/26-branches.jpg" alt="الفروع" loading="lazy"><figcaption><b>الفروع</b>.</figcaption></figure>
+</section>
+
+<!-- ==================== 6 ==================== -->
+<section class="card" id="s6">
+  <h2 class="sec"><span class="num">6</span> المخازن والأرصدة</h2>
+  <h3>6.1 إدارة المخازن</h3>
+  <ol class="steps">
+    <li><b>المخازن</b> ← <b>+ مخزن جديد</b>.</li>
+    <li>حدّد: الاسم، النوع (رئيسي / حديد / بويات / سيارات المناديب / معرض / تالف)، والمسؤول، ثم احفظ.</li>
+  </ol>
+  <figure class="shot"><img src="shots/23-warehouses.jpg" alt="شاشة المخازن" loading="lazy"><figcaption><b>شاشة المخازن</b> — كل مخزن بمسؤوليه وأصنافه وأرصدته اللحظية.</figcaption></figure>
+
+  <h3>6.2 حركات المخزون</h3>
+  <p>الحركات المتاحة: <b>استلام، صرف (بيع)، تحويل بين مخازن، تسوية جرد، مرتجع، رصيد افتتاحي</b>. رصيد لحظي لكل صنف في كل مخزن، مع حجز مؤقت للكميات في البيانات المسودة (اختياري).</p>
+
+  <h3>6.3 بطاقة الصنف (Item Ledger)</h3>
+  <p>كل حركات صنف في مخزن: الكمية الداخلة/الخارجة والرصيد بعد كل حركة — متاحة من شاشة الصنف وكذلك من تقرير <b>بطاقة الصنف</b> (البند 18).</p>
+</section>
+
+<!-- ==================== 7 ==================== -->
+<section class="card" id="s7">
+  <h2 class="sec"><span class="num">7</span> بيان الأسعار (الفاتورة)</h2>
+  <p>هذا هو <b>المستند المحوري</b> في النظام — دورة حياته:</p>
+  <div class="flow">
+    <span class="fnode">اختيار العميل</span><span class="arr">←</span>
+    <span class="fnode">إضافة الأصناف والوحدات</span><span class="arr">←</span>
+    <span class="fnode">الخصومات</span><span class="arr">←</span>
+    <span class="fnode bad">ضمن الحد؟</span><span class="arr">←</span>
+    <span class="fnode alt">حفظ / اعتماد</span><span class="arr">←</span>
+    <span class="fnode">طباعة / PDF</span>
+  </div>
+
+  <h3>7.1 إنشاء بيان أسعار (خطوة بخطوة)</h3>
+  <ol class="steps">
+    <li><b>بيانات الأسعار</b> ← <b>+ بيان أسعار جديد</b>.</li>
+    <li><b>الرأس:</b> العميل (يحدد قائمته ومندوبه تلقائياً)، المخزن، التاريخ، شروط الدفع (نقدي/آجل/مختلط).</li>
+    <li><b>البنود:</b> الصنف ← الوحدة ← الكمية ← السعر (يُجلب من قائمة العميل) ← الخصم (نسبة أو قيمة).</li>
+    <li><b>للحديد:</b> أدخل <b>الوزن الفعلي كجم</b> وملاحظته عند اختلاف وزن الشاحنة عن النظري.</li>
+    <li><b>التذييل (آلي):</b> الإجمالي الفرعي، خصم البيان، النقل، الضريبة، الصافي، المدفوع، المتبقي.</li>
+    <li><b>حفظ كمسودة</b> أو <b>اعتماد</b> مباشرة.</li>
+  </ol>
+  <figure class="shot"><img src="shots/03-statements.jpg" alt="قائمة بيانات الأسعار" loading="lazy"><figcaption><b>قائمة بيانات الأسعار</b> — التصفية بالحالة، عرض التفاصيل، الطباعة، والإلغاء.</figcaption></figure>
+  <figure class="shot"><img src="shots/04-statement-create-modal.jpg" alt="إنشاء بيان أسعار" loading="lazy"><figcaption><b>نافذة إنشاء بيان أسعار جديد</b> — الرأس أعلى، البنود في المنتصف، وملاحظات أسفل. لاحظ حقول الوزن الفعلي لأصناف الحديد.</figcaption></figure>
+
+  <h3>7.2 الخصومات وقواعدها</h3>
+  <table>
+    <tr><th>الحالة</th><th>السلوك</th></tr>
+    <tr><td>خصم صنف بنسبة %</td><td>يُحسب على إجمالي بند الصنف</td></tr>
+    <tr><td>خصم صنف بقيمة ثابتة</td><td>يُخصم من إجمالي بند الصنف</td></tr>
+    <tr><td>خصم بيان بنسبة %</td><td>يُحسب على صافي البنود بعد خصوماتها</td></tr>
+    <tr><td>خصم بيان بقيمة ثابتة</td><td>يُخصم من الصافي ويُوزَّع نسبياً على البنود (للربحية والمرتجعات)</td></tr>
+  </table>
+  <div class="note">الترتيب دائماً: <b>خصم الصنف أولاً ثم خصم البيان</b> — وإدخال النسبة يُظهر القيمة والعكس تلقائياً أثناء الكتابة.</div>
+
+  <h3>7.3 قواعد التحقق عند الحفظ</h3>
+  <ul>
+    <li><b>الكمية:</b> منع البيع بأكثر من المتاح (أو السماح بالسالب حسب إعداد الشركة).</li>
+    <li><b>الحد الائتماني:</b> تنبيه أو منع أو طلب استثناء <span class="chip">credit.exception.approve</span>.</li>
+    <li><b>البيع تحت التكلفة:</b> يحتاج صلاحية استثناء.</li>
+    <li><b>تجاوز حد الخصم:</b> تحويل تلقائي لطلب موافقة.</li>
+  </ul>
+
+  <h3>7.4 التعديل بعد الاعتماد والإلغاء</h3>
+  <ul>
+    <li>التعديل بعد الاعتماد يُنشئ <b>نسخة معدلة</b> مع سجل كامل بالتعديلات — لا حذف مباشر (يحتاج <span class="chip">statement.edit_approved</span>).</li>
+    <li><b>الإلغاء</b> يحتاج <b>سبباً إلزامياً</b> وصلاحية <span class="chip">statement.cancel</span> — انقر «إلغاء» من صف البيان.</li>
+  </ul>
+
+  <h3>7.5 الطباعة والمشاركة</h3>
+  <figure class="shot"><img src="shots/06-statement-print.jpg" alt="طباعة بيان الأسعار" loading="lazy"><figcaption><b>صفحة طباعة بيان الأسعار</b> — مقاس A4/A5/حراري 80مم، شعار الشركة، رصيد العميل قبل وبعد، وأزرار المشاركة (واتساب/PDF).</figcaption></figure>
+  <p>يظهر على المطبوع عنوان <b>«بيان أسعار»</b> مع بيانات الشركة ورصيد العميل قبل وبعد البيان — والمشاركة عبر <b>واتساب</b> مباشرة.</p>
+</section>
+
+<!-- ==================== 8 ==================== -->
+<section class="card" id="s8">
+  <h2 class="sec"><span class="num">8</span> المرتجعات</h2>
+  <h3>8.1 طريقتا البدء</h3>
+  <ul>
+    <li><b>حسب العميل:</b> اختر العميل ← تظهر بيانات أسعاره السابقة ← حدد البيان والبند.</li>
+    <li><b>حسب المندوب:</b> اختر المندوب ← يظهر ما باعه ← حدد العميل والبيان والبند.</li>
+  </ul>
+  <div class="danger">القاعدة الجوهرية: المرتجع <b>مرتبط ببيان البيع الأصلي</b> ويُقيَّم بسعره فيه — سعر الوحدة بعد خصم الصنف <b>وبعد نصيبه من خصم البيان</b> كما في الأصل (لا بسعر اليوم). والكمية المرتجعة لا تتجاوز (المباع − ما سبق إرجاعه).</div>
+
+  <h3>8.2 الخطوات</h3>
+  <ol class="steps">
+    <li><b>المرتجعات</b> ← <b>+ مرتجع جديد</b>.</li>
+    <li>اختر طريقة البحث (عميل/مندوب) ثم البيان الأصلي والبنود والكميات (جزئي أو كامل، وأي وحدة مع تحويل).</li>
+    <li>أدخل <b>سبب المرتجع (إلزامي):</b> عيب / خطأ طلب / تلف / أخرى.</li>
+    <li>حدد <b>حالة البضاعة:</b> <span class="pill p-approved">صالحة</span> تعود للمخزون أو <span class="pill p-cancel">تالفة</span> لمخزن التالف/التسوية.</li>
+    <li>حدد <b>الأثر المالي:</b> خصم من رصيد العميل / رد نقدية <span class="chip">return.cash_refund</span> / رصيد دائن.</li>
+    <li>احفظ — قد يلزم اعتماد المشرف/المحاسب قبل التأثير النهائي (حسب الإعداد).</li>
+  </ol>
+  <figure class="shot"><img src="shots/10-returns.jpg" alt="شاشة المرتجعات" loading="lazy"><figcaption><b>شاشة المرتجعات</b> — مرتبطة دائماً ببيان البيع الأصلي، مع السبب وحالة البضاعة.</figcaption></figure>
+  <div class="note">إرجاع صنف <b>لم يُبع للعميل</b> أصلاً غير ممكن إلا بصلاحية خاصة <span class="chip">return.without_statement</span> مع موافقة.</div>
+  <p><b>استلام المخزن:</b> أمين المخزن يستلم البضاعة الصالحة عبر صلاحية <span class="chip">return.receive</span> لتعود للمخزون فعلياً.</p>
+</section>
+
+<!-- ==================== 9 ==================== -->
+<section class="card" id="s9">
+  <h2 class="sec"><span class="num">9</span> التحصيل والخزينة</h2>
+  <h3>9.1 سند قبض (تحصيل)</h3>
+  <ol class="steps">
+    <li><b>التحصيلات</b> ← <b>+ سند قبض</b>.</li>
+    <li>اختر العميل، وحدد إن كان التحصيل <b>مرتبطاً ببيان محدد</b> أو <b>على الحساب</b>.</li>
+    <li>اختر طريقة الدفع: <b>نقدي / تحويل / شيك / فودافون كاش / إنستاباي</b>.</li>
+    <li>أدخل المبلغ والتاريخ واحفظ — يتحدث رصيد العميل فوراً.</li>
+  </ol>
+  <figure class="shot"><img src="shots/11-collections.jpg" alt="شاشة التحصيلات" loading="lazy"><figcaption><b>شاشة التحصيلات وسندات القبض</b> — وطباعة إيصال القبض من السهم المجاور.</figcaption></figure>
+
+  <h3>9.2 الخزينة والشيكات والإقفال اليومي</h3>
+  <figure class="shot"><img src="shots/12-treasury.jpg" alt="شاشة الخزينة" loading="lazy"><figcaption><b>شاشة الخزينة</b> — الحسابات النقدية، الحركات، سندات الصرف، وحافظة الشيكات (تحت التحصيل/محصّل/مرتد).</figcaption></figure>
+  <ul>
+    <li><b>تسليم عهدة المندوب:</b> محضر <b>تسليم عهدة</b> <span class="chip">cash.handover</span> مع مطابقة التحصيلات المسلَّمة للخزينة.</li>
+    <li><b>الإقفال اليومي</b> <span class="chip">daily_close.execute</span>: مراجعة حركات اليوم وتأكيد الإقفال وطباعة التقرير.</li>
+  </ul>
+</section>
+
+<!-- ==================== 10 ==================== -->
+<section class="card" id="s10">
+  <h2 class="sec"><span class="num">10</span> الموردين والمشتريات</h2>
+  <h3>10.1 بيان توريد (شراء)</h3>
+  <p>بنفس منظومة الوحدات والخصومات. عند <b>اعتماد</b> التوريد يُحدَّث <b>آخر سعر شراء</b> تلقائياً (مع خيار التعطيل)، وتوزع <b>مصاريف النقل</b> على تكلفة الأصناف (Landed Cost) اختيارياً.</p>
+  <figure class="shot"><img src="shots/13-purchases.jpg" alt="شاشة المشتريات" loading="lazy"><figcaption><b>بيانات التوريد</b>.</figcaption></figure>
+
+  <h3>10.2 أوامر الشراء</h3>
+  <p>دورة اختيارية كاملة: <b>أمر شراء ← اعتماد ← استلام ← بيان توريد</b>.</p>
+  <figure class="shot"><img src="shots/15-purchase-orders.jpg" alt="أوامر الشراء" loading="lazy"><figcaption><b>أوامر الشراء</b> — إنشاء واعتماد ومتابعة (صلاحيات <span class="chip">purchase_order.create</span> / <span class="chip">.approve</span>).</figcaption></figure>
+
+  <h3>10.3 مرتجع المشتريات</h3>
+  <figure class="shot"><img src="shots/14-supplier-returns.jpg" alt="مرتجعات المشتريات" loading="lazy"><figcaption><b>مرتجعات المشتريات</b> — مرتبطة ببيان التوريد الأصلي.</figcaption></figure>
+</section>
+
+<!-- ==================== 11 ==================== -->
+<section class="card" id="s11">
+  <h2 class="sec"><span class="num">11</span> عروض الأسعار (Quotations)</h2>
+  <ol class="steps">
+    <li><b>عروض الأسعار</b> ← <b>+ عرض سعر جديد</b> — أدخل العميل والبنود والخصومات (دون تأثير مخزني).</li>
+    <li>اطبع العرض (A4/A5/80مم) أو نزّل <b>PDF عربي</b> وأرسله للعميل.</li>
+    <li>عند موافقة العميل اضغط <b>تحويل إلى بيان أسعار</b> — يُنشأ بيان جاهز بضغطة واحدة.</li>
+  </ol>
+  <figure class="shot"><img src="shots/07-quotations.jpg" alt="قائمة عروض الأسعار" loading="lazy"><figcaption><b>قائمة عروض الأسعار</b>.</figcaption></figure>
+  <figure class="shot"><img src="shots/08-quotation-detail.jpg" alt="تفاصيل عرض السعر" loading="lazy"><figcaption><b>تفاصيل عرض السعر</b> مع زر التحويل إلى بيان أسعار.</figcaption></figure>
+  <figure class="shot"><img src="shots/09-quotation-print.jpg" alt="طباعة عرض السعر" loading="lazy"><figcaption><b>طباعة عرض السعر</b> — عنوان «عرض سعر» مع شعار الشركة.</figcaption></figure>
+</section>
+
+<!-- ==================== 12 ==================== -->
+<section class="card" id="s12">
+  <h2 class="sec"><span class="num">12</span> الجرد وتقييم المخازن</h2>
+  <h3>12.1 دورة الجرد لكل مخزن</h3>
+  <div class="flow">
+    <span class="fnode">فتح جلسة جرد</span><span class="arr">←</span>
+    <span class="fnode">تجميد الرصيد (Snapshot)</span><span class="arr">←</span>
+    <span class="fnode">إدخال الفعلي</span><span class="arr">←</span>
+    <span class="fnode">الفروقات كميةً وقيمة</span><span class="arr">←</span>
+    <span class="fnode bad">اعتماد المالك</span><span class="arr">←</span>
+    <span class="fnode alt">حركة تسوية تلقائية</span>
+  </div>
+  <ol class="steps">
+    <li><b>فتح جلسة جرد</b> لمخزن (كلي أو جزئي: تصنيف/ماركة/مجموعة) <span class="chip">stocktake.execute</span>.</li>
+    <li><b>تجميد رصيد النظام</b> لحظة الفتح مع منع/تحذير الحركات أثناء الجرد (حسب الإعداد).</li>
+    <li><b>إدخال الكميات الفعلية</b> من الويب أو الموبايل (مسح أو يدوي)، ويدعم أكثر من عداد.</li>
+    <li><b>المقارنة:</b> الفروقات بالكمية <b>والقيمة</b> (عجز/زيادة)، مع مراجعة وإعادة عد للفروقات الكبيرة.</li>
+    <li><b>اعتماد المالك</b> <span class="chip">stocktake.approve</span> ← <b>حركة تسوية تلقائية</b> ← إغلاق الجلسة وحفظ التقرير.</li>
+  </ol>
+  <figure class="shot"><img src="shots/16-stocktakes.jpg" alt="شاشة الجرد" loading="lazy"><figcaption><b>جلسات الجرد</b> — الحالة، الفروقات، والتقرير المطبوع.</figcaption></figure>
+
+  <h3>12.2 تقييم المخزون</h3>
+  <ul>
+    <li><b>القيمة = الكمية × آخر سعر شراء</b> (الطريقة المعتمدة) — لكل مخزن وإجمالي الكل.</li>
+    <li>خيارات عرض: بالوحدة الأساسية / بالوحدات الكبرى.</li>
+    <li>أصناف <b>«بدون سعر»</b> تُستبعد من الإجمالي مع تنبيه بعددها (تقرير مستقل).</li>
+  </ul>
+</section>
+
+<!-- ==================== 13 ==================== -->
+<section class="card" id="s13">
+  <h2 class="sec"><span class="num">13</span> التحويلات المخزنية والرصيد الافتتاحي</h2>
+  <h3>13.1 تحويل بين مخزنين</h3>
+  <ol class="steps">
+    <li><b>التحويلات</b> ← <b>+ تحويل جديد</b> <span class="chip">transfer.execute</span>.</li>
+    <li>اختر المخزن المصدر والهدف وأضف الأصناف والكميات.</li>
+    <li>اعتمد التحويل — يُخصم من المصدر ويُضاف للهدف، مع طباعة مستند التحويل.</li>
+  </ol>
+  <figure class="shot"><img src="shots/17-transfers.jpg" alt="شاشة التحويلات" loading="lazy"><figcaption><b>التحويلات المخزنية</b> — ومخزن «سيارات المناديب» يعمل كعهدة المندوب (§5.7).</figcaption></figure>
+  <h3>13.2 الرصيد الافتتاحي</h3>
+  <p>عند بدء التشغيل تُدخل الأرصدة الأولية لكل صنف/مخزن عبر <span class="chip">opening_stock.execute</span>.</p>
+</section>
+
+<!-- ==================== 14 ==================== -->
+<section class="card" id="s14">
+  <h2 class="sec"><span class="num">14</span> العروض والأسعار الخاصة</h2>
+  <ol class="steps">
+    <li><b>الأسعار الخاصة</b> ← <b>+ عرض/سعر خاص</b>.</li>
+    <li>اختر <b>الهدف:</b> عميل محدد، أو <b>مجموعة عملاء</b>، أو <b>قائمة أسعار</b> كاملة.</li>
+    <li>حدد الأصناف والسعر الخاص (أو نسبة الخصم) و<b>فترة السريان</b>.</li>
+    <li>احفظ — يُطبَّق تلقائياً على فواتير الهدف خلال الفترة.</li>
+  </ol>
+  <figure class="shot"><img src="shots/20-special-prices.jpg" alt="الأسعار الخاصة" loading="lazy"><figcaption><b>العروض والأسعار الخاصة</b> — لعميل أو مجموعة أو قائمة أسعار، لفترة محددة.</figcaption></figure>
+</section>
+
+<!-- ==================== 15 ==================== -->
+<section class="card" id="s15">
+  <h2 class="sec"><span class="num">15</span> تارجت المناديب والعمولات</h2>
+  <p><b>إدارة مناديب البيع</b> (بيانات أساسية): أضف كل مندوب من شاشة <b>المناديب</b> — الرقم الوظيفي/الكود، الفرع، الراتب، و<b>ربط حسابه بالمستخدم والجهاز</b>. تظهر بياناته لاحقاً في التحصيل والتتبع والتارجت.</p>
+  <figure class="shot"><img src="shots/30-reps.jpg" alt="شاشة المناديب" loading="lazy"><figcaption><b>شاشة المناديب</b> — بيانات المندوب وربطه بالمستخدم والجهاز (الأجهزة نفسها تُدار من قسم الأجهزة §25).</figcaption></figure>
+  <ol class="steps">
+    <li><b>التارجت والعمولات</b> ← <b>+ تارجت</b> — اختر المندوب والفترة وقيمة التارجت.</li>
+    <li>حدد <b>أساس العمولة:</b> <span class="pill p-draft">المبيعات المعتمدة SALES</span> أو <span class="pill p-approved">المحصّل الفعلي COLLECTED</span> و<b>نسبة العمولة</b>.</li>
+    <li>تابع <b>تقرير العمولة</b> المحسوب آلياً مع زر <b>إعادة الاحتساب</b>.</li>
+  </ol>
+  <figure class="shot"><img src="shots/33-targets.jpg" alt="التارجت والعمولات" loading="lazy"><figcaption><b>التارجت والعمولات</b> — العمولة تُحسب آلياً كنسبة من المبيعات المعتمدة أو المحصّل حسب الأساس المختار.</figcaption></figure>
+</section>
+
+<!-- ==================== 16 ==================== -->
+<section class="card" id="s16">
+  <h2 class="sec"><span class="num">16</span> خطة الزيارات والتتبع الجغرافي</h2>
+  <h3>16.1 خطة الزيارات</h3>
+  <ol class="steps">
+    <li><b>خطط الزيارات</b> ← جدول يومي للعملاء وعيينها للمناديب <span class="chip">visit.plan.manage</span>.</li>
+    <li>المندوب يسجل كل زيارة: <span class="pill p-approved">تمت</span> / <span class="pill p-cancel">لم تتم + السبب</span>.</li>
+  </ol>
+  <figure class="shot"><img src="shots/32-visit-plans.jpg" alt="خطط الزيارات" loading="lazy"><figcaption><b>خطط الزيارات</b> — التغطية اليومية ومعدل الإنجاز.</figcaption></figure>
+
+  <h3>16.2 التتبع الجغرافي</h3>
+  <ul>
+    <li>يعمل <b>فقط</b> عند تشغيل التطبيق وتسجيل <b>بدء الوردية / إنهاء الوردية</b>.</li>
+    <li>إرسال الموقع كل 30–120 ثانية (قابل للضبط) مع توفير البطارية عند السكون.</li>
+    <li><b>خريطة مباشرة</b> للمشرف/الإدارة تعرض آخر موقع لكل مندوب + <b>مسار اليوم (Route Replay)</b>.</li>
+    <li>ربط الموقع بكل بيان/زيارة/تحصيل ومطابقة القرب من موقع العميل (نطاق مثل 150 م) مع تنبيه المخالفة.</li>
+  </ul>
+  <figure class="shot"><img src="shots/31-geo.jpg" alt="الخريطة المباشرة" loading="lazy"><figcaption><b>الخريطة المباشرة للأسطول</b> — مواقع المناديب لحظياً ومساراتهم.</figcaption></figure>
+  <div class="warn">الخصوصية والالتزام: إعلام المندوب بالتتبع وموافقة موقعة في العقد، لا تتبع خارج ساعات الوردية، مؤشر ظاهر أثناء التتبع، حذف سجلات الموقع تلقائياً بعد مدة (مثل 90 يوماً) — مراعاة قانون حماية البيانات المصرى 151/2020.</div>
+</section>
+
+<!-- ==================== 17 ==================== -->
+<section class="card" id="s17">
+  <h2 class="sec"><span class="num">17</span> الموافقات</h2>
+  <p>مركز واحد لكل الطلبات المعلقة: <b>تجاوز حد الخصم</b>، <b>استثناء الحد الائتماني</b>، و<b>المرتجعات المنتظرة</b>.</p>
+  <figure class="shot"><img src="shots/34-approvals.jpg" alt="شاشة الموافقات" loading="lazy"><figcaption><b>شاشة الموافقات</b> — لكل طلب: موافقة أو رفض مع ملاحظة، حسب صلاحية النوع (<span class="chip">discount.approve</span> / <span class="chip">credit.exception.approve</span> / <span class="chip">return.approve</span>).</figcaption></figure>
+</section>
+
+<!-- ==================== 18 ==================== -->
+<section class="card" id="s18">
+  <h2 class="sec"><span class="num">18</span> التقارير والتصدير</h2>
+  <p>شاشة التقارير تجمع <b>17 تقريراً</b> في تبويبات، وكل تقرير يدعم <b>تحديد CSV</b> و<b>تحديد XLSX (Excel)</b> والطباعة، مع فلاتر فترة وأبعاد.</p>
+  <table class="scrolled">
+    <tr><th>التبويب</th><th>المحتوى</th></tr>
+    <tr><td><b>حركة المخزون</b></td><td>كل حركات الأصناف (استلام/صرف/تحويل/تسوية)</td></tr>
+    <tr><td><b>تقييم المخازن</b></td><td>القيمة بآخر سعر شراء لكل مخزن وإجماليها</td></tr>
+    <tr><td><b>تحت الحد الأدنى</b></td><td>أصناف بلغت نقطة إعادة الطلب</td></tr>
+    <tr><td><b>أعمار الديون</b></td><td>تقادم أرصدة العملاء 0-30/31-60/61-90/+90</td></tr>
+    <tr><td><b>ملخص المبيعات</b></td><td>إجماليات المبيعات للفترة</td></tr>
+    <tr><td><b>المبيعات حسب البُعد</b></td><td>صنف/تصنيف/ماركة/عميل/مندوب/مخزن</td></tr>
+    <tr><td><b>الخصومات</b> و<b>اعتماد الخصومات</b></td><td>إجمالي الخصومات والمتجاوزة المعتمدة حسب المستخدم/المندوب/الصنف</td></tr>
+    <tr><td><b>المرتجعات</b></td><td>حسب العميل/المندوب/السبب/الصنف ونسبتها للمبيعات</td></tr>
+    <tr><td><b>العملاء المتوقفون</b></td><td>عملاء لم يشتروا منذ مدة</td></tr>
+    <tr><td><b>فروقات الجرد</b></td><td>عجز/زيادة كل جلسة جرد</td></tr>
+    <tr><td><b>مديونية الموردين</b></td><td>أرصدة الموردين المستحقة</td></tr>
+    <tr><td><b>أداء المناديب</b></td><td>مبيعات/تحصيل/تارجت/زيارات لكل مندوب</td></tr>
+    <tr><td><b>بطاقة الصنف</b></td><td>كل حركات صنف محدد بتفاصيلها</td></tr>
+    <tr><td><b>ملاحظات الوزن الفعلي</b></td><td>فروقات الوزن النظري/الفعلي للحديد (§5.2)</td></tr>
+    <tr><td><b>أصناف بدون سعر</b> و<b>ملخص الأصناف</b></td><td>متابعة التسعير والأرصدة</td></tr>
+  </table>
+
+  <figure class="shot"><img src="shots/42-rep-movements.jpg" alt="تقرير حركة المخزون" loading="lazy"><figcaption><b>حركة المخزون</b> — مع أزرار التصدير CSV/XLSX أعلى.</figcaption></figure>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <figure class="shot"><img src="shots/45-rep-aging.jpg" alt="أعمار الديون" loading="lazy"><figcaption><b>أعمار الديون</b> — شرائح التقادم مع الإجمالي.</figcaption></figure>
+    <figure class="shot"><img src="shots/43-rep-values.jpg" alt="تقييم المخازن" loading="lazy"><figcaption><b>تقييم المخازن</b> — بآخر سعر شراء.</figcaption></figure>
+    <figure class="shot"><img src="shots/47-rep-salesby.jpg" alt="المبيعات حسب البعد" loading="lazy"><figcaption><b>المبيعات حسب البُعد</b> — صنف/تصنيف/ماركة/عميل/مندوب/مخزن.</figcaption></figure>
+    <figure class="shot"><img src="shots/50-rep-repperf.jpg" alt="أداء المناديب" loading="lazy"><figcaption><b>أداء المناديب</b> — المبيعات والتحصيل والتارجت.</figcaption></figure>
+    <figure class="shot"><img src="shots/44-rep-lowstock.jpg" alt="تحت الحد الأدنى" loading="lazy"><figcaption><b>تحت الحد الأدنى</b>.</figcaption></figure>
+    <figure class="shot"><img src="shots/51-rep-itemcard.jpg" alt="بطاقة الصنف" loading="lazy"><figcaption><b>بطاقة الصنف</b> — كشف حركات كامل.</figcaption></figure>
+    <figure class="shot"><img src="shots/46-rep-salessummary.jpg" alt="ملخص المبيعات" loading="lazy"><figcaption><b>ملخص المبيعات</b>.</figcaption></figure>
+    <figure class="shot"><img src="shots/48-rep-discounts.jpg" alt="الخصومات" loading="lazy"><figcaption><b>الخصومات</b> حسب المستخدم/المندوب/الصنف.</figcaption></figure>
+    <figure class="shot"><img src="shots/49-rep-returns.jpg" alt="تقرير المرتجعات" loading="lazy"><figcaption><b>المرتجعات</b> — حسب العميل/المندوب/السبب/الصنف ونسبتها للمبيعات.</figcaption></figure>
+  </div>
+  <div class="tip">لاحظ أعلى كل تقرير: زر <b>تحديث</b> وأزرار <b>تحديد CSV / XLSX</b> — والملف يُصدَّر فوراً بترميز عربي سليم.</div>
+</section>
+
+<!-- ==================== 19 ==================== -->
+<section class="card" id="s19">
+  <h2 class="sec"><span class="num">19</span> الإشعارات والتنبيهات</h2>
+  <figure class="shot"><img src="shots/35-notifications.jpg" alt="الإشعارات" loading="lazy"><figcaption><b>مركز الإشعارات</b> — مجمع حسب النوع.</figcaption></figure>
+  <ul>
+    <li>طلبات موافقة الخصم (للمشرف/المالك) لحظياً.</li>
+    <li>أصناف تحت الحد الأدنى وتجاوز الحد الائتماني.</li>
+    <li>تذكير بالترحيل الدوري وبالنسخ الاحتياطي.</li>
+    <li>حالة المزامنة وفشل الرفع (للمندوب)، والمرتجعات بانتظار الاعتماد.</li>
+    <li><b>إشعارات الأجهزة (Push):</b> عند تفعيل FCM تصل التنبيهات لأجهزة المناديب تلقائياً.</li>
+  </ul>
+</section>
+
+<!-- ==================== 20 ==================== -->
+<section class="card" id="s20">
+  <h2 class="sec"><span class="num">20</span> الترحيل والأرشفة (إغلاق الفترة)</h2>
+  <p><b>الغرض:</b> تخفيف قاعدة البيانات التشغيلية بترحيل البيانات المنتهية لحزمة أرشيف خارجية وبدء فترة نظيفة. يحتاج <span class="chip">archive.run</span>.</p>
+  <div class="flow">
+    <span class="fnode">فحوصات ما قبل الترحيل</span><span class="arr">←</span>
+    <span class="fnode alt">نسخة احتياطية تلقائية</span><span class="arr">←</span>
+    <span class="fnode">تصدير الحزمة (Excel+PDF+JSON)</span><span class="arr">←</span>
+    <span class="fnode">مطابقة Checksum</span><span class="arr">←</span>
+    <span class="fnode">تنزيل وتأكيد الحفظ</span><span class="arr">←</span>
+    <span class="fnode bad">حذف من القاعدة</span><span class="arr">←</span>
+    <span class="fnode alt">أرصدة افتتاحية</span>
+  </div>
+  <ol class="steps">
+    <li><b>الأرشيف والترحيل</b> ← حدد المدى (من–إلى أو حتى تاريخ).</li>
+    <li><b>الفحوصات:</b> لا مسودات، لا بيانات غير متزامنة من المناديب، لا مرتجعات معلقة — ثم <b>نسخة احتياطية كاملة تلقائياً</b>.</li>
+    <li><b>التصدير:</b> حزمة تحوي Excel لكل نوع + PDF مجمع (اختياري) + JSON/SQLite كامل + <b>manifest</b> بالأعداد والإجماليات وSHA-256 لكل ملف.</li>
+    <li><b>التحقق:</b> مطابقة الإجماليات والأعداد بين الحزمة والقاعدة، ثم التنزيل و<b>تأكيد أنك حفظتها</b>.</li>
+    <li><b>الحذف</b> من القاعدة التشغيلية بتأكيد صريح (كتابة كلمة التأكيد).</li>
+    <li><b>تدوير الأرصدة:</b> أرصدة افتتاحية للعملاء والموردين والأصناف والخزائن + ترقيم جديد اختياري (مثل <span class="chip">BP-2027-000001</span>).</li>
+  </ol>
+  <figure class="shot"><img src="shots/37-archives.jpg" alt="شاشة الأرشيف" loading="lazy"><figcaption><b>الأرشيف والترحيل</b> — حزم الأرشيف وعارض الأرشيف وسجل العمليات.</figcaption></figure>
+  <ul>
+    <li><b>عارض الأرشيف:</b> فتح حزمة قديمة للاطلاع والبحث والطباعة دون إدخالها للقاعدة.</li>
+    <li>كشف الحساب يعرض الرصيد الافتتاحي «المرحَّل» مع رابط الأرشيف.</li>
+    <li><b>الاستعادة</b> للمدير فقط وبحالات محدودة، وتذكير دوري: «مضى X شهر منذ آخر ترحيل».</li>
+  </ul>
+</section>
+
+<!-- ==================== 21 ==================== -->
+<section class="card" id="s21">
+  <h2 class="sec"><span class="num">21</span> النسخ الاحتياطي</h2>
+  <figure class="shot"><img src="shots/38-backups.jpg" alt="شاشة النسخ الاحتياطي" loading="lazy"><figcaption><b>النسخ الاحتياطي</b> — النسخ اليومية المجدولة (02:00 افتراضياً) مع الحجم وSHA-256.</figcaption></figure>
+  <ol class="steps">
+    <li><b>نسخة فورية:</b> زر <b>إنشاء نسخة</b> لبدء نسخ يدوي في أي وقت.</li>
+    <li><b>التحقق:</b> زر <b>تحقق</b> يفك التشفير ويطابق Checksum للتأكد من سلامة النسخة.</li>
+    <li><b>تمرين الاسترجاع:</b> زر <b>استرجاع تجريبي</b> ينشئ قاعدة مؤقتة ويسترجع النسخة ويتحقق من الأعداد ثم يحذفها — للتأكد الدوري أن النسخ قابلة للاسترجاع فعلاً.</li>
+  </ol>
+  <div class="danger">النسخ مشفّرة بمفتاح <span class="chip">BACKUP_ENCRYPTION_KEY</span> — احفظ نسخة من المفتاح ونسخة احتياطية <b>خارج الخادم</b> دورياً. بدون المفتاح لا يمكن فك أي نسخة.</div>
+</section>
+
+<!-- ==================== 22 ==================== -->
+<section class="card" id="s22">
+  <h2 class="sec"><span class="num">22</span> سجل التدقيق (Audit Log)</h2>
+  <figure class="shot"><img src="shots/36-audit-logs.jpg" alt="سجل التدقيق" loading="lazy"><figcaption><b>سجل التدقيق</b> — من فعل ماذا ومتى، قبل/بعد كل تغيير، مع تصفية.</figcaption></figure>
+  <p>يسجل كل شيء: إنشاء/تعديل/إلغاء البيانات، تغييرات الأسعار، تعديلات الخصم، عمليات الترحيل، تغييرات المستخدمين والميزات والصلاحيات — استخدمه للتحقيق في أي تباين.</p>
+</section>
+
+<!-- ==================== 23 ==================== -->
+<section class="card" id="s23">
+  <h2 class="sec"><span class="num">23</span> الأدوات المساعدة (الحاسبات)</h2>
+  <figure class="shot"><img src="shots/40-tools-paint.jpg" alt="حاسبة الدهانات" loading="lazy"><figcaption><b>حاسبة كميات الدهانات</b> — المساحة × الوجوه ÷ التغطية ← اللترات وعدد العبوات وإجمالي المشترى.</figcaption></figure>
+  <figure class="shot"><img src="shots/41-tools-steel.jpg" alt="حاسبة الحديد" loading="lazy"><figcaption><b>حاسبة أوزان الحديد</b> — القطر + الطول + العدد ← وزن المتر والسيخ والإجمالي (كثافة 7850 كجم/م³).</figcaption></figure>
+  <p>الحاسبتان متاحتان على الويب وكذلك داخل تطبيق المندوب — تساعدان المكتب والمندوب في تسعير سريع دون حساب ذهني.</p>
+</section>
+
+<!-- ==================== 24 ==================== -->
+<section class="card" id="s24">
+  <h2 class="sec"><span class="num">24</span> إعدادات الشركة</h2>
+  <figure class="shot"><img src="shots/39-settings.jpg" alt="إعدادات الشركة" loading="lazy"><figcaption><b>إعدادات الشركة</b> — البيانات، نسبة الضريبة، والحالة (تحتاج <span class="chip">company.manage</span>).</figcaption></figure>
+  <p>تضبط هنا بيانات الشركة (تظهر على المطبوعات)، <b>نسبة الضريبة</b> الافتراضية، وسلوكيات مثل السماح بالرصيد السالب وتحديث آخر سعر شراء عند التوريد.</p>
+</section>
+
+<!-- ==================== 25 ==================== -->
+<section class="card" id="s25">
+  <h2 class="sec"><span class="num">25</span> إدارة المستخدمين والأجهزة</h2>
+  <h3>25.1 المستخدمون والأدوار</h3>
+  <figure class="shot"><img src="shots/27-users.jpg" alt="المستخدمون والأدوار" loading="lazy"><figcaption><b>المستخدمون والأدوار</b> — الإنشاء، الدور، حدود الخصم الفردية، والتفعيل/التعطيل.</figcaption></figure>
+  <ul>
+    <li><b>+ مستخدم:</b> الاسم، البريد/الهاتف، كلمة المرور، الدور.</li>
+    <li><b>حدود الخصم الفردية</b> (نسبة الصنف والبيان) — تتقدم على حدود الدور.</li>
+    <li>تفعيل/تعطيل <b>ميزات محددة لمستخدم بعينه</b> (استثناء).</li>
+  </ul>
+  <h3>25.2 الأجهزة والأمان</h3>
+  <figure class="shot"><img src="shots/28-devices.jpg" alt="الأجهزة والأمان" loading="lazy"><figcaption><b>الأجهزة والأمان</b> — أجهزة المناديب المسجلة، الإصدار، والإبطال/التفعيل.</figcaption></figure>
+  <p>كل مندوب مرتبط <b>بجهاز واحد مسجل</b> (التغيير بموافقة) — ويمكن إبطال جهاز مفقود فوراً.</p>
+</section>
+
+<!-- ==================== 26 ==================== -->
+<section class="card" id="s26">
+  <h2 class="sec"><span class="num">26</span> تطبيق المناديب (أندرويد)</h2>
+  <p>تطبيق Flutter يعمل <b>بدون إنترنت بالكامل</b>: ينزّل الأصناف والعملاء والأسعار محلياً (SQLite)، ويُصدر البيانات والمرتجعات والتحصيلات دون شبكة، ثم يرفعها تلقائياً عند توفر الاتصال.</p>
+
+  <div class="phones">
+    <div class="phone"><div class="scr">
+      <div class="appbar"><span>📋 عملائي</span><span>⋮</span></div>
+      <div class="body">
+        <div class="badge-off">💾 وضع أوفلاين — البيانات محلية</div>
+        <div class="pcard"><b>شركة النور للدهانات</b><div class="row"><span>الرصيد</span><b style="color:var(--red)">٣٬٥٤٢ ج</b></div><div class="row"><span>آخر بيان</span><span>BP-000014 · معتمد</span></div></div>
+        <div class="pcard"><b>مؤسسة الأمل للحديد</b><div class="row"><span>الرصيد</span><b style="color:var(--green)">٠ ج</b></div><div class="row"><span>آخر بيان</span><span>BP-000009</span></div></div>
+        <div class="pcard"><b>معرض النيل</b><div class="row"><span>الرصيد</span><b style="color:var(--red)">١٢٠ ج</b></div><div class="row"><span>📍 0.4 كم</span><span>زيارة اليوم ✓</span></div></div>
+        <div class="pbtn">+ زيارة جديدة</div>
+      </div>
+    </div><div class="phone-cap">شاشة «عملائي» — الرصيد والموقع وآخر بيان لكل عميل</div></div>
+
+    <div class="phone"><div class="scr">
+      <div class="appbar"><span>🧾 بيان أسعار جديد</span><span>حفظ ✓</span></div>
+      <div class="body">
+        <div class="pcard"><b>العميل: شركة النور للدهانات</b><div class="row"><span>قائمة السعر</span><span>جملة</span></div><div class="row"><span>المخزن</span><span>سيارة المندوب M03</span></div></div>
+        <div class="pcard"><b>حديد 12مم</b><div class="row"><span>2 سيخ × 10,656 كجم</span><b>213 ج</b></div><div class="row"><span>خصم الصنف</span><span>2%</span></div></div>
+        <div class="pcard"><b>دهان بلاستيك 18ل</b><div class="row"><span>3 عبوة × 340 ج</span><b>1,020 ج</b></div><div class="row"><span>الإجمالي بعد خصم البيان 1%</span><b style="color:var(--blue)">1,222 ج</b></div></div>
+        <div class="pbtn green">اعتماد وإرسال (لاحقاً)</div>
+        <div class="pbtn ghost">حفظ مسودة</div>
+      </div>
+    </div><div class="phone-cap">إنشاء بيان أسعار — بالوحدات المتعددة والخصومات وحدودها</div></div>
+
+    <div class="phone"><div class="scr">
+      <div class="appbar"><span>🔄 المزامنة</span><span>12 عنصر</span></div>
+      <div class="body">
+        <div class="pcard"><b>BP-M03-000002</b><div class="row"><span>الحالة</span><span class="pill p-approved">مرفوع ✓</span></div></div>
+        <div class="pcard"><b>BP-M03-000003</b><div class="row"><span>الحالة</span><span class="pill p-review">بانتظار المراجعة ⚠</span></div><div class="row"><span>السبب</span><span>تغير السعر أثناء الأوفلاين</span></div></div>
+        <div class="pcard"><b>RC-M03-000001</b><div class="row"><span>الحالة</span><span class="pill p-draft">محلي — لم يُرفع</span></div></div>
+        <div class="pbtn">رفع الآن (Retry)</div>
+      </div>
+    </div><div class="phone-cap">مؤشر حالة كل مستند: محلي / مرفوع / معتمد / مرفوض / بانتظار المراجعة</div></div>
+
+    <div class="phone"><div class="scr">
+      <div class="appbar"><span>🗺️ وردية اليوم</span><span>● تتبع</span></div>
+      <div class="body">
+        <div class="pbtn green">▶ بدء الوردية</div>
+        <div class="pcard"><b>خطة اليوم — 6 عملاء</b><div class="row"><span>تمت</span><b style="color:var(--green)">4 ✓</b></div><div class="row"><span>لم تتم</span><b style="color:var(--red)">1 (مغلق)</b></div><div class="row"><span>متبقٍ</span><b>1</b></div></div>
+        <div class="pcard"><b>تارجت الشهر</b><div class="row"><span>المبيعات</span><span>٨٤٪ من التارجت</span></div><div class="row"><span>التحصيل</span><span>٩١٪</span></div></div>
+        <div class="pcard"><b>العهدة النقدية</b><div class="row"><span>محصلات اليوم</span><b>4,850 ج</b></div></div>
+        <div class="pbtn ghost">تسليم العهدة للخزينة</div>
+      </div>
+    </div><div class="phone-cap">الوردية: تتبع GPS + خطة الزيارات + التارجت + تسليم العهدة</div></div>
+  </div>
+
+  <h3>تفاصيل تقنية للمندوب</h3>
+  <ul>
+    <li><b>تسجيل الدخول</b> بحسابه + <b>رقم جهاز مسجل</b> (جهاز واحد، والتغيير بموافقة — البند 25.2).</li>
+    <li><b>كل بيان يحمل client_uuid</b> فريداً يمنع التكرار، وترقيم بنطاق خاص لكل مندوب (BP-M03-…).</li>
+    <li><b>الرفع التلقائي</b> عند توفر الاتصال مع إعادة محاولة تدريجية (Retry with backoff).</li>
+    <li><b>حل التعارضات:</b> تغير السعر/الرصيد أثناء الأوفلاين ← البيان يتحول <span class="pill p-review">بانتظار المراجعة</span> ويراجعه المشرف.</li>
+    <li><b>طباعة حرارية بلوتوث</b> ومشاركة PDF وواتساب من التطبيق.</li>
+    <li>مؤشرات المندوب: مبيعاته، تارجته، تحصيله، وزياراته (الشاشة الرابعة أعلاه).</li>
+  </ul>
+</section>
+
+<!-- ==================== 27 ==================== -->
+<section class="card" id="s27">
+  <h2 class="sec"><span class="num">27</span> السيناريوهات الكاملة (من البداية للنهاية)</h2>
+
+  <div class="scn"><h4>السيناريو 1 <span class="tag">يوم بيع كامل — موظف مبيعات</span></h4>
+  <ol class="steps">
+    <li>سجّل الدخول وراجع <b>لوحة المعلومات</b>.</li>
+    <li><b>+ بيان أسعار جديد</b> ← اختر العميل (تظهر قائمته ومندوبه).</li>
+    <li>أضف البنود (صنف/وحدة/كمية/سعر/خصم) وأدخل خصم البيان إن لزم.</li>
+    <li>لو تجاوز الخصم حدّك — سيُنشأ طلب موافقة تلقائياً.</li>
+    <li><b>اعتماد</b> ← طباعة A4/80مم أو مشاركة PDF عبر واتساب.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 2 <span class="tag">تحصيل من عميل — المحاسب</span></h4>
+  <ol class="steps">
+    <li><b>التحصيلات</b> ← <b>+ سند قبض</b> ← العميل.</li>
+    <li>اربط التحصيل ببيان محدد أو اجعله على الحساب، اختر طريقة الدفع والمبلغ.</li>
+    <li>احفظ — يتحدث رصيد العميل فوراً، واطبع الإيصال.</li>
+    <li>نهاية اليوم: <b>الخزينة</b> ← <b>الإقفال اليومي</b> وطباعة التقرير.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 3 <span class="tag">مرتجع بضاعة — موظف/مندوب ثم مخزن</span></h4>
+  <ol class="steps">
+    <li><b>+ مرتجع جديد</b> ← ابحث بالعميل أو بالمندوب ← اختر البيان الأصلي.</li>
+    <li>حدد البنود والكميات ← <b>السبب</b> الإلزامي ← حالة البضاعة (صالحة/تالفة).</li>
+    <li>الأثر المالي (خصم رصيد / رد نقدية) ← احفظ.</li>
+    <li>المشرف يعتمد من <b>الموافقات</b> ← أمين المخزن <b>يستلم</b> البضاعة الصالحة للمخزون.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 4 <span class="tag">جرد مخزن — أمين المخزن + المالك</span></h4>
+  <ol class="steps">
+    <li>أمين المخزن يفتح <b>جلسة جرد</b> لمخزن محدد (كلي أو جزئي).</li>
+    <li>إدخال الفعلي (ويب/موبايل، أكثر من عداد) ← مراجعة الفروقات كميةً وقيمة.</li>
+    <li>إعادة العد للفروقات الكبيرة ← <b>اعتماد المالك</b>.</li>
+    <li>حركة تسوية تلقائية وإغلاق الجلسة ← طباعة تقرير <b>فروقات الجرد</b>.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 5 <span class="tag">بيع حديد بالوزن الفعلي</span></h4>
+  <ol class="steps">
+    <li>أنشئ بياناً بصنف حديد بوحدة «سيخ» أو «طن».</li>
+    <li>عند التحميل أدخل <b>الوزن الفعلي كجم</b> وملاحظته (فرق وزن الشاحنة عن النظري).</li>
+    <li>تتبع الفروقات لاحقاً من تقرير <b>ملاحظات الوزن الفعلي</b>.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 6 <span class="tag">عرض سعر يتحول لفاتورة</span></h4>
+  <ol class="steps">
+    <li><b>+ عرض سعر جديد</b> بأصناف العميل ← اطبعه PDF وأرسله.</li>
+    <li>عند الموافقة: افتح العرض ← <b>تحويل إلى بيان أسعار</b> ← يُنشأ بيان جاهز للاعتماد.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 7 <span class="tag">ترحيل فترة — المالك/المدير</span></h4>
+  <ol class="steps">
+    <li><b>الأرشيف والترحيل</b> ← حدد المدى ← تجاوز الفحوصات (لا مسودات/معلقات).</li>
+    <li>تُؤخذ نسخة احتياطية تلقائياً ← تصدير الحزمة ← مطابقة الإجماليات والـ Checksum.</li>
+    <li>نزّل الحزمة واحفظها وأكّد الحفظ ← أكّد الحذف (كلمة التأكيد).</li>
+    <li>تبدأ أرصدة افتتاحية وترقيم جديد للفترة الجديدة.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 8 <span class="tag">يوم مندوب كامل — التطبيق</span></h4>
+  <ol class="steps">
+    <li>تسجيل الدخول + <b>بدء الوردية</b> + مزامنة الأصناف والعملاء والأسعار.</li>
+    <li>اتبع <b>خطة الزيارات</b> وسجل كل زيارة (تمت/لم تتم + سبب).</li>
+    <li>عند كل عميل: بيان أسعار / مرتجع / تحصيل — <b>يعمل دون إنترنت</b> ويُحفظ محلياً.</li>
+    <li>عند توفر الاتصال يُرفع تلقائياً؛ تعارض السعر/الرصيد ← <b>بانتظار المراجعة</b>.</li>
+    <li>إنهاء الوردية + <b>تسليم العهدة النقدية</b> بمحضر مطابقة.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 9 <span class="tag">متابعة مندوب — المشرف</span></h4>
+  <ol class="steps">
+    <li><b>الخريطة المباشرة</b>: آخر موقع لكل مندوب خلال ورديته.</li>
+    <li><b>مسار اليوم</b>: إعادة عرض خط السير والتوقفات.</li>
+    <li><b>تقرير أداء المناديب</b> + <b>التارجت والعمولات</b> لمتابعة الأرقام.</li>
+    <li>طلبات تجاوز الخصم تصل عبر <b>الموافقات</b> للبتّ فيها.</li>
+  </ol></div>
+
+  <div class="scn"><h4>السيناريو 10 <span class="tag">افتتاح شركة جديدة — مدير النظام</span></h4>
+  <ol class="steps">
+    <li><b>إعدادات الشركة</b> (البيانات والضريبة) ثم <b>المخازن</b> بدءاً بالمخزن الرئيسي.</li>
+    <li><b>الوحدات والأصناف</b> ← <b>الأسعار</b> (التسعير الجماعي للحديد).</li>
+    <li><b>العملاء</b> بقوائمهم ومندوبيهم وحدودهم الائتمانية + <b>الموردين</b>.</li>
+    <li><b>الرصيد الافتتاحي</b> للأصناف والعملاء والموردين والخزائن.</li>
+    <li><b>المستخدمون</b> بأدوارهم وحدود خصمهم ← تدوير بيانات الدخول الافتراضية.</li>
+  </ol></div>
+</section>
+
+<!-- ==================== 28 ==================== -->
+<section class="card" id="s28">
+  <h2 class="sec"><span class="num">28</span> أسئلة ومشكلات شائعة</h2>
+  <details class="faq"><summary>لا أرى زراً أو شاشة أتوقعها</summary><p>دورك لا يملك صلاحيتها — الشاشات تظهر حسب الدور (البند 3). راجع مدير النظام لمنح الصلاحية أو تعديل الدور.</p></details>
+  <details class="faq"><summary>خصمي تحول لـ«طلب موافقة» — ماذا حدث؟</summary><p>تجاوزت حد الخصم المسموح لدورك/حسابك. الطلب وصل للمشرف أو المالك؛ عند موافقته يُعتمد البيان. يمكن رفع حدك من شاشة المستخدمين.</p></details>
+  <details class="faq"><summary>لا يمكن البيع بهذه الكمية</summary><p>الكمية أكبر من المتاح في المخزن (والرصيد السالب معطل في إعدادات الشركة). صرّف أو حوّل مخزوناً أولاً أو عدّل الكمية.</p></details>
+  <details class="faq"><summary>منعني النظام من البيع لهذا العميل</summary><p>تجاوز العميل حدّه الائتماني. يلزم تحصيل لتخفيض الرصيد أو اعتماد «استثناء حد ائتماني» من ذي الصلاحية.</p></details>
+  <details class="faq"><summary>المرتجع مرفوض: «الصنف لم يُبع»</summary><p>النظام يربط المرتجع ببيان البيع الأصلي. لإرجاع صنف غير مُباع سابقاً يلزم صلاحية «مرتجع بدون بيان» مع موافقة.</p></details>
+  <details class="faq"><summary>بيان المندوب ظهر «بانتظار المراجعة»</summary><p>تغير سعر أو رصيد أثناء عمله أوفلاين. راجع الأرقام واعتمد أو أعد للتعديل — منعناً لتضارب الأسعار.</p></details>
+  <details class="faq"><summary>الأسعار القديمة تظهر في فاتورة جديدة</summary><p>راجع قائمة سعر العميل الافتراضية وسجل تغيرات الأسعار، وتأكد من تاريخ سريان السعر المجدول إن وُجد.</p></details>
+  <details class="faq"><summary>لا تصل إشعارات لأجهزة المناديب</summary><p>لم تُفعّل اعتمادات FCM بعد — الإشعارات داخل التطبيق تعمل، والدفع للأجهزة يُفعَّل بضبط FCM_SERVICE_ACCOUNT وFCM_PROJECT_ID من فريق التقنية.</p></details>
+  <details class="faq"><summary>كيف أتأكد أن النسخ الاحتياطية صالحة فعلاً؟</summary><p>نفّذ «تمرين استرجاع» دورياً من شاشة النسخ الاحتياطي — يسترجع نسخة على قاعدة مؤقتة ويتحقق من الأعداد ثم ينظف.</p></details>
+</section>
+
+<!-- ==================== 29 ==================== -->
+<section class="card" id="s29">
+  <h2 class="sec"><span class="num">29</span> قائمة تحقق التسليم والتشغيل</h2>
+  <table>
+    <tr><th>✔</th><th>البند</th></tr>
+    <tr><td>☐</td><td>كل المستخدمين أُنشئوا بأدوارهم الصحيحة وحدود خصم مناسبة</td></tr>
+    <tr><td>☐</td><td>المخازن والأصناف والوحدات مضبوطة والأسعار مُسعّرة</td></tr>
+    <tr><td>☐</td><td>العملاء مرتبطون بقوائمهم ومندوبيهم والحدود الائتمانية محددة</td></tr>
+    <tr><td>☐</td><td>الأرصدة الافتتاحية مُدخلة (أصناف/عملاء/موردون/خزائن)</td></tr>
+    <tr><td>☐</td><td>بيانات الدخول الافتراضية <b>دوِّرت</b> ولم تُشارك</td></tr>
+    <tr><td>☐</td><td>نسخة احتياطية حديثة + <b>تمرين استرجاع ناجح</b> موثق</td></tr>
+    <tr><td>☐</td><td>تفعيل FCM إن رُغب في إشعارات الأجهزة</td></tr>
+  </table>
+  <p style="color:var(--muted);font-size:13px">لتفاصيل النشر التقني راجع <b>docs/DEPLOYMENT.md</b>، وللدليل النصي المرجعي <b>docs/USER-MANUAL.md</b>.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <b>نظام بيان</b> — مبيعات الحديد والبويات · دليل المستخدم الإصدار 1.0 · أكتوبر 2026<br>
+  جميع الحقوق محفوظة © 2026
+</footer>
+
+<script>
+  // فلترة فهرس المحتويات
+  document.getElementById('tocFilter').addEventListener('input', function () {
+    var q = this.value.trim();
+    document.querySelectorAll('#tocLinks a').forEach(function (a) {
+      a.style.display = !q || a.textContent.indexOf(q) !== -1 ? '' : 'none';
+    });
+  });
+</script>
+</body>
+</html>

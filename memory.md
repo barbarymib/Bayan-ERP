@@ -1260,3 +1260,15 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates (final):** api typecheck 0 / lint 0 / **552/552**; shared **114/114**; web typecheck/lint/build 0. Migrations 45/45.
 - **Commits:** `d5f31b8` (web tools §5.16), `11a071f` (credential hygiene + db:rotate), `e818de0` (deployment layer + env template + DEPLOYMENT.md).
 - **State:** Production-ready for client. Remaining optional: FCM creds for device push delivery (no-op without). Multi-branch/iOS/scale/tax-invoice intentionally deferred per design spec §5.16.
+
+## 2026-10-20 - Rich HTML + PDF user manual with real screenshots
+
+- **Trigger:** after USER-MANUAL.md (d9fb4e0), user asked for a rich HTML with real screenshots (web + mobile) exported to PDF - both files.
+- **Screenshots (49 real):** puppeteer-core + Edge (`C:/Program Files/(x86)/.../msedge.exe`, installed in `C:\Users\MiB\AppData\Local\Temp\opencode`), scripts `shots.cjs` (47 shots) + `shots-q.cjs` (quotation shots). Login via UI (`admin@bayan.local`), viewport 1366x900, JPEG q62 fullPage into `docs/manual-shots/`. Covers: login/dashboard, all module pages, statement create modal + print, quotation detail + print, tools (paint/steel), 10 report tabs.
+  - **Quotation fix:** quotations list was empty so `shots.cjs` silently skipped detail/print; created quotation QT-000002 via `POST /api/quotations` (line shape: `{customerId, lines:[{itemCode, qty}], validUntil, notes}`; note `inactive` 400)item codes must be active) then recaptured both shots.
+  - Mobile app: no `apps/mobile/windows` platform buildable (real screenshots infeasible  	 manual uses 4 CSS phone-frame mockups built from Flutter code, labeled as mockups.
+- **Template:** `docs/manual-src/manual.html` 	 rich RTL HTML: cover, sticky TOC + live search filter, 29 sections, callouts (.note/.warn/.tip/.danger), `figure.shot` figcaptions, `.flow` lifecycle diagrams, pills/chips, `.phone` mockups, `.scn` scenario cards, FAQ details, print CSS (page-break per h2.sec). Fixed: added missing `30-reps.jpg` (	15) + `49-rep-returns.jpg` (	18 grid) figures 	 now 49/49 shots referenced.
+- **Build:** local script `C:\Users\MiB\AppData\Local\Temp\opencode\build-manual.cjs` inlines all `shots/*.jpg` as base64 data URIs 	 `docs/bayan-user-manual.html` (**4.44 MB**, 49/49 images, 0 residual refs). PDF variant strips `loading="lazy"` then Edge `--headless --no-pdf-header-footer --print-to-pdf` 	 `docs/bayan-user-manual.pdf` (**6.84 MB, 95 pages**).
+- **Verified:** opened built HTML in Edge (all sections render, images load from data URIs after scroll); PDF spot-checked in Edge viewer 	 p1 cover + p95 handover-checklist/footer perfect Arabic RTL.
+- **Commits:** manual deliverables + this entry.
+- **State:** client-facing manual shipped in 3 formats (md / single-file HTML / PDF). Still open: FCM creds only.
