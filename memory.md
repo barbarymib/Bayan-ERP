@@ -1103,3 +1103,18 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Live verify 2026-10-19** (API rebuilt + restarted, `migrations 39/39`): created a temporary SALES_OFFICE user (0 discount limits), created statement with a 30% line discount → `DRAFT` + PENDING `ITEM_DISCOUNT` approval; admin rejected → statement `status=DRAFT` + `rejectedReason` set (approval `REJECTED`); creator re-PATCHed with an in-limit discount → resubmitted → auto-`APPROVED` (net 200). Cleaned up (test statement + user + audit rows deleted); env back to 2 users.
 - **Commits:** code `6b8b32d`; docs `docs/GAP.md` (R4-B8 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
 - **Next:** Phase P5 — R4-B7, R4-B9, R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
+
+## 2026-10-19 — Round-4 P5 R4-B7 (explicit «حفظ كمسودة / اعتماد»)
+
+- **Gap:** §6.1 node E is «حفظ كمسودة / اعتماد» — a *choice*. But clean statements (no discount/price exception) always auto-posted via `ops.finalizeStatement` at create/update, so there was no way to park a valid statement as a draft.
+- **Fix:** new `saveAsDraft?: boolean` on `CreateStatementDto` (inherited by `UpdateStatementDto`).
+  - `create`: `if/else if (!dto.saveAsDraft) finalizeStatement(...)` — when set, the statement stays `DRAFT` with no stock/ledger/approval/reservation (the header row is always inserted `status:'DRAFT'`).
+  - `update` (non-approved branch): `else if (!dto.saveAsDraft) finalizeStatement(id, user)` — so a DRAFT re-saved with `saveAsDraft:false` (default) is the **approve** action; audit `afterJson.status` accounts for the flag.
+  - Approving an already-APPROVED statement is unaffected (`approved` short-circuits).
+- **Sync passthrough:** `SyncService.push` `pushPriceStatement` reads `payload['saveAsDraft']` only when it is a boolean (`typeof === 'boolean'`) and forwards it in the `CreateStatementDto`, so the offline mobile queue preserves the choice.
+- **UI:** web statements modal now has «حفظ كمسودة» (secondary) + «حفظ واعتماد» (primary) → `submit(true)`/`submit()`; success message reflects draft vs create. Mobile `new_statement_screen` bottom bar is a `Row` of `OutlinedButton('حفظ كمسودة')` + `FilledButton('حفظ واعتماد')`; `_save({bool saveAsDraft})` adds `saveAsDraft: true` to the enqueued payload and the snackbar says «حُفظت كمسودة…».
+- **Tests:** api +7 (3 create-path, 2 update-path in `price-statements.service.spec.ts`; 2 sync passthrough in `sync.service.spec.ts`); mobile +1 widget (`new_statement_payment_step_test.dart` asserts both buttons). NOTE: had to add `createMany` to the `prisma.approval` mock in the statements harness (create-path approvals use `prisma.approval.createMany`, not the `tx` one) — without it the approval-count assertions silently saw 0.
+- **Gates:** api typecheck 0 / lint 0 / **497/497**; web tc/lint/build 0; mobile analyze clean + 302/302.
+- **Live verify 2026-10-19** (rebuilt + restarted, `migrations 39/39`): `POST /price-statements` with `saveAsDraft:true` → `status=DRAFT`, net 300, and `StockMovement`/`LedgerEntry`/`Approval`/`StockReservation` all **0** for the ref; `PATCH` (no flag) → `APPROVED` + 1 movement + 1 ledger. Cleaned up (statement 211 + related rows deleted; StockBalance restored −8 → −5; env back to 2 users).
+- **Commits:** code `f1e5b25`; docs `docs/GAP.md` (R4-B7 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
+- **Next:** Phase P5 — R4-B9, R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.

@@ -187,6 +187,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-19 | **R4-A1..A4** Round-4 High fixes (statement PATCH tax/dueDate, approved-edit re-checks, tenant feature guard) | ✅ FIXED (**R4-A3** approved `update()` re-runs `assertCustomerCredit` (BLOCK) + `assertSalePermitted` before snapshot/restock/reverse/re-post — live BLOCK `creditLimit=100`+net `570`→`400` unmutated; **R4-A1** `PATCH` inherits `Company.taxPercent` via `effectiveTaxPercent` — live tax `14`+taxAmount `42`; **R4-A2** `buildHeaderData` gets `customer.creditDays` — live `date 2026-10-05`→`dueDate 2026-11-04`; **R4-A4** `setCompanyFeature` `403` on globally-OFF feature — live verified; api 485; commit `99ef4ca`) |
 | 2026-10-19 | **R4-B3** approvals gated per approval type | ✅ FIXED (`AnyPermission` OR-decorator + guard `ANY_PERMISSIONS_KEY`; controller `discount.approve` OR `return.approve`; `list` scoped to decidable types; live ACCOUNTANT `200` / WAREHOUSEKEEPER `403`; api 490; commit `0cb88af`) |
 | 2026-10-19 | **R4-B8** rejection returns document to editable draft + records reason | ✅ FIXED (`rejectDocument` → `DRAFT` not `CANCELLED` (§6.1 loop), releases reservations, closes sibling approvals; new `rejectedReason` on both models (migration `20261019040000`, api 39/39); live DRAFT+approval → reject → `DRAFT`+reason, re-PATCH → `APPROVED`; api 490; commit `6b8b32d`) |
+| 2026-10-19 | **R4-B7** explicit «حفظ كمسودة / اعتماد» choice | ✅ FIXED (`saveAsDraft` on create/update DTO + sync passthrough; web + mobile two-action UI; live create-draft kept `DRAFT` with 0 stock/ledger/approvals, PATCH-approve → `APPROVED`+effects; api 497; commit `f1e5b25`) |
 
 ---
 
@@ -307,7 +308,7 @@ Full read-only audit of the whole design spec (§1–§14) against api/web/mobil
 | R4-B4 | Mobile **new return** omits `unitCode`/`settlement`/`withoutStatement` and hardcodes `mode: BY_REP` | §5.9/§5.12 | OPEN | `apps/mobile/lib/features/return/new_return_screen.dart:98-125`. |
 | R4-B5 | Global-admin **«التقارير العامة»** route missing | §12.4 | OPEN | `apps/api/src/admin/admin.controller.ts` has no reports route. |
 | R4-B6 | Sync conflict detection is `net_mismatch` only → a **stock-only** change raises no «بانتظار المراجعة» flag | §5.12 | OPEN | `apps/api/src/sync/sync.service.ts:538-550`. |
-| R4-B7 | §6.1 «حفظ كمسودة» — clean statements **auto-post** (`finalizeStatement`) with no explicit "save as draft" option | §6.1 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:294-297`. |
+| R4-B7 | §6.1 «حفظ كمسودة» — clean statements **auto-post** (`finalizeStatement`) with no explicit "save as draft" option | §6.1 | ✅ FIXED | `saveAsDraft` added to `CreateStatementDto` (inherited by update): clean statement stays `DRAFT` (no stock/ledger) when set, else auto-posts as before; sync push passes it from device payload; web modal «حفظ كمسودة»/«حفظ واعتماد»; mobile new-statement two actions. Live 2026-10-19: create `saveAsDraft:true` → `DRAFT` with 0 movements/ledger/approvals/reservations; PATCH (approve) → `APPROVED` + 1 movement + 1 ledger. |
 | R4-B8 | §6.1 rejection loop: rejection **cancels** (no «رفض → عودة للتعديل» path) | §6.1 | ✅ FIXED | `rejectDocument` now returns the statement/return to `DRAFT` (releases reservations, closes sibling PENDING approvals as REJECTED) instead of `CANCELLED`, and persists the approver's note in new `rejectedReason` (migration `20261019040000`, both models); audit action `approval.reject_reopen`. Live 2026-10-19: DRAFT stmt + PENDING `ITEM_DISCOUNT` → reject → `status=DRAFT`, `rejectedReason` set; creator re-PATCH (in-limit) → resubmitted → `APPROVED`. |
 | R4-B9 | §6.1 H «طلب استثناء» (credit/stock exception request) missing — only WARN/BLOCK | §6.1 | OPEN | `apps/api/src/common/sales-ops.service.ts:140-153`. |
 | R4-B10 | Benchmark **mixed 50-concurrent burst** 84% success / p95 33.6s (< «50+ مستخدم متزامن»); no remediation tracked | §9 | OPEN | `docs/PERFORMANCE.md:25-31`. |
@@ -396,7 +397,7 @@ Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full ga
 4. ~~**R4-A4** guard `setCompanyFeature` on `feature.enabled` (globally-enabled only) — **High**~~ ✅ FIXED (`99ef4ca`)
 5. ~~**R4-B3** approvals list/decide gated per approval type (not blanket `discount.approve`) — **Medium**~~ ✅ FIXED (`0cb88af`)
 6. ~~**R4-B8** rejection → return statement to editable draft (loop) — **Medium**~~ ✅ FIXED (`6b8b32d`)
-7. **R4-B7** explicit «حفظ كمسودة» (skip auto-post) — **Medium**
+7. ~~**R4-B7** explicit «حفظ كمسودة» (skip auto-post) — **Medium**~~ ✅ FIXED (`f1e5b25`)
 8. **R4-B9** credit/stock «طلب استثناء» exception request path — **Medium**
 9. **R4-B4** mobile return: unit/settlement/withoutStatement + real mode — **Medium**
 10. **R4-B6** sync: flag stock-only changes as «بانتظار المراجعة» — **Medium**
