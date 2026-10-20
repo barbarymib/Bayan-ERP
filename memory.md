@@ -1281,3 +1281,10 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Fix:** migration `20261020170000_device_manage_permission` (Permission upsert + RolePermission for OWNER/REP_SUPERVISOR, ON CONFLICT DO NOTHING - same pattern as the 3 earlier permission migrations). Applied via `prisma migrate deploy` => 46/46. Live verify: owner login now has device.manage, `GET /api/devices` 200 (3 devices). Re-captured `28-devices.jpg` as `owner@bayan.local`/`owner123456` (new OWNER user id=10 created for capture, kept).
 - **Gates:** api tests **552/552**, health `{total:46,applied:46,pending:[]}`.
 - **Commits:** fix(api) migration + docs(manual) rebuild + this entry.
+
+## 2026-10-20 - Manual PDF layout final (section-per-page, no empty pages) + lock gotcha
+
+- **User follow-up:** sections must not split across pages; still some near-empty pages. Fix round 2 in `docs/manual-src/manual.html` print CSS: restored `h2.sec{page-break-before:always}` + compacted print typography (body 12px/1.45, h2 20px, h3 15.5px, steps li margins 3px/padding 4px, callouts 12.5px, tables tighter, faq/scn margins) and `figure.shot img{max-height:13.5cm;width:auto}` so a heading+steps+figure+note section fits ONE page. Result: **57 pages**, scan 0 empty/0 sparse; visually verified p5 (section 4 complete) + p20 (9.2 complete) + p35 (17 complete) + p56 (28 complete).
+- **Gotcha:** user had the PDF open in a viewer -> destination write failed SILENTLY (Remove-Item -ErrorAction SilentlyContinue hid sharing violation; later prints appeared to succeed but wrote nothing and old file was scanned). Prints to temp dir worked; after user closed the file, destination print succeeded (16:35). Lesson: ALWAYS surface delete/copy errors, verify LastWriteTime is fresh before scanning/reporting, print to temp + move when destination may be locked.
+- **Nondeterminism note:** two consecutive Edge prints of the same input gave 61 vs 57 pages once (likely decode race); always visually verify the SHIPPED file, not just a test print.
+- **Commits:** docs(manual) layout round 2 + this entry.
