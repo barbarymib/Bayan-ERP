@@ -1223,3 +1223,11 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** api typecheck 0 / lint 0 / **543/543** (+8). Rebuilt api (`pnpm --filter @bayan/api build`) before restart.
 - **Commits:** code (heavy-cache + wiring + benchmark) + docs (PERFORMANCE.md + GAP.md row + status log + P5 index 14) + this entry.
 - **Next:** final GAP reconcile + full regression (all remaining R4 items done). F2 FCM BLOCKED.
+
+## 2026-10-20 — Final GAP reconcile + full regression
+
+- **Reconcile:** every `R4-*` row in `docs/GAP.md` is now FIXED (R4-B1, R4-B2, R4-B5/6/10/11, R4-C1..C6). No `OPEN`/`PARTIAL`/`BLOCKED` status rows remain. Sole remaining Blocked item = **F2 / §5.15 FCM push** (needs Firebase project + credentials; notification records already work) — genuinely external, out of scope.
+- **Regression:** api vitest **543/543**, api typecheck 0, api lint 0; web typecheck 0, web lint 0, web build 0. Migrations **44/44** applied (health endpoint confirms zero pending).
+- **Live smoke:** `GET /api/health` 200; web `/`, `/reports`, `/statements`, `/items`, `/customers` all 200.
+- **Commits:** docs (GAP.md final reconcile status-log entry) + this entry.
+- **State:** Round-4 remediation complete pending F2 (blocked on external Firebase credentials).

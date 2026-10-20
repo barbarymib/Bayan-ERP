@@ -199,6 +199,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-20 | **R4-B2** aging CSV/XLSX + **R4-C1** web XLSX buttons | ✅ FIXED (`QueryAgingDto extends CsvQuery` + `respond()` + flat `rows[]`; reusable web `ExportButtons` CSV+XLSX across 7 reports; live aging csv/xlsx 200 + movements xlsx 200; api 535/535; commit `8d3542c`) |
 | 2026-10-20 | **R4-B1** web screens for 10 §5.14 reports | ✅ FIXED (10 new report panes + tabs + CSV/XLSX buttons in web; types in `lib/api.ts`; all 10 endpoints live-verified 200; web tc/lint/build 0; commit `c8171e0`) |
 | 2026-10-20 | **R4-B10** heavy-report burst remediation + re-benchmark | ✅ FIXED (single-flight cache + concurrency gate; mixed burst 84%→100%, p95 33.6s→10.1s; `docs/PERFORMANCE.md` regenerated; api 543/543; commit `8c6a7a1`) |
+| 2026-10-20 | **Final reconcile + full regression** | ✅ All R4-B*/R4-C* rows FIXED; only F2/FCM remains (Firebase credentials). api **543/543**, typecheck 0, lint 0; web typecheck 0, lint 0, build 0; live smoke: health 200, /reports + /statements + /items + /customers 200. 44/44 migrations applied. |
 
 ---
 
