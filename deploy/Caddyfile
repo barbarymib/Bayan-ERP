@@ -1,0 +1,30 @@
+# Bayan ERP — Caddy reverse proxy (TLS تلقائي عبر Let's Encrypt)
+# المتغيرات DOMAIN و ACME_EMAIL من بيئة الحاوية.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# الـ API
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# الواجهة (Next.js)
+	handle {
+		reverse_proxy web:3001
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

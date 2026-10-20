@@ -1,0 +1,52 @@
+# ============================================================================
+# Bayan ERP — طبقة الإنتاج (override فوق docker-compose.yml + Caddy TLS)
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile apps up -d --build
+#
+# المتطلبات في .env:
+#   DOMAIN=app.bayan.example
+#   ACME_EMAIL=ops@bayan.example
+#   JWT_SECRET=<قيمة قوية 16+ حرف>
+#   BACKUP_ENCRYPTION_KEY=<64 hex>
+#   CORS_ORIGINS=https://app.bayan.example
+#   NEXT_PUBLIC_API_URL=https://app.bayan.example/api
+# ============================================================================
+
+services:
+  api:
+    environment:
+      NODE_ENV: production
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  web:
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  # عكس الاتجاه + TLS تلقائي (Let's Encrypt). يوجّه /api إلى الـ API والباقي للواجهة.
+  caddy:
+    image: caddy:2-alpine
+    container_name: bayan-caddy
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    profiles: ["apps"]
+
+volumes:
+  caddydata:
+  caddyconfig:
