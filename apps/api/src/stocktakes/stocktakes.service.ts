@@ -395,17 +395,6 @@ export class StocktakesService {
     return this.get(id, user.companyId ?? null);
   }
 
-  /** تجميد المخزن قبل إنشاء مستندات مباشرة (بيانات/توريد). */
-  async assertMovable(warehouseId: number, companyId: number | null = null): Promise<void> {
-    const mode = await this.prisma.systemSetting.findUnique({ where: { key: 'stocktake.freeze.mode' } });
-    if ((mode?.value ?? 'BLOCK') !== 'BLOCK') return;
-    const active = await this.prisma.stocktakeSession.findFirst({
-      where: { warehouseId, ...tenantWhere(companyId), status: { in: [...ACTIVE_STATUSES] } },
-      select: { number: true },
-    });
-    if (active) throw new BadRequestException(freezeMessage(active.number));
-  }
-
   /** حد إعادة العد الفعّال (يُستخدم لتلخيص الجلسات ووسم البنود ذات الفروق الكبيرة). */
   private async recountThreshold(): Promise<StocktakeRecountThreshold> {
     const policy = await this.recountPolicy();
