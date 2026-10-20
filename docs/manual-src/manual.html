@@ -110,10 +110,14 @@
     nav.toc,.search{display:none}
     body{background:#fff;font-size:12.5px}
     .wrap{display:block;padding:0;max-width:none}
-    section.card{border:none;box-shadow:none;padding:8px 0;page-break-inside:avoid}
-    h2.sec{page-break-before:always}
-    .cover{padding:120px 40px}
+    section.card{border:none;box-shadow:none;padding:8px 0;page-break-inside:auto}
+    .cover{padding:120px 40px;page-break-after:always}
+    h2.sec{page-break-after:avoid}
+    h3{page-break-after:avoid}
     figure.shot{page-break-inside:avoid}
+    figure.shot img{width:auto;max-width:100%;max-height:17cm;margin:0 auto}
+    table{page-break-inside:auto}
+    tr{page-break-inside:avoid}
   }
   @media (max-width:900px){.wrap{flex-direction:column}nav.toc{position:static;width:auto;max-height:none}}
 </style>
