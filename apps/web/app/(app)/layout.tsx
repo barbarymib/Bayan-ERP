@@ -45,6 +45,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: '/users', label: 'المستخدمون والأدوار', phase: 1 },
     { href: '/devices', label: 'الأجهزة والأمان', phase: 1 },
     { href: '/settings', label: 'إعدادات الشركة', phase: 1, perm: 'company.manage' },
+    { href: '/tools', label: 'أدوات مساعدة', phase: 1 },
   ];
 
   const groups = [
