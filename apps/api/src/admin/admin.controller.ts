@@ -44,6 +44,14 @@ export class AdminController {
 
   @GlobalAdmin()
   @ApiBearerAuth()
+  @Get('reports')
+  @ApiOkResponse({ description: 'التقارير العامة عبر الشركات (§12.4)' })
+  reports() {
+    return this.admin.reports();
+  }
+
+  @GlobalAdmin()
+  @ApiBearerAuth()
   @Post('companies')
   @ApiOkResponse({ description: 'إنشاء شركة جديدة (Onboarding) اختيارياً مع مالكها الأول' })
   createCompany(@Body() dto: CreateCompanyDto, @CurrentUser() user: AuthUser) {

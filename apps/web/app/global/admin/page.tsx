@@ -45,6 +45,35 @@ interface FeatureUser {
   override: boolean | null;
 }
 
+interface ReportCompany {
+  id: number;
+  code: string;
+  nameAr: string;
+  status: 'ACTIVE' | 'DISABLED';
+  users: number;
+  items: number;
+  customers: number;
+  statements: number;
+  netSales: number;
+  lastStatementAt: string | null;
+}
+
+interface AdminReport {
+  totals: {
+    companies: number;
+    activeCompanies: number;
+    disabledCompanies: number;
+    users: number;
+    items: number;
+    customers: number;
+    statements: number;
+    netSales: number;
+  };
+  companies: ReportCompany[];
+}
+
+const fmtNum = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+
 function TriSwitch({
   value,
   onChange,
@@ -113,7 +142,8 @@ export default function GlobalAdminPage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [features, setFeatures] = useState<FeatureRow[]>([]);
   const [settings, setSettings] = useState<SystemSettingRow[]>([]);
-  const [tab, setTab] = useState<'companies' | 'features' | 'settings'>('companies');
+  const [report, setReport] = useState<AdminReport | null>(null);
+  const [tab, setTab] = useState<'companies' | 'features' | 'settings' | 'reports'>('companies');
   const [companyFeatures, setCompanyFeatures] = useState<Record<number, CompanyFeatureView[]>>({});
   const [expandedCompany, setExpandedCompany] = useState<number | null>(null);
   const [featureUsers, setFeatureUsers] = useState<Record<string, FeatureUser[]>>({});
@@ -136,6 +166,9 @@ export default function GlobalAdminPage() {
       .catch(() => undefined);
     globalApi<{ settings: SystemSettingRow[] }>('/admin/settings')
       .then((d) => setSettings(d.settings))
+      .catch(() => undefined);
+    globalApi<AdminReport>('/admin/reports')
+      .then(setReport)
       .catch(() => undefined);
   }, [router]);
 
@@ -346,6 +379,7 @@ export default function GlobalAdminPage() {
           [
             ['companies', 'الشركات'],
             ['features', 'الميزات'],
+            ['reports', 'التقارير'],
             ['settings', 'الإعدادات'],
           ] as const
         ).map(([k, label]) => (
@@ -554,6 +588,83 @@ export default function GlobalAdminPage() {
             </div>
           ))}
         </div>
+      ) : tab === 'reports' ? (
+        report ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {[
+                ['الشركات', `${report.totals.companies} (${report.totals.activeCompanies} مفعّلة)`],
+                ['المستخدمون', fmtNum(report.totals.users)],
+                ['الأصناف', fmtNum(report.totals.items)],
+                ['العملاء', fmtNum(report.totals.customers)],
+                ['بيانات معتمدة', fmtNum(report.totals.statements)],
+                ['صافي المبيعات', fmtNum(report.totals.netSales)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="text-xs font-medium text-gray-400">{label}</div>
+                  <div className="mt-1 text-lg font-black text-gray-900">{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <h2 className="mb-3 text-sm font-bold text-gray-800">تقرير الشركات</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-right text-xs text-gray-400">
+                      <th className="py-1 font-medium">الشركة</th>
+                      <th className="py-1 font-medium">الحالة</th>
+                      <th className="py-1 font-medium">المستخدمون</th>
+                      <th className="py-1 font-medium">الأصناف</th>
+                      <th className="py-1 font-medium">العملاء</th>
+                      <th className="py-1 font-medium">بيانات معتمدة</th>
+                      <th className="py-1 font-medium">صافي المبيعات</th>
+                      <th className="py-1 font-medium">آخر نشاط</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.companies.map((c) => (
+                      <tr key={c.id} className="border-b border-gray-50 last:border-0">
+                        <td className="py-2 font-medium text-gray-800">
+                          {c.nameAr} <span className="text-xs text-gray-400">({c.code})</span>
+                        </td>
+                        <td className="py-2">
+                          <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>
+                            {c.status === 'ACTIVE' ? 'مفعّلة' : 'معطّلة'}
+                          </Badge>
+                        </td>
+                        <td className="py-2 text-gray-600">{fmtNum(c.users)}</td>
+                        <td className="py-2 text-gray-600">{fmtNum(c.items)}</td>
+                        <td className="py-2 text-gray-600">{fmtNum(c.customers)}</td>
+                        <td className="py-2 text-gray-600">{fmtNum(c.statements)}</td>
+                        <td className="py-2 text-gray-600">{fmtNum(c.netSales)}</td>
+                        <td className="py-2 text-gray-500">
+                          {c.lastStatementAt ? new Date(c.lastStatementAt).toLocaleDateString('ar-EG') : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                    {report.companies.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-3 text-center text-sm text-gray-400">
+                          لا توجد شركات
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">
+              صافي المبيعات = مجموع صافي البيانات المعتمدة لكل شركة؛ الأرقام تجمع الشركات وقد تختلف
+              العملات بينها. البيانات تُجلب من سياق كل شركة (RLS).
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+            جارٍ تحميل التقارير…
+          </div>
+        )
       ) : (
         <div className="space-y-4">
           <form onSubmit={addSetting} className="rounded-xl border border-gray-200 bg-white p-4">

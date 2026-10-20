@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
+import { runWithTenant } from '../tenant/tenant.context.js';
 import type {
   CreateCompanyDto,
   GlobalLoginDto,
@@ -17,6 +18,32 @@ import type {
   SetUserFeatureDto,
   UpdateCompanyDto,
 } from './admin.dto.js';
+
+/** صف تقرير شركة في التقارير العامة (§12.4). */
+export interface CompanyReport {
+  id: number;
+  code: string;
+  nameAr: string;
+  status: string;
+  users: number;
+  items: number;
+  customers: number;
+  statements: number;
+  netSales: number;
+  lastStatementAt: string | null;
+}
+
+/** إجماليات البيئة في التقارير العامة (§12.4). */
+export interface GlobalReportsTotals {
+  companies: number;
+  activeCompanies: number;
+  disabledCompanies: number;
+  users: number;
+  items: number;
+  customers: number;
+  statements: number;
+  netSales: number;
+}
 
 @Injectable()
 export class AdminService {
@@ -140,6 +167,73 @@ export class AdminService {
       orderBy: { nameAr: 'asc' },
     });
     return { companies: companies.map((c) => ({ ...c, usersCount: c._count.users, _count: undefined })) };
+  }
+
+  /**
+   * التقارير العامة للبيئة (§12.4 «المشرف العام … التقارير العامة»): ملخص كل شركة
+   * (مستخدمون/أصناف/عملاء/بيانات معتمدة/صافي مبيعات/آخر نشاط) + إجماليات البيئة.
+   * الجداول محمية بـ RLS لذلك يُنفَّذ تلخيص كل شركة داخل سياق مستأجرها (نموذج
+   * `NotificationsScheduler.runAll`).
+   */
+  async reports(): Promise<{ totals: GlobalReportsTotals; companies: CompanyReport[] }> {
+    const companies = await this.prisma.company.findMany({
+      select: { id: true, code: true, nameAr: true, status: true },
+      orderBy: { nameAr: 'asc' },
+    });
+
+    const rows: CompanyReport[] = [];
+    for (const c of companies) {
+      const agg = await runWithTenant({ companyId: c.id }, async () => {
+        const [users, items, customers, approved, latest] = await Promise.all([
+          this.prisma.user.count({ where: { companyId: c.id } }),
+          this.prisma.item.count(),
+          this.prisma.customer.count(),
+          this.prisma.priceStatement.aggregate({
+            where: { status: 'APPROVED' },
+            _count: { _all: true },
+            _sum: { net: true },
+          }),
+          this.prisma.priceStatement.findFirst({ orderBy: { date: 'desc' }, select: { date: true } }),
+        ]);
+        return { users, items, customers, approved, latest };
+      });
+      rows.push({
+        id: c.id,
+        code: c.code,
+        nameAr: c.nameAr,
+        status: c.status,
+        users: agg.users,
+        items: agg.items,
+        customers: agg.customers,
+        statements: agg.approved._count._all,
+        netSales: Number(agg.approved._sum.net ?? 0),
+        lastStatementAt: agg.latest ? agg.latest.date.toISOString() : null,
+      });
+    }
+
+    const totals = rows.reduce<GlobalReportsTotals>(
+      (t, r) => ({
+        companies: t.companies + 1,
+        activeCompanies: t.activeCompanies + (r.status === 'ACTIVE' ? 1 : 0),
+        disabledCompanies: t.disabledCompanies + (r.status === 'ACTIVE' ? 0 : 1),
+        users: t.users + r.users,
+        items: t.items + r.items,
+        customers: t.customers + r.customers,
+        statements: t.statements + r.statements,
+        netSales: t.netSales + r.netSales,
+      }),
+      {
+        companies: 0,
+        activeCompanies: 0,
+        disabledCompanies: 0,
+        users: 0,
+        items: 0,
+        customers: 0,
+        statements: 0,
+        netSales: 0,
+      },
+    );
+    return { totals, companies: rows };
   }
 
   /** تعديل بيانات شركة / تفعيل أو تعطيل. */

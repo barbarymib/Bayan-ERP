@@ -4,6 +4,7 @@ import type { JwtService } from '@nestjs/jwt';
 import { AdminService } from '../src/admin/admin.service.js';
 import type { AuditLogsService } from '../src/audit-logs/audit-logs.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
+import { currentCompanyId } from '../src/tenant/tenant.context.js';
 
 interface Captured {
   companyCreate: { data: Record<string, unknown> }[];
@@ -101,6 +102,94 @@ describe('AdminService.createCompany', () => {
         owner: { name: 'مالك', email: 'taken@acme.local', password: 'secret123' },
       }),
     ).rejects.toThrow('already uses');
-    expect(captured.companyCreate).toHaveLength(0);
+    expect(captured.userCreate).toHaveLength(0);
+  });
+});
+
+describe('AdminService.reports', () => {
+  interface ReportsOptions {
+    companies: { id: number; code: string; nameAr: string; status: string }[];
+    usersByCompany: Record<number, number>;
+    itemContexts: (number | null)[];
+  }
+
+  function makeReportsPrisma(opts: ReportsOptions): PrismaService {
+    return {
+      company: { findMany: async () => opts.companies },
+      user: {
+        count: async (args?: { where?: { companyId?: number } }) =>
+          opts.usersByCompany[args?.where?.companyId ?? -1] ?? 0,
+      },
+      item: {
+        count: async () => {
+          opts.itemContexts.push(currentCompanyId());
+          return 10;
+        },
+      },
+      customer: { count: async () => 5 },
+      priceStatement: {
+        aggregate: async (args?: { where?: { status?: string } }) => {
+          expect(args?.where?.status).toBe('APPROVED');
+          return { _count: { _all: 2 }, _sum: { net: 100 } };
+        },
+        findFirst: async () => ({ date: new Date('2026-10-01T00:00:00.000Z') }),
+      },
+    } as unknown as PrismaService;
+  }
+
+  function makeReportsService(prisma: PrismaService): AdminService {
+    return new AdminService(prisma, {} as unknown as JwtService, {
+      write: async () => {},
+    } as unknown as AuditLogsService);
+  }
+
+  it('يلخّص كل شركة داخل سياق مستأجرها الخاص (RLS)', async () => {
+    const itemContexts: (number | null)[] = [];
+    const prisma = makeReportsPrisma({
+      companies: [
+        { id: 1, code: 'bayan', nameAr: 'بيان', status: 'ACTIVE' },
+        { id: 2, code: 'acme', nameAr: 'أكيم', status: 'DISABLED' },
+      ],
+      usersByCompany: { 1: 3, 2: 4 },
+      itemContexts,
+    });
+    const res = await makeReportsService(prisma).reports();
+    // كل استعلام أصناف نفّذ داخل سياق شركته (لا سياق عام فارغ)
+    expect(itemContexts).toEqual([1, 2]);
+    expect(res.companies).toHaveLength(2);
+    expect(res.companies[0]).toMatchObject({
+      id: 1,
+      code: 'bayan',
+      status: 'ACTIVE',
+      users: 3,
+      items: 10,
+      customers: 5,
+      statements: 2,
+      netSales: 100,
+      lastStatementAt: '2026-10-01T00:00:00.000Z',
+    });
+    expect(res.companies[1]).toMatchObject({ id: 2, users: 4, status: 'DISABLED' });
+  });
+
+  it('يجمّع إجماليات البيئة عبر الشركات', async () => {
+    const prisma = makeReportsPrisma({
+      companies: [
+        { id: 1, code: 'bayan', nameAr: 'بيان', status: 'ACTIVE' },
+        { id: 2, code: 'acme', nameAr: 'أكيم', status: 'DISABLED' },
+      ],
+      usersByCompany: { 1: 3, 2: 4 },
+      itemContexts: [],
+    });
+    const res = await makeReportsService(prisma).reports();
+    expect(res.totals).toEqual({
+      companies: 2,
+      activeCompanies: 1,
+      disabledCompanies: 1,
+      users: 7,
+      items: 20,
+      customers: 10,
+      statements: 4,
+      netSales: 200,
+    });
   });
 });
