@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { NotificationModel } from '../generated/prisma/models/Notification.js';
 
 type Notification = NotificationModel;
 import { PrismaService } from '../prisma/prisma.module.js';
 import { currentCompanyId } from '../tenant/tenant.context.js';
+import { PUSH_PROVIDER, type PushProvider } from '../common/push.js';
 import type { QueryNotificationsDto } from './notifications.dto.js';
 
 export type NotificationType =
@@ -25,7 +26,12 @@ export interface NotificationInput {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger('NotificationsService');
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(PUSH_PROVIDER) private readonly push: PushProvider,
+  ) {}
 
   async list(userId: number, query: QueryNotificationsDto) {
     const { limit, unreadOnly } = query;
@@ -64,9 +70,39 @@ export class NotificationsService {
   }
 
   async notify(userId: number, input: NotificationInput): Promise<Notification> {
-    return this.prisma.notification.create({
+    const created = await this.prisma.notification.create({
       data: { userId, ...input, refId: input.refId ?? null, refType: input.refType ?? null },
     });
+    // دفع على أفضل جهد (§5.15) — لا يُفشل إنشاء الإشعار عند غياب مزوّد أو رمز جهاز.
+    void this.pushToDevices(userId, input).catch((err: unknown) =>
+      this.logger.warn(`push fan-out failed: ${err instanceof Error ? err.message : String(err)}`),
+    );
+    return created;
+  }
+
+  /** يدفع الإشعار إلى أجهزة المستخدم النشطة الحاملة رمز دفع؛ يُبطل الرموز غير الصالحة. */
+  async pushToDevices(userId: number, input: NotificationInput): Promise<number> {
+    const devices = await this.prisma.deviceRegistration.findMany({
+      where: { userId, active: true, pushToken: { not: null } },
+      select: { id: true, pushToken: true },
+    });
+    if (devices.length === 0) return 0;
+    const results = await this.push.sendAll(
+      devices.map((d) => ({
+        token: d.pushToken as string,
+        title: input.title,
+        body: input.body,
+        data: { type: input.type, ...(input.refType ? { refType: input.refType } : {}), ...(input.refId ? { refId: String(input.refId) } : {}) },
+      })),
+    );
+    const invalidTokens = results.filter((r) => r.invalid).map((r) => r.token);
+    if (invalidTokens.length) {
+      await this.prisma.deviceRegistration.updateMany({
+        where: { userId, pushToken: { in: invalidTokens } },
+        data: { pushToken: null },
+      });
+    }
+    return results.filter((r) => r.ok).length;
   }
 
   async notifyMany(userIds: number[], input: NotificationInput) {

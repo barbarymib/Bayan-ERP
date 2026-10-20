@@ -1292,6 +1292,7 @@ model DeviceRegistration {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId   String
   deviceName String?
+  pushToken  String?
   active     Boolean   @default(true)
   lastSeenAt DateTime?
   @@index([companyId])

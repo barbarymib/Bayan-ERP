@@ -8,6 +8,7 @@ import { AuthGuard } from './auth/auth.guard.js';
 import { TenantContextInterceptor } from './tenant/tenant.interceptor.js';
 import { CommonModule } from './common/common.module.js';
 import { ObjectStorageModule } from './common/object-storage.module.js';
+import { PushModule } from './common/push.module.js';
 import { ItemsModule } from './items/items.module.js';
 import { BatchesModule } from './batches/batches.module.js';
 import { UnitsModule } from './units/units.module.js';
@@ -54,6 +55,7 @@ import { DevicesModule } from './devices/devices.module.js';
     PrismaModule,
     CommonModule,
     ObjectStorageModule,
+    PushModule,
     AuthModule,
     ItemsModule,
     BatchesModule,

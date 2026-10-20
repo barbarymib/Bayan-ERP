@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
+import { NoopPushProvider } from '../src/common/push.noop.js';
 import { resolveAlertsIntervalMs } from '../src/notifications/notifications.scheduler.js';
 import { NotificationsScheduler } from '../src/notifications/notifications.scheduler.js';
 import { NotificationsService } from '../src/notifications/notifications.service.js';
@@ -79,13 +80,14 @@ describe('NotificationsService.refreshAlerts — جمع قابل للتوسّع 
       archiveRun: { findFirst: async () => null },
       automatedBackup: { findFirst: async () => null },
       user: { findMany: async () => [{ id: 99 }] },
+      deviceRegistration: { findMany: async () => [], updateMany: async () => ({ count: 0 }) },
       item: {
         findMany: () => {
           throw new Error('refreshAlerts must not load all items (param-limit bug)');
         },
       },
     } as unknown as PrismaService;
-    const svc = new NotificationsService(prisma);
+    const svc = new NotificationsService(prisma, new NoopPushProvider());
     const out = await svc.refreshAlerts(1);
     expect(out.low_stock).toBe(1);
     expect(created[0]).toMatchObject({ userId: 99, type: 'low_stock' });

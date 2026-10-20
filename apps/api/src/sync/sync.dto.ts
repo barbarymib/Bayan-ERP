@@ -28,6 +28,12 @@ export class DeviceRegisterDto {
   @IsString()
   @MaxLength(100)
   deviceName?: string;
+
+  @ApiPropertyOptional({ description: 'رمز دفع FCM للجهاز (§5.15)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  pushToken?: string;
 }
 
 export class ReserveBlockDto {

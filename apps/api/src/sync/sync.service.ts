@@ -69,6 +69,7 @@ export class SyncService {
           active: true,
           lastSeenAt: new Date(),
           ...(dto.deviceName ? { deviceName: dto.deviceName } : {}),
+          ...(dto.pushToken ? { pushToken: dto.pushToken } : {}),
         },
       });
     }
@@ -82,6 +83,7 @@ export class SyncService {
         userId: user.id,
         deviceId: dto.deviceId,
         deviceName: dto.deviceName,
+        pushToken: dto.pushToken,
         active: true,
         lastSeenAt: new Date(),
         companyId,
