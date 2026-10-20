@@ -1296,3 +1296,11 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **BIG HARNESS GOTCHA (cost most of this round):** both verification tools were pointing at the OLD destination file — `pdf-page-shot.cjs` had `docs/bayan-user-manual.pdf` hardcoded, and `pdf-blank-scan.cjs` had it as fixed input. All "verification" rounds were re-checking the stale committed file while the new build lived in temp. Fixed: shot script takes `--src <file>` (default manual-final.pdf in temp), scan script takes file argv. Correctness rule: point EVERY verification tool at the EXACT artifact being validated, verify page count in the viewer too (mostly agreed once paths aligned).
 - **pdf-blank-scan.cjs hardened:** finds /Type/Page via `/Type\s*\/Page(?:\s|\/)/` (old `[^s]` regex missed pages), handles `/Contents [a R b R]` arrays, accepts file argument.
 - **Commits:** docs(manual) PDF + this entry.
+
+## 2026-10-20 - PDF round 4: dense flow layout (user: "many nearly-empty pages, check section 2")
+
+- **Round-3 design (every later h3 = own page) killed almost-empty pages but bred ~65 pages with most at 30-60% fill** (e.g. section 2.2+2.3 ~5cm content on one page). Diagnosis: user tweets "صفحات كتير شبه فارغة، راجع مثلا قسم 2".
+- **Round-4 rule:** sections still start fresh pages (`h2.sec{page-break-before:always}`), but subsections FLOW inside the section with small atomic keeps: pipeline wraps [h3 + first following element] only (37 groups; 6 fig-led get `.keep.tight` -> figure capped 9cm), NO per-h3 forced breaks. Figures globally capped 13.5 -> **10.5cm** (natural height for 1366x900 tabs at 17cm width ≈ 11.2cm) to bound push-gaps.
+- **Result: 65 -> 46 pages, scan 0 empty/0 sparse.** Verified visually: section 2 = ONE page (2.1+2.2+2.3+login figure), p8 (5.4+5.5+lenient flow, ~85% full), p9 (5.6 tight), p30 (18 + full 17-report table + figure ~90%), p40 (25.1 fig-led tight + 25.2), p35 (20 rollback), p46 last checklist.
+- **Pipeline files (temp dir, re-runnable):** `build-manual.cjs` (writes docs/bayan-user-manual.html directly), `print-manual.cjs` (load inlined HTML, strip lazy, img.decode, wrap keeps, inject `.keep{break-inside:avoid}` + `.keep.tight figure.shot img{max-height:9cm}`, print A4 1cm margins). Template: `docs/manual-src/manual.html`.
+- **Commits:** docs(manual) round 4 + this entry.
