@@ -4,6 +4,7 @@ import { roundMoney, roundQty } from '@bayan/shared';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
 import { compositeQty } from '../common/units.js';
+import { weightDeltaOf } from '../price-statements/price-statements.service.js';
 import { haversineM } from '../geo/geo.service.js';
 import type {
   QueryAgingDto,
@@ -936,7 +937,7 @@ export class ReportsService {
     }
     const where: Prisma.PriceStatementLineWhereInput = {
       statement: statementWhere,
-      weightNote: { not: null },
+      OR: [{ weightNote: { not: null } }, { actualWeight: { not: null } }],
     };
     if (query.itemId) where.itemId = query.itemId;
 
@@ -960,7 +961,7 @@ export class ReportsService {
     });
 
     const rows = lines
-      .filter((l) => (l.weightNote ?? '').trim().length > 0)
+      .filter((l) => (l.weightNote ?? '').trim().length > 0 || l.actualWeight != null)
       .map((l) => ({
         lineId: l.id,
         statementId: l.statement.id,
@@ -978,6 +979,8 @@ export class ReportsService {
         qty: Number(l.qty),
         qtyBase: Number(l.qtyBase),
         weightNote: l.weightNote,
+        actualWeight: l.actualWeight != null ? Number(l.actualWeight) : null,
+        weightDelta: weightDeltaOf(l.actualWeight != null ? Number(l.actualWeight) : null, Number(l.qtyBase)),
       }));
 
     return {

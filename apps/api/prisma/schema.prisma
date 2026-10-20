@@ -920,7 +920,8 @@ model PriceStatementLine {
   netLine                 Decimal        @db.Decimal(18, 2)
   // لقطة التكلفة وقت البيع (للأرباح)
   costSnapshot            Decimal?       @db.Decimal(18, 4)
-  weightNote              String? // الوزن الفعلي مقابل النظري (الحديد)
+  weightNote              String? // ملاحظة الوزن الفعلي (الحديد)
+  actualWeight            Decimal?       @db.Decimal(18, 3) // الوزن الفعلي كجم للمقارنة بالنظري (§5.2 · R4-C3)
   returnLines             ReturnLine[]
   periodId                Int?
   createdAt               DateTime       @default(now())

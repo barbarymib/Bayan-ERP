@@ -199,6 +199,8 @@ export interface PriceStatementLine {
   netLine: string;
   costSnapshot: string | null;
   weightNote: string | null;
+  actualWeight?: number | string | null;
+  weightDelta?: number | null;
 }
 
 export interface Approval {
@@ -1311,6 +1313,8 @@ export interface WeightNoteRow {
   qty: number;
   qtyBase: number;
   weightNote: string;
+  actualWeight: number | null;
+  weightDelta: number | null;
 }
 
 export interface WeightNotesReport {

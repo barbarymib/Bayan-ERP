@@ -494,6 +494,9 @@ export class SyncService {
           typeof rec['weightNote'] === 'string' && (rec['weightNote'] as string).trim().length > 0
             ? (rec['weightNote'] as string).trim()
             : undefined;
+        const actualWeightRaw = num(rec['actualWeight']);
+        const actualWeight =
+          actualWeightRaw !== undefined && actualWeightRaw >= 0 ? actualWeightRaw : undefined;
         const unitCodeRaw =
           typeof rec['unitCode'] === 'string' ? (rec['unitCode'] as string).trim() : '';
         const unitCode = unitCodeRaw.length > 0 ? unitCodeRaw : undefined;
@@ -503,6 +506,7 @@ export class SyncService {
           ...(unitCode !== undefined ? { unitCode } : {}),
           ...(unitPrice !== undefined ? { unitPrice } : {}),
           ...(weightNote !== undefined ? { weightNote } : {}),
+          ...(actualWeight !== undefined ? { actualWeight } : {}),
           discount:
             discValue !== undefined && discValue > 0
               ? ({ type: discType, value: discValue } as DiscountInputDto)

@@ -62,6 +62,12 @@ export class StatementLineInputDto {
   @IsString()
   @MaxLength(255)
   weightNote?: string;
+
+  @ApiPropertyOptional({ description: 'الوزن الفعلي بالوحدة الأساسية كجم لإظهار الفرق عن النظري (أصناف الحديد فقط §5.2)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  actualWeight?: number;
 }
 
 export class CreateStatementDto {

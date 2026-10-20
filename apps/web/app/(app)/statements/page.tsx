@@ -325,7 +325,7 @@ function CreateStatementModal({
   }, []);
 
   function addLine() {
-    setLines([...lines, { itemCode: '', unitCode: '', qty: '1', unitPrice: '', discType: '', discValue: '', weightNote: '' }]);
+    setLines([...lines, { itemCode: '', unitCode: '', qty: '1', unitPrice: '', discType: '', discValue: '', weightNote: '', actualWeight: '' }]);
   }
 
   function updateLine(i: number, patch: Partial<LineRow>) {
@@ -345,7 +345,9 @@ function CreateStatementModal({
       .filter((l) => l.itemCode && Number(l.qty) > 0)
       .map((l) => {
         const item = items.find((x) => x.code === l.itemCode);
-        const weightNote = item?.category?.code === 'STEEL' ? l.weightNote.trim() : '';
+        const isSteel = item?.category?.code === 'STEEL';
+        const weightNote = isSteel ? l.weightNote.trim() : '';
+        const actualWeight = isSteel && l.actualWeight !== '' ? Number(l.actualWeight) : undefined;
         return {
           itemCode: l.itemCode,
           unitCode: l.unitCode || undefined,
@@ -353,6 +355,7 @@ function CreateStatementModal({
           unitPrice: l.unitPrice !== '' ? Number(l.unitPrice) : undefined,
           discount: l.discType ? { type: l.discType as 'percent' | 'amount', value: Number(l.discValue) || 0 } : undefined,
           weightNote: weightNote || undefined,
+          actualWeight: actualWeight !== undefined && Number.isFinite(actualWeight) ? actualWeight : undefined,
         };
       });
     const badQty = cleaned.find((l) => {
@@ -560,7 +563,30 @@ function CreateStatementModal({
                     </div>
                   </div>
                   {item?.category?.code === 'STEEL' ? (
-                    <div className="mt-2">
+                    <div className="mt-2 grid grid-cols-2 gap-3">
+                      <Field
+                        label="الوزن الفعلي كجم (الحديد §5.2)"
+                        hint={(() => {
+                          const factor =
+                            !l.unitCode || l.unitCode === item.baseUnit.code
+                              ? 1
+                              : Number(item.itemUnits.find((iu) => iu.unit.code === l.unitCode)?.factorToBase ?? 1);
+                          const theoretical = (Number(l.qty) || 0) * factor;
+                          const actual = l.actualWeight !== '' ? Number(l.actualWeight) : null;
+                          if (actual == null || !Number.isFinite(actual) || theoretical <= 0) return undefined;
+                          const delta = actual - theoretical;
+                          return `النظري ≈ ${theoretical.toFixed(3)} كجم — الفرق ${delta >= 0 ? '+' : ''}${delta.toFixed(3)} كجم`;
+                        })()}
+                      >
+                        <TextInput
+                          value={l.actualWeight}
+                          onChange={(e) => updateLine(i, { actualWeight: e.target.value })}
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="وزن الشاحنة بالكيلوجرام"
+                        />
+                      </Field>
                       <Field label="ملاحظة الوزن الفعلي (الحديد §5.2)">
                         <TextInput
                           value={l.weightNote}
@@ -803,6 +829,7 @@ type LineRow = {
   discType: string;
   discValue: string;
   weightNote: string;
+  actualWeight: string;
 };
 
 function todayStr(): string {

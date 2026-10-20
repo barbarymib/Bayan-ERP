@@ -5,6 +5,7 @@ import {
   isDraftStatementStatus,
   PriceStatementsService,
   statementAgeDays,
+  weightDeltaOf,
 } from '../src/price-statements/price-statements.service.js';
 import type { PrismaService } from '../src/prisma/prisma.module.js';
 import type { NumberingService } from '../src/numbering.service.js';
@@ -696,6 +697,58 @@ describe('PriceStatementsService weight note (R3-A6 §5.2)', () => {
         editor,
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('PriceStatementsService actual weight vs theoretical (R4-C3 §5.2)', () => {
+  it('weightDeltaOf يحسب الفرق (الفعلي − النظري) بدقة الوزن', () => {
+    expect(weightDeltaOf(980, 970.656)).toBeCloseTo(9.344, 3);
+    expect(weightDeltaOf(1000, 1000)).toBe(0);
+    expect(weightDeltaOf(950, 970)).toBeCloseTo(-20, 3);
+  });
+
+  it('يحفظ الوزن الفعلي لبند حديدي ويُرجعه ضمن صفوف البند', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { category: { code: 'STEEL' } });
+    await service.update(
+      7,
+      { customerId: 2, lines: [{ itemCode: 'IR', qty: 3, unitPrice: 50, weightNote: 'شاحنة', actualWeight: 980.5 }] },
+      editor,
+    );
+    expect(calls.lineCreates[0]!.data[0]!.actualWeight).toBe(980.5);
+  });
+
+  it('يرفض الوزن الفعلي على صنف غير حديدي', async () => {
+    const { service } = harness({ status: 'DRAFT' }, null, { category: { code: 'PAINT' } });
+    await expect(
+      service.update(
+        7,
+        { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50, actualWeight: 12 }] },
+        editor,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('يقبل بنداً حديدياً بلا وزن فعلي (اختياري)', async () => {
+    const { service, calls } = harness({ status: 'DRAFT' }, null, { category: { code: 'STEEL' } });
+    await service.update(7, { customerId: 2, lines: [{ itemCode: 'IR', qty: 1, unitPrice: 50 }] }, editor);
+    expect(calls.lineCreates[0]!.data[0]!.actualWeight ?? null).toBeNull();
+  });
+
+  it('يضيف فرق الوزن (الفعلي − النظري) على بند القراءة', async () => {
+    const { service, st } = harness({ status: 'APPROVED' }, null, { category: { code: 'STEEL' } });
+    (st.lines as Record<string, unknown>[])[0]!.actualWeight = 980;
+    (st.lines as Record<string, unknown>[])[0]!.qtyBase = 970;
+    const detail = await service.get(7, approver);
+    const line = (detail as { lines: Record<string, unknown>[] }).lines[0]!;
+    expect(line.actualWeight).toBe(980);
+    expect(line.weightDelta).toBeCloseTo(10, 3);
+  });
+
+  it('لا يضيف فرق الوزن لبند بلا وزن فعلي', async () => {
+    const { service } = harness({ status: 'APPROVED' }, null, { category: { code: 'STEEL' } });
+    const detail = await service.get(7, approver);
+    const line = (detail as { lines: Record<string, unknown>[] }).lines[0]!;
+    expect(line.weightDelta).toBeNull();
   });
 });
 

@@ -73,6 +73,7 @@ interface ResolvedLine {
   cost: number | null;
   minPrice: number | null;
   weightNote?: string;
+  actualWeight?: number;
 }
 
 interface DiscountFlag {
@@ -80,6 +81,12 @@ interface DiscountFlag {
   discount: Discount;
   limitPct: number;
   effectivePercent: number;
+}
+
+/** فرق الوزن الفعلي عن النظري (كجم) لأصناف الحديد (§5.2؛ R4-C3). null إذا لم يُدخَل وزن فعلي. */
+export function weightDeltaOf(actualWeight: number | null | undefined, qtyBase: number): number | null {
+  if (actualWeight == null) return null;
+  return roundQty(actualWeight - qtyBase);
 }
 
 /** خرق سعر: صنف سُعّر أقل من التكلفة أو أقل من الحد الأدنى (§5.3). */
@@ -132,6 +139,7 @@ interface StatementSnapshotSource {
     allocatedHeaderDiscount: unknown;
     netLine: unknown;
     weightNote: string | null;
+    actualWeight: unknown;
   }[];
 }
 
@@ -717,6 +725,16 @@ export class PriceStatementsService {
       if (weightNote && item.category?.code !== 'STEEL') {
         throw new BadRequestException(`ملاحظة الوزن الفعلي متاحة لأصناف الحديد فقط (§5.2) — ${item.code}`);
       }
+      // الوزن الفعلي المقاس (وزن الشاحنة) — حديدي فقط؛ يُقارَن بالنظري (qtyBase) لإظهار الفرق (§5.2؛ R4-C3).
+      const actualWeight = line.actualWeight != null ? Number(line.actualWeight) : undefined;
+      if (actualWeight != null) {
+        if (item.category?.code !== 'STEEL') {
+          throw new BadRequestException(`الوزن الفعلي متاح لأصناف الحديد فقط (§5.2) — ${item.code}`);
+        }
+        if (!Number.isFinite(actualWeight) || actualWeight < 0) {
+          throw new BadRequestException(`الوزن الفعلي يجب أن يكون رقماً غير سالب (§5.2) — ${item.code}`);
+        }
+      }
 
       let unitId = item.baseUnitId;
       let factor = 1;
@@ -783,6 +801,7 @@ export class PriceStatementsService {
         cost,
         minPrice,
         weightNote,
+        actualWeight,
       });
     }
     return { resolved, discountFlags, belowCostLines, belowMinPriceLines };
@@ -820,6 +839,7 @@ export class PriceStatementsService {
         netLine: t.netFinal,
         costSnapshot: r.cost,
         weightNote: r.weightNote ?? null,
+        actualWeight: r.actualWeight ?? null,
         periodId,
       };
     });
@@ -959,6 +979,7 @@ export class PriceStatementsService {
         allocatedHeaderDiscount: Number(l.allocatedHeaderDiscount),
         netLine: Number(l.netLine),
         weightNote: l.weightNote,
+        actualWeight: l.actualWeight != null ? Number(l.actualWeight) : null,
       })),
     };
   }
@@ -1000,6 +1021,9 @@ export class PriceStatementsService {
     for (const line of d.lines ?? []) {
       const gross = roundMoney(Number(line.qty) * Number(line.unitPrice));
       line.lineDiscountPercent = this.effectivePercent((line.lineDiscountType as string | null) ?? null, line.lineDiscountValue, gross);
+      // فرق الوزن الفعلي عن النظري (§5.2؛ R4-C3) — يُحسب عند القراءة من الوزن الفعلي المخزَّن.
+      line.weightDelta =
+        line.actualWeight != null ? weightDeltaOf(Number(line.actualWeight), Number(line.qtyBase)) : null;
     }
     return detail;
   }
