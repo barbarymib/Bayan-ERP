@@ -9,6 +9,17 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 1 }),
 });
 
+// في الإنتاج تمنع القيم الافتراضية الضعيفة: يجب تمرير كلمة مرور صريحة قوية (§12).
+const isProd = process.env.NODE_ENV === 'production';
+
+function seedPassword(envName: string, devDefault: string, label: string): string {
+  const value = process.env[envName];
+  if (value && value.length >= 8) return value;
+  if (value) throw new Error(`${envName} must be at least 8 characters` );
+  if (isProd) throw new Error(`${envName} is required in production — refusing to seed '${label}' with a default password`);
+  return devDefault;
+}
+
 
 const ROLES: {
   code: string;
@@ -266,13 +277,14 @@ async function main(): Promise<void> {
   // الشركة الافتراضية أُنشئت في بداية main() — كل المستخدمين الحاليين ينتمون إليها
 
   // المشرف العام للبيئة (§12.4)
+  const globalAdminPassword = seedPassword('GLOBAL_ADMIN_PASSWORD', 'admin123', 'root global admin');
   await prisma.globalAdmin.upsert({
     where: { username: 'root' },
-    update: { passwordHash: hashSync(process.env.GLOBAL_ADMIN_PASSWORD ?? 'admin123', 10), active: true },
+    update: { passwordHash: hashSync(globalAdminPassword, 10), active: true },
     create: {
       username: 'root',
       nameAr: 'المشرف العام',
-      passwordHash: hashSync(process.env.GLOBAL_ADMIN_PASSWORD ?? 'admin123', 10),
+      passwordHash: hashSync(globalAdminPassword, 10),
     },
   });
 
@@ -287,20 +299,21 @@ async function main(): Promise<void> {
 
   const adminRole = await prisma.role.findUniqueOrThrow({ where: { code: 'ADMIN' } });
   const adminEmail = 'admin@bayan.local';
+  const adminPassword = seedPassword('ADMIN_PASSWORD', 'admin123', 'admin user');
   const existingAdmin = await prisma.user.findFirst({ where: { email: adminEmail } });
   if (!existingAdmin) {
     await prisma.user.create({
       data: {
         name: 'مدير النظام',
         email: adminEmail,
-        passwordHash: hashSync(process.env.ADMIN_PASSWORD ?? 'admin123', 10),
+        passwordHash: hashSync(adminPassword, 10),
         roleId: adminRole.id,
         companyId: company.id,
         maxItemDiscountPct: 100,
         maxInvoiceDiscountPct: 100,
       },
     });
-    console.log(`Created admin user: ${adminEmail} (password: ${process.env.ADMIN_PASSWORD ?? 'admin123'})`);
+    console.log(`Created admin user: ${adminEmail}`);
   } else if (existingAdmin.companyId === null) {
     await prisma.user.update({ where: { id: existingAdmin.id }, data: { companyId: company.id } });
   }
@@ -308,6 +321,7 @@ async function main(): Promise<void> {
   // مندوب مبيعات تجريبي (يستخدمه السيناريو الشامل golden)
   const repRole = await prisma.role.findUniqueOrThrow({ where: { code: 'SALES_REP' } });
   const repPhone = '0111111111';
+  const repPassword = seedPassword('REP_PASSWORD', 'rep12345', 'demo rep');
   const existingRep = await prisma.user.findFirst({ where: { phone: repPhone } });
   if (!existingRep) {
     await prisma.user.create({
@@ -315,7 +329,7 @@ async function main(): Promise<void> {
         name: 'مندوب المبيعات',
         phone: repPhone,
         repCode: 'M03',
-        passwordHash: hashSync('rep12345', 10),
+        passwordHash: hashSync(repPassword, 10),
         roleId: repRole.id,
         companyId: company.id,
       },
