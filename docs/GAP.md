@@ -195,6 +195,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-20 | **R4-C5/R4-C6** dead `assertMovable` removed + §14 citation fixed | ✅ FIXED (commit `4b74e46`) |
 | 2026-10-20 | **R4-B5** global-admin «التقارير العامة» route + web tab | ✅ FIXED (`GET /admin/reports` per-company aggregates inside `runWithTenant` + «التقارير» tab; live global 200 / tenant+rep 403; api 518, web tc/lint/build 0; commit `3ddb1cd`) |
 | 2026-10-20 | **R4-C2** item **image gallery** | ✅ FIXED (`ItemImage` table migration `20261020020000`; 4 service methods + `images[]` on item API; `POST/DELETE/PUT cover/GET` under `/items/:id/images`; web gallery strip; live upload/GET-70B/cover-swap/delete + rep 403; api 527/527; commit `2618708`) |
+| 2026-10-20 | **R4-C3** steel **theoretical-vs-actual weight delta** | ✅ FIXED (`PriceStatementLine.actualWeight` migration `20261020030000`; DTO STEEL-only; computed `weightDelta`; sync + report; web input+delta hint; live 985/1000→-15, non-STEEL/negative→400; api 533/533; commit `cc3bf52`) |
 
 ---
 
@@ -326,7 +327,7 @@ Full read-only audit of the whole design spec (�1��14) against api/web/mob
 | -- | --- | ---- | ------ | -------- |
 | R4-C1 | No **XLSX button** in web UI (API supports `format=xlsx`) � CSV only | �5.14 | OPEN | reports page CSV buttons only; `apps/api/src/reports/reports.controller.ts:186-191`. |
 | R4-C2 | Item images: single `imageUrl`, no gallery | §5.1 | FIXED | `ItemImage` table (migration `20261020020000`, itemId/url/sortOrder, cascade) — cover stays `Item.imageUrl` for back-compat. Service uploadGalleryImage/removeGalleryImage/setCoverFromGallery/getGalleryImageSource + images[] on list/findOne; routes POST/DELETE/PUT :id/images[/:imageId[/cover]] + GET :id/images/:imageId; web edit-modal gallery strip. Live 2026-10-20: upload, GET png 70B, cover-swap demotes old cover, delete, rep 403; api 527/527. |
-| R4-C3 | Steel: no computed theoretical-vs-actual weight delta (free-text note only) | �5.2 | OPEN | `apps/api/src/price-statements/price-statements.service.ts:708-712,815`. |
+| R4-C3 | Steel: no computed theoretical-vs-actual weight delta (free-text note only) | §5.2 | FIXED | New `PriceStatementLine.actualWeight` (migration `20261020030000`) + line-DTO `actualWeight` (STEEL-only, non-negative, optional). Service persists it and returns computed `weightDelta = actualWeight - qtyBase` (exported `weightDeltaOf`); sync passthrough; `weight-notes` report adds `actualWeight`/`weightDelta` and now includes measured-weight-only rows; web line editor has an actual-weight input with a live theoretical/delta hint. Live 2026-10-20: `qtyBase=1000`, `actualWeight=985` → `weightDelta=-15`; non-STEEL `actualWeight` → 400; negative → 400; report row present. api 533/533. |
 | R4-C4 | Printed statement lacks company **logo**; name/phone hardcoded | �5.6 | ✅ FIXED | `Company.logoUrl` column (migration `20261020010000`, data-URL `data:image/…;base64,…` or `https://`, `@MaxLength(2_000_000)`, empty clears) round-trips through `GET/PATCH /company`; settings page has logo upload (≤512px JPEG) + clear; print header renders logo + real `nameAr`/`phone`/`email` (hardcoded «شركة تجارة الحديد والتشييد»/«0100 000 0000» removed); `statement-pdf.ts` `resolveLogo()` fetches https URLs to base64 for the PDF header. Live 2026-10-20: PATCH data-URL ? `118` chars persisted, GET round-trips, `javascript:` ? `400`, clear ? `''`. |
 | R4-C5 | Dead code: `assertMovable` in stocktakes service (void, no callers) | �5.8 | ✅ FIXED | Removed (`stocktakes.service.ts`); `freezeMessage`/`ACTIVE_STATUSES` helpers kept (in use). |
 | R4-C6 | �14 worked-example tests mis-cite the section as �13 | �14 | ✅ FIXED | `packages/shared/tests/statement.test.ts:10` citation corrected to §14. |
@@ -413,7 +414,7 @@ Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full ga
 13. ~~**R4-B5** global-admin �???????? ??????� route � **Medium**~~ ✅ FIXED (`3ddb1cd`)
 14. **R4-B10** remediate mixed 50-concurrent bottleneck (item+unit joins) + re-benchmark � **Medium**
 15. ~~**R4-B11** surface Hijri dates in UI (wire `formatDateHijri`) or downgrade G26 claim � **Medium**~~ ✅ FIXED (`9c92440`)
-16. **R4-C2..C6** low cleanups (image gallery, steel weight delta, print logo, dead `assertMovable`, §14 test citation) — **Low** — ✅ **C2** gallery (`2618708`) + **C4** logo (`9c92440`) + **C5** dead code + **C6** citation (`4b74e46`) done; **C3 steel weight delta** remains.
+16. **R4-C2..C6** low cleanups (image gallery, steel weight delta, print logo, dead `assertMovable`, §14 test citation) — **Low** — ✅ **C2** gallery (`2618708`) + **C3** steel weight delta (`cc3bf52`) + **C4** logo (`9c92440`) + **C5** dead code + **C6** citation (`4b74e46`) done.
 
 ### Blocked
 - **F2 / �5.15** FCM push transport � needs Firebase project + credentials (notification *records* already work).
