@@ -45,15 +45,34 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
   int? _customerId;
   int? _statementId;
   String _reason = 'DEFECT';
+  String _mode = 'BY_CUSTOMER';
+  String _settlement = 'BALANCE';
+  bool _withoutStatement = false;
+  final TextEditingController _notes = TextEditingController();
   final List<_ReturnLine> _lines = [];
   bool _saving = false;
 
   @override
   void dispose() {
+    _notes.dispose();
     for (final l in _lines) {
       l.dispose();
     }
     super.dispose();
+  }
+
+  bool _can(String permission) =>
+      ref.read(sessionProvider).user?.permissions.contains(permission) ?? false;
+
+  /// وحدة بند البيان من كاش وحدات الأصناف (تُرسل مع البند لتحترم وحدة الإرجاع).
+  String? _unitCodeFor(StatementLineSummary line) {
+    for (final item in ref.read(dataStoreProvider).items) {
+      if (item.id != line.itemId) continue;
+      for (final unit in item.units) {
+        if (unit.unitId == line.unitId) return unit.unitCode;
+      }
+    }
+    return null;
   }
 
   List<StatementSummary> get _statements => ref
@@ -85,9 +104,15 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
   }
 
   Future<void> _save() async {
-    if (_customerId == null || _statementId == null) {
+    if (_customerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اختر العميل والبيان المراد الإرجاع منه')),
+        const SnackBar(content: Text('اختر العميل')),
+      );
+      return;
+    }
+    if (!_withoutStatement && _statementId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اختر البيان المراد الإرجاع منه أو فعّل «مرتجع بدون بيان»')),
       );
       return;
     }
@@ -95,10 +120,12 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
     for (final l in _lines) {
       final q = l.qtyValue;
       if (q <= 0) continue;
+      final unitCode = _unitCodeFor(l.line);
       lines.add({
         'sourceLineId': l.line.id,
         'qty': q,
         'condition': l.condition,
+        'unitCode': ?unitCode,
       });
     }
     if (lines.isEmpty) {
@@ -110,10 +137,13 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
     final repCode = ref.read(sessionProvider).user?.repCode ?? '';
     final number = await ref.read(numberingProvider).next('RT', repCode);
     final payload = <String, dynamic>{
-      'mode': 'BY_REP',
+      'mode': _mode,
       'customerId': _customerId,
       'reasonCode': _reason,
+      'settlement': _settlement,
       'date': DateTime.now().toIso8601String(),
+      if (_withoutStatement) 'withoutStatement': true,
+      if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
       'lines': lines,
     };
     final ok = ref.read(syncControllerProvider.notifier).enqueue(
@@ -143,6 +173,33 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          DropdownButtonFormField<String>(
+            key: const Key('returnMode'),
+            initialValue: _mode,
+            decoration: const InputDecoration(labelText: 'نوع المرتجع'),
+            items: const [
+              DropdownMenuItem(value: 'BY_CUSTOMER', child: Text('حسب العميل')),
+              DropdownMenuItem(value: 'BY_REP', child: Text('حسب المندوب')),
+            ],
+            onChanged: (v) => setState(() => _mode = v ?? 'BY_CUSTOMER'),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: const Key('returnSettlement'),
+            initialValue: _settlement,
+            decoration: const InputDecoration(labelText: 'الأثر المالي'),
+            items: [
+              const DropdownMenuItem(
+                  value: 'BALANCE', child: Text('خصم من رصيد العميل')),
+              const DropdownMenuItem(
+                  value: 'CREDIT', child: Text('رصيد دائن للعميل')),
+              if (_can('return.cash_refund'))
+                const DropdownMenuItem(
+                    value: 'CASH', child: Text('رد نقدية من الخزينة')),
+            ],
+            onChanged: (v) => setState(() => _settlement = v ?? 'BALANCE'),
+          ),
+          const SizedBox(height: 12),
           DropdownButtonFormField<int>(
             initialValue: _customerId,
             key: ValueKey<int?>(_customerId),
@@ -171,25 +228,39 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
             },
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            initialValue: _statementId,
-            decoration: const InputDecoration(labelText: 'البيان (المعتمد)'),
-            items: statements
-                .map((s) => DropdownMenuItem(
-                      value: s.id,
-                      child: Text('${s.number} — ${s.net.toStringAsFixed(2)}',
-                          overflow: TextOverflow.ellipsis),
-                    ))
-                .toList(),
-            onChanged: (v) {
-              StatementSummary? st;
-              for (final s in statements) {
-                if (s.id == v) st = s;
-              }
-              _selectStatement(st);
-            },
-          ),
-          const SizedBox(height: 12),
+          if (_can('return.without_statement'))
+            SwitchListTile(
+              key: const Key('withoutStatement'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('مرتجع بدون بيان'),
+              subtitle: const Text('إرجاع أصناف دون بيان بيع أصلي'),
+              value: _withoutStatement,
+              onChanged: (v) => setState(() {
+                _withoutStatement = v;
+                _selectStatement(null);
+              }),
+            ),
+          if (!_withoutStatement)
+            DropdownButtonFormField<int>(
+              key: const Key('returnStatement'),
+              initialValue: _statementId,
+              decoration: const InputDecoration(labelText: 'البيان (المعتمد)'),
+              items: statements
+                  .map((s) => DropdownMenuItem(
+                        value: s.id,
+                        child: Text('${s.number} — ${s.net.toStringAsFixed(2)}',
+                            overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                StatementSummary? st;
+                for (final s in statements) {
+                  if (s.id == v) st = s;
+                }
+                _selectStatement(st);
+              },
+            ),
+          if (!_withoutStatement) const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _reason,
             decoration: const InputDecoration(labelText: 'سبب الإرجاع'),
@@ -198,8 +269,15 @@ class _NewReturnScreenState extends ConsumerState<NewReturnScreen> {
                 .toList(),
             onChanged: (v) => setState(() => _reason = v ?? 'DEFECT'),
           ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _notes,
+            minLines: 1,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'ملاحظات'),
+          ),
           const SizedBox(height: 16),
-          if (_selected == null)
+          if (!_withoutStatement && _selected == null)
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),

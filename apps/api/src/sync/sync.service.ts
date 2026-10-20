@@ -585,11 +585,14 @@ export class SyncService {
       reasonCode,
       notes: payload['notes'] as string | undefined,
       settlement: payload['settlement'] as string | undefined,
+      ...(typeof payload['withoutStatement'] === 'boolean' ? { withoutStatement: payload['withoutStatement'] } : {}),
       clientUuid: uuid,
       number: item.number,
       lines: Array.isArray(payload['lines'])
         ? (payload['lines'] as Record<string, unknown>[]).map((l) => ({
-            sourceLineId: Number(l['sourceLineId']),
+            ...(l['sourceLineId'] != null ? { sourceLineId: Number(l['sourceLineId']) } : {}),
+            ...(l['itemId'] != null ? { itemId: Number(l['itemId']) } : {}),
+            ...(l['unitPrice'] != null ? { unitPrice: Number(l['unitPrice']) } : {}),
             qty: Number(l['qty']),
             unitCode: l['unitCode'] as string | undefined,
             condition: String(l['condition'] ?? 'GOOD') === 'DAMAGED' ? 'DAMAGED' : 'GOOD',

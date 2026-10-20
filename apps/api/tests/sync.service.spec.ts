@@ -80,6 +80,82 @@ function pushStatementDto(payload: Record<string, unknown>): PushDto {
   return { items: [{ clientUuid: 'u1', type: 'price_statement', payload }] } as PushDto;
 }
 
+describe('SyncService.push — مرتجع المندوب (R4-B4 §5.9/§5.12)', () => {
+  function harnessReturn() {
+    const prisma = {
+      returnStatement: { findFirst: async () => null },
+      customerRepAssignment: { findFirst: async () => ({ id: 1 }) },
+      _: 0,
+    } as unknown as PrismaService;
+    const calls: Record<string, unknown>[] = [];
+    const returnsSvc = {
+      create: vi.fn(async (dto: Record<string, unknown>) => {
+        calls.push(dto);
+        return { id: 9, status: 'DRAFT', number: 'RT-9' };
+      }),
+    };
+    const service = new SyncService(
+      prisma,
+      {} as never,
+      returnsSvc as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { write: async () => {} } as never,
+    );
+    return { service, calls };
+  }
+
+  const repUser = {
+    ...baseUser,
+    roleCode: 'SALES_REP',
+    repCode: 'M03',
+    permissions: ['return.create', 'return.without_statement', 'return.cash_refund'],
+  } as unknown as AuthUser;
+
+  function pushReturn(payload: Record<string, unknown>): PushDto {
+    return { items: [{ clientUuid: 'u1', type: 'return_statement', payload, number: 'RT-9' }] } as PushDto;
+  }
+
+  it('يمرّر mode/settlement/withoutStatement/per-line unitCode إلى returns.create', async () => {
+    const { service, calls } = harnessReturn();
+    await service.push(
+      repUser,
+      pushReturn({
+        mode: 'BY_CUSTOMER',
+        customerId: 2,
+        reasonCode: 'DEFECT',
+        settlement: 'CREDIT',
+        withoutStatement: true,
+        lines: [{ itemId: 5, qty: 2, unitCode: 'can', condition: 'GOOD' }],
+      }),
+    );
+    const dto = calls[0]!;
+    expect(dto.mode).toBe('BY_CUSTOMER');
+    expect(dto.settlement).toBe('CREDIT');
+    expect(dto.withoutStatement).toBe(true);
+    const lines = dto.lines as Record<string, unknown>[];
+    expect(lines[0]!.unitCode).toBe('can');
+    expect(lines[0]!.sourceLineId).toBeUndefined();
+  });
+
+  it('يرسل sourceLineId عند الإرجاع من بيان أصلي', async () => {
+    const { service, calls } = harnessReturn();
+    await service.push(
+      repUser,
+      pushReturn({
+        mode: 'BY_REP',
+        customerId: 2,
+        reasonCode: 'DAMAGED',
+        lines: [{ sourceLineId: 77, qty: 1, condition: 'GOOD' }],
+      }),
+    );
+    const lines = calls[0]!.lines as Record<string, unknown>[];
+    expect(lines[0]!.sourceLineId).toBe(77);
+  });
+});
+
 describe('SyncService.push — تنبيهات التسعير مع رفع بيان سعر (R3-A8 §5.3)', () => {
   const repUser = {
     ...baseUser,
