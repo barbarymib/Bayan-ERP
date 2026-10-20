@@ -1118,3 +1118,17 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Live verify 2026-10-19** (rebuilt + restarted, `migrations 39/39`): `POST /price-statements` with `saveAsDraft:true` → `status=DRAFT`, net 300, and `StockMovement`/`LedgerEntry`/`Approval`/`StockReservation` all **0** for the ref; `PATCH` (no flag) → `APPROVED` + 1 movement + 1 ledger. Cleaned up (statement 211 + related rows deleted; StockBalance restored −8 → −5; env back to 2 users).
 - **Commits:** code `f1e5b25`; docs `docs/GAP.md` (R4-B7 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
 - **Next:** Phase P5 — R4-B9, R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
+
+## 2026-10-19 — Round-4 P5 R4-B9 (credit «طلب استثناء» exception-request path)
+
+- **Gap:** §6.1 node H «طلب استثناء» — when a statement breaches a customer's credit limit under `CREDIT_MODE=BLOCK`, the API hard-threw `BadRequestException` from `assertCustomerCredit`; there was no way to raise an exception request and let an authorized user approve it.
+- **Schema:** added `CREDIT_LIMIT` to `enum ApprovalType` (migration `20261019050000_credit_limit_approval_type`, `ALTER TYPE ... ADD VALUE IF NOT EXISTS`).
+- **Permission:** new `credit.exception.approve` (`role-permissions.ts`) granted to `OWNER`, `ACCOUNTANT`, `REP_SUPERVISOR` (ADMIN via `ALL_PERMISSIONS`); migration `20261019060000_credit_exception_permission` inserts it + `RolePermission` for ADMIN/OWNER/ACCOUNTANT/REP_SUPERVISOR (`ON CONFLICT DO NOTHING`).
+- **Service (`sales-ops.service.ts`):** new non-throwing `creditBreach(customerId, newNet, companyId): Promise<{breach,projected,limit}>`; `assertCustomerCredit` now delegates to it and throws only on breach.
+- **Statements (`price-statements.service.ts`):** `create` computes `creditBreach`; on breach it no longer throws — it parks the statement `DRAFT` and opens a `CREDIT_LIMIT` approval (`buildApprovals` gained a `creditBreach` param emitting `{projected,limit}`). `update` does the same for DRAFT edits (`approved` re-post path keeps the strict `assertCustomerCredit` per R4-A3). New `notifyApprovalRequests` helper routes `CREDIT_LIMIT` notifications to `credit.exception.approve` holders and discount notifications to `discount.approve` holders.
+- **Approvals (`approvals.service.ts`):** `TYPE_PERMISSION` gained `CREDIT_LIMIT: 'credit.exception.approve'`; `assertDecidable` and `SalesOpsService.finalizeStatement` skip the strict credit re-check when a `CREDIT_LIMIT` approval (PENDING/APPROVED) exists for the statement — so approving the exception posts it.
+- **Web:** approvals page `typePermission`/`typeLabel`/`typeColor` gained `CREDIT_LIMIT` (amber) and `BELOW_MIN_PRICE`; `canApprove` includes `credit.exception.approve`.
+- **Tests (TDD RED→GREEN):** +1 role-matrix; +6 `sales-ops.service.spec.ts` (`creditBreach` cases + finalize-skip); +3 `price-statements.service.spec.ts`; +4 `approvals.service.spec.ts` (type→permission, list scoping, assertDecidable skip). Mock harnesses gained `approval.findFirst`.
+- **Gates:** api typecheck 0 / lint 0 / **511/511**; web tc/lint/build 0.
+- **Commits:** code `327a6a6`; docs `docs/GAP.md` (R4-B9 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
+- **Next:** Phase P5 — R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
