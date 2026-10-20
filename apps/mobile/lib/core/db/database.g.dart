@@ -3213,6 +3213,196 @@ class MetaCompanion extends UpdateCompanion<MetaData> {
   }
 }
 
+class $StockBalancesTable extends StockBalances
+    with TableInfo<$StockBalancesTable, StockBalance> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $StockBalancesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<int> itemId = GeneratedColumn<int>(
+    'item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _qtyMeta = const VerificationMeta('qty');
+  @override
+  late final GeneratedColumn<double> qty = GeneratedColumn<double>(
+    'qty',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [itemId, qty];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'stock_balances';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<StockBalance> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('item_id')) {
+      context.handle(
+        _itemIdMeta,
+        itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta),
+      );
+    }
+    if (data.containsKey('qty')) {
+      context.handle(
+        _qtyMeta,
+        qty.isAcceptableOrUnknown(data['qty']!, _qtyMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {itemId};
+  @override
+  StockBalance map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StockBalance(
+      itemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}item_id'],
+      )!,
+      qty: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}qty'],
+      )!,
+    );
+  }
+
+  @override
+  $StockBalancesTable createAlias(String alias) {
+    return $StockBalancesTable(attachedDatabase, alias);
+  }
+}
+
+class StockBalance extends DataClass implements Insertable<StockBalance> {
+  final int itemId;
+  final double qty;
+  const StockBalance({required this.itemId, required this.qty});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['item_id'] = Variable<int>(itemId);
+    map['qty'] = Variable<double>(qty);
+    return map;
+  }
+
+  StockBalancesCompanion toCompanion(bool nullToAbsent) {
+    return StockBalancesCompanion(itemId: Value(itemId), qty: Value(qty));
+  }
+
+  factory StockBalance.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StockBalance(
+      itemId: serializer.fromJson<int>(json['itemId']),
+      qty: serializer.fromJson<double>(json['qty']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'itemId': serializer.toJson<int>(itemId),
+      'qty': serializer.toJson<double>(qty),
+    };
+  }
+
+  StockBalance copyWith({int? itemId, double? qty}) =>
+      StockBalance(itemId: itemId ?? this.itemId, qty: qty ?? this.qty);
+  StockBalance copyWithCompanion(StockBalancesCompanion data) {
+    return StockBalance(
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      qty: data.qty.present ? data.qty.value : this.qty,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StockBalance(')
+          ..write('itemId: $itemId, ')
+          ..write('qty: $qty')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(itemId, qty);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StockBalance &&
+          other.itemId == this.itemId &&
+          other.qty == this.qty);
+}
+
+class StockBalancesCompanion extends UpdateCompanion<StockBalance> {
+  final Value<int> itemId;
+  final Value<double> qty;
+  const StockBalancesCompanion({
+    this.itemId = const Value.absent(),
+    this.qty = const Value.absent(),
+  });
+  StockBalancesCompanion.insert({
+    this.itemId = const Value.absent(),
+    this.qty = const Value.absent(),
+  });
+  static Insertable<StockBalance> custom({
+    Expression<int>? itemId,
+    Expression<double>? qty,
+  }) {
+    return RawValuesInsertable({
+      if (itemId != null) 'item_id': itemId,
+      if (qty != null) 'qty': qty,
+    });
+  }
+
+  StockBalancesCompanion copyWith({Value<int>? itemId, Value<double>? qty}) {
+    return StockBalancesCompanion(
+      itemId: itemId ?? this.itemId,
+      qty: qty ?? this.qty,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (itemId.present) {
+      map['item_id'] = Variable<int>(itemId.value);
+    }
+    if (qty.present) {
+      map['qty'] = Variable<double>(qty.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StockBalancesCompanion(')
+          ..write('itemId: $itemId, ')
+          ..write('qty: $qty')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3225,6 +3415,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $StatementLineRowsTable statementLineRows =
       $StatementLineRowsTable(this);
   late final $MetaTable meta = $MetaTable(this);
+  late final $StockBalancesTable stockBalances = $StockBalancesTable(this);
   late final Index idxItemsCode = Index(
     'idx_items_code',
     'CREATE INDEX idx_items_code ON items (code)',
@@ -3278,6 +3469,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     statementRows,
     statementLineRows,
     meta,
+    stockBalances,
     idxItemsCode,
     idxItemUnitsItem,
     idxItemUnitsBarcode,
@@ -4989,6 +5181,131 @@ typedef $$MetaTableProcessedTableManager =
       MetaData,
       PrefetchHooks Function()
     >;
+typedef $$StockBalancesTableCreateCompanionBuilder =
+    StockBalancesCompanion Function({Value<int> itemId, Value<double> qty});
+typedef $$StockBalancesTableUpdateCompanionBuilder =
+    StockBalancesCompanion Function({Value<int> itemId, Value<double> qty});
+
+class $$StockBalancesTableFilterComposer
+    extends Composer<_$AppDatabase, $StockBalancesTable> {
+  $$StockBalancesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get qty => $composableBuilder(
+    column: $table.qty,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$StockBalancesTableOrderingComposer
+    extends Composer<_$AppDatabase, $StockBalancesTable> {
+  $$StockBalancesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get qty => $composableBuilder(
+    column: $table.qty,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$StockBalancesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $StockBalancesTable> {
+  $$StockBalancesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<double> get qty =>
+      $composableBuilder(column: $table.qty, builder: (column) => column);
+}
+
+class $$StockBalancesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $StockBalancesTable,
+          StockBalance,
+          $$StockBalancesTableFilterComposer,
+          $$StockBalancesTableOrderingComposer,
+          $$StockBalancesTableAnnotationComposer,
+          $$StockBalancesTableCreateCompanionBuilder,
+          $$StockBalancesTableUpdateCompanionBuilder,
+          (
+            StockBalance,
+            BaseReferences<_$AppDatabase, $StockBalancesTable, StockBalance>,
+          ),
+          StockBalance,
+          PrefetchHooks Function()
+        > {
+  $$StockBalancesTableTableManager(_$AppDatabase db, $StockBalancesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$StockBalancesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$StockBalancesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$StockBalancesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> itemId = const Value.absent(),
+                Value<double> qty = const Value.absent(),
+              }) => StockBalancesCompanion(itemId: itemId, qty: qty),
+          createCompanionCallback:
+              ({
+                Value<int> itemId = const Value.absent(),
+                Value<double> qty = const Value.absent(),
+              }) => StockBalancesCompanion.insert(itemId: itemId, qty: qty),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$StockBalancesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $StockBalancesTable,
+      StockBalance,
+      $$StockBalancesTableFilterComposer,
+      $$StockBalancesTableOrderingComposer,
+      $$StockBalancesTableAnnotationComposer,
+      $$StockBalancesTableCreateCompanionBuilder,
+      $$StockBalancesTableUpdateCompanionBuilder,
+      (
+        StockBalance,
+        BaseReferences<_$AppDatabase, $StockBalancesTable, StockBalance>,
+      ),
+      StockBalance,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5008,4 +5325,6 @@ class $AppDatabaseManager {
   $$StatementLineRowsTableTableManager get statementLineRows =>
       $$StatementLineRowsTableTableManager(_db, _db.statementLineRows);
   $$MetaTableTableManager get meta => $$MetaTableTableManager(_db, _db.meta);
+  $$StockBalancesTableTableManager get stockBalances =>
+      $$StockBalancesTableTableManager(_db, _db.stockBalances);
 }
