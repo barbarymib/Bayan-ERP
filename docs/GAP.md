@@ -197,6 +197,7 @@ Ordered so isolation/security land first, then correctness, then reporting, then
 | 2026-10-20 | **R4-C2** item **image gallery** | ✅ FIXED (`ItemImage` table migration `20261020020000`; 4 service methods + `images[]` on item API; `POST/DELETE/PUT cover/GET` under `/items/:id/images`; web gallery strip; live upload/GET-70B/cover-swap/delete + rep 403; api 527/527; commit `2618708`) |
 | 2026-10-20 | **R4-C3** steel **theoretical-vs-actual weight delta** | ✅ FIXED (`PriceStatementLine.actualWeight` migration `20261020030000`; DTO STEEL-only; computed `weightDelta`; sync + report; web input+delta hint; live 985/1000→-15, non-STEEL/negative→400; api 533/533; commit `cc3bf52`) |
 | 2026-10-20 | **R4-B2** aging CSV/XLSX + **R4-C1** web XLSX buttons | ✅ FIXED (`QueryAgingDto extends CsvQuery` + `respond()` + flat `rows[]`; reusable web `ExportButtons` CSV+XLSX across 7 reports; live aging csv/xlsx 200 + movements xlsx 200; api 535/535; commit `8d3542c`) |
+| 2026-10-20 | **R4-B1** web screens for 10 §5.14 reports | ✅ FIXED (10 new report panes + tabs + CSV/XLSX buttons in web; types in `lib/api.ts`; all 10 endpoints live-verified 200; web tc/lint/build 0; commit `c8171e0`) |
 
 ---
 
@@ -311,7 +312,7 @@ Full read-only audit of the whole design spec (�1��14) against api/web/mob
 #### Medium
 | ID | Gap | Spec | Status | Evidence |
 | -- | --- | ---- | ------ | -------- |
-| R4-B1 | Ten �5.14 reports are **API-only, no web screen** (sales-summary, sales-by, discounts, discount-approvals, returns, stopped-customers, stocktake-diff, supplier-debt, rep-performance, item-card) | �5.14/�8.1 | OPEN | web grep ? 0 references; reports page tabs limited to 7 (`apps/web/app/(app)/reports/page.tsx:52-62`). |
+| R4-B1 | Ten §5.14 reports are **API-only, no web screen** (sales-summary, sales-by, discounts, discount-approvals, returns, stopped-customers, stocktake-diff, supplier-debt, rep-performance, item-card) | §5.14/§8.1 | FIXED | Added 10 panes + tabs to `apps/web/app/(app)/reports/page.tsx` (filters, totals cards, tables, CSV/XLSX `ExportButtons`); response/DTO types added to `lib/api.ts` (`SalesSummaryReport`…`ItemCardReport`). Live 2026-10-20: all 10 endpoints 200 (item-card 404 for missing item is correct); `sales-by?format=csv` + `item-card?format=csv` 200. web tc/lint/build 0. |
 | R4-B2 | **Aging** report bypasses `respond()` — no CSV/XLSX export (payload `items`, not `rows`) | §5.14 | FIXED | `QueryAgingDto extends CsvQuery` (adds `format`); controller `aging` now pipes through `respond()`; `agingResult` emits flat `rows[]` (customerId/customerCode/customerName/balance/current/b31/b61/b91) beside `items[]`. Live 2026-10-20: aging `?format=csv` → 200 `text/csv`, `?format=xlsx` → 200 XLSX (4086 B); JSON still returns `items`+`rows`. api 535/535. |
 | R4-B3 | **Approvals list/decide** gated by controller `discount.approve`, so a role holding only `return.approve` (ACCOUNTANT) cannot see/decide return approvals though `TYPE_PERMISSION.RETURN='return.approve'` | �4.2/�6.2 | ? FIXED | New `AnyPermission(...codes)` decorator (OR) + `AuthGuard` `ANY_PERMISSIONS_KEY` handling; approvals controller now `@AnyPermission('discount.approve','return.approve')` on `list`/`decide`; `ApprovalsService.list` scoped to the caller's decidable types (from `TYPE_PERMISSION`). Live 2026-10-19: ACCOUNTANT (`return.approve` only) `GET /approvals` ? `200` (was `403`); WAREHOUSEKEEPER (no approve perms) ? `403`. Tests +6. |
 | R4-B4 | Mobile **new return** omits `unitCode`/`settlement`/`withoutStatement` and hardcodes `mode: BY_REP` | �5.9/�5.12 | ✅ FIXED | `new_return_screen.dart` now has a «نوع المرتجع» (BY_CUSTOMER/BY_REP) select and an «الأثر المالي» settlement select (BALANCE/CREDIT, plus CASH only with `return.cash_refund`), a «مرتجع بدون بيان» switch gated by `return.without_statement`, a notes field, and per-line `unitCode` resolved from the cached item units; payload sends `mode`/`settlement`/`notes`/`withoutStatement`/per-line `unitCode`. `SyncService.pushReturnStatement` now forwards `withoutStatement` and per-line `itemId`/`unitPrice` while omitting `sourceLineId` when absent. |
@@ -410,7 +411,7 @@ Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full ga
 8. ~~**R4-B9** credit/stock �??? ???????� exception request path � **Medium**~~ ? FIXED (`327a6a6`)
 9. ~~**R4-B4** mobile return: unit/settlement/withoutStatement + real mode~~ ✅ FIXED (`7d256ac`) � **Medium**
 10. ~~**R4-B6** sync: flag stock-only changes as �??????? ????????� � **Medium**~~ ✅ FIXED (`d6b982c`)
-11. **R4-B1** add web screens for the 10 API-only �5.14 reports � **Medium**
+11. **R4-B1** add web screens for the 10 API-only §5.14 reports — **Medium** — ✅ FIXED (`c8171e0`)
 12. **R4-B2** aging report via `respond()` (CSV/XLSX) + **R4-C1** XLSX buttons in web — **Medium/Low** — ✅ FIXED (`8d3542c`)
 13. ~~**R4-B5** global-admin �???????? ??????� route � **Medium**~~ ✅ FIXED (`3ddb1cd`)
 14. **R4-B10** remediate mixed 50-concurrent bottleneck (item+unit joins) + re-benchmark � **Medium**

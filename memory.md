@@ -1202,3 +1202,13 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** api typecheck 0 / lint 0 / **535/535** (+2); web typecheck 0 / lint 0 / build 0.
 - **Commits:** code `8d3542c`; docs (GAP.md rows B2+C1 + status log + P5 index 12) + this entry.
 - **Next:** R4-B1 (10 API-only §5.14 report screens) → R4-B10 (mixed burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM BLOCKED.
+
+## 2026-10-20 — Round-4 P5 R4-B1 (web screens for 10 §5.14 reports)
+
+- **Gap:** §5.14 — ten reports were API-only (no web screen): sales-summary, sales-by, discounts, discount-approvals, returns, stopped-customers, stocktake-diff, supplier-debt, rep-performance, item-card.
+- **Web:** added 10 panes + tabs in `apps/web/app/(app)/reports/page.tsx` (each: filters, totals/`MoneyStat` cards, table, CSV/XLSX `ExportButtons`; `item-card` has item + warehouse selects and gates body on a chosen item; `stocktake-diff`/`supplier-debt` have `onlyDiff`/`onlyOutstanding` checkboxes; `discounts`/`returns`/`sales-by` have dimension selects). Added response types + dimension unions to `lib/api.ts` (`SalesSummaryReport`, `SalesByReport`, `DiscountsReport`, `DiscountApprovalsReport`, `ReturnsReport`, `StoppedCustomersReport`, `StocktakeDiffReport`, `SupplierDebtReport`, `RepPerformanceReport`, `ItemCardReport`, `SalesDimension`/`DiscountDimension`/`ReturnDimension`).
+- **Notes:** query param for dimensions is `by` (not `groupBy`/`dimension`); `sales-by`/`discounts`/`returns`/`stopped-customers`/`supplier-debt` rows already carry resolved `name`/`code` (no client join); cost/profit columns shown only when `totals.profit !== undefined` (cost.view). Badge UI prop is `color` (not `tone`). Avoid `setState` synchronously in effects (react-hooks/set-state-in-effect) — init `loading=true` once, don't `setLoading(true)` in the effect.
+- **Live 2026-10-20:** all 10 endpoints 200 (`/reports/item-card?itemId=1` → 404 is correct since item 1 doesn't exist; valid id 9 → 200); `sales-by?format=csv` + `item-card?format=csv` → 200 `text/csv`; web `/reports` → 200 after rebuild+restart.
+- **Gates:** web typecheck 0 / lint 0 / build 0. (API unchanged.)
+- **Commits:** code `c8171e0`; docs (GAP.md row + status log + P5 index 11) + this entry.
+- **Next:** R4-B10 (mixed burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM BLOCKED.
