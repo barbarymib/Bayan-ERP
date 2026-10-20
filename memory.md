@@ -1153,3 +1153,14 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** api typecheck/lint 0, **516/516**; web typecheck/lint 0; mobile analyze 0, **307/307**; api build ✓; `db:deploy` ✓ 42/42.
 - **Commits:** `b58cfce` fix(mobile) regen; `d6b982c` feat R4-B6; `9c92440` feat R4-C4+B11; `4b74e46` chore R4-C5/C6; docs `docs/GAP.md` (rows R4-B6/B11/C4/C5/C6 → ✅ FIXED) + this entry (`docs(GAP,memory)` commit).
 - **Next:** R4-B5 (global-admin تفريغ البيانات route) → R4-C2 (item gallery) → R4-C3 (steel weight delta) → R4-B2/R4-C1 (aging CSV/XLSX + web XLSX buttons) → R4-B1 (10 API-only report screens) → R4-B10 (50-burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM remains BLOCKED.
+
+## 2026-10-20 — Round-4 P5 R4-B5 (global-admin «التقارير العامة»)
+
+- **Gap:** §12.4 grants the المشرف العام «التقارير العامة» but `admin.controller.ts` had no reports route (web global admin had only companies/features/settings tabs).
+- **API:** `GET /admin/reports` (`@GlobalAdmin`) → `AdminService.reports()`: `company.findMany` (non-RLS) then per-company `runWithTenant({companyId}, …)` aggregating `user.count` / `item.count` / `customer.count` / `priceStatement.aggregate(APPROVED → count + sum net)` / latest `date` — same per-tenant loop as `NotificationsScheduler.runAll`; returns `{totals, companies[]}` (`CompanyReport`/`GlobalReportsTotals` exported types).
+- **Web:** `/global/admin` + «التقارير» tab (totals cards grid, per-company table with status badge/last-activity, footnote about mixed currencies); loads via `globalApi('/admin/reports')` alongside the other tabs.
+- **TDD:** 2 RED tests (`reports is not a function`) → GREEN; mock `item.count` captures `currentCompanyId()` ALS context proving the per-company tenant context is `[1, 2]`.
+- **Live 2026-10-20:** `root`/`admin123` global login → `GET /admin/reports` 200 `{companies:1, activeCompanies:1, users:2, items:4, customers:3, statements:5, netSales:479495.5, last:2026-10-18}`; tenant token + rep token → 403; API restarted on new build (42/42); web rebuilt + restarted (`/global/admin` → 200).
+- **Gates:** api typecheck 0 / lint 0 / **518/518**; web typecheck 0 / lint 0 / build 0.
+- **Commits:** code `3ddb1cd`; docs `docs/GAP.md` (row + status log + P5 index 13) + this entry (`docs(GAP,memory)` commit).
+- **Next:** R4-C2 (item image gallery) → R4-C3 (steel theoretical-vs-actual delta) → R4-B2/R4-C1 (aging CSV/XLSX + web XLSX buttons) → R4-B1 (10 API-only §5.14 screens) → R4-B10 (mixed burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM BLOCKED.
