@@ -1,4 +1,4 @@
-## Objective
+﻿## Objective
 Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional items) + customer additions (Arabic-RTL default, A5 printing, bulk price changes, SaaS multi-tenancy). **ALL PHASES DONE (2026-10-08)**: Phase 6 archiving ✓, Phase 4 Flutter+sync ✓, **§5.16 extras ✓** (quotations/price statements/special prices/rep targets/encrypted backups/customer groups/branches + 6 web pages), **§5.14/§5.15 ✓** (in-app notifications + audit-log viewer), **debt-aging report ✓** (FIFO by age bucket), **Phase 7 ✓** (backup-restore verify endpoint + legacy data migration tool MERGE/STRICT). Final regression: golden **90 OK / 0 FAIL**, API **tsc 0 / eslint(src+tests) 0 / vitest 62/62 / build 0**, web tsc/lint/build clean, live smoke notifications/audit/aging verified. test/migration.spec.ts `any` + unused-var lint/TS nits all fixed.
 
 ## Important Details
@@ -1132,3 +1132,13 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** api typecheck 0 / lint 0 / **511/511**; web tc/lint/build 0.
 - **Commits:** code `327a6a6`; docs `docs/GAP.md` (R4-B9 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
 - **Next:** Phase P5 — R4-B4, R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
+
+## 2026-10-19 — Round-4 P5 R4-B4 (mobile new return: mode/settlement/withoutStatement/unitCode)
+
+- **Gap:** §5.9/§5.12 mobile «مرتجع جديد» hardcoded `mode: 'BY_REP'` and omitted `settlement`, `withoutStatement`, per-line `unitCode`, and `notes` — so rep-created returns always looked like rep-mode, never refunded cash/credit, and couldn't do statement-less returns.
+- **Screen (`apps/mobile/lib/features/return/new_return_screen.dart`):** added `_mode` (BY_CUSTOMER/BY_REP) and `_settlement` (BALANCE/CREDIT, +CASH only when `return.cash_refund` held) dropdowns, a `_withoutStatement` switch shown only with `return.without_statement`, a notes `TextField`, and `_unitCodeFor(line)` which resolves the line's unit code from the cached `DataStore.items[].units`. Payload now sends `mode`/`settlement`/`notes`/`withoutStatement` and per-line `unitCode`. Added `Key`s (`returnMode`/`returnSettlement`/`returnStatement`/`withoutStatement`) for testability.
+- **API (`sync.service.ts` `pushReturnStatement`):** now forwards `withoutStatement` (only when boolean) and per-line `itemId`/`unitPrice`, and omits `sourceLineId` when absent (previously coerced to `NaN` for statement-less lines).
+- **Tests (TDD RED→GREEN):** new mobile widget test `test/return/new_return_screen_test.dart` (+5: mode select, settlement options, cash only with permission, without-statement only with permission, payload carries mode/settlement/unitCode); api `sync.service.spec.ts` +2 (return passthrough + sourceLineId). NOTE: `SessionStore`/`NumberingStore` need a real `SharedPreferences.setMockInitialValues` + `getInstance`; `ConnectivityStatus` fake implements `isOnline()` (Future) + `onChanged`.
+- **Gates:** api typecheck 0 / lint 0 / **513/513**; mobile analyze 0 / **307/307**.
+- **Commits:** code `7d256ac`; docs `docs/GAP.md` (R4-B4 row FIXED + status-log row + P5 index) + this memory entry (separate `docs(GAP,memory)` commit).
+- **Next:** Phase P5 — R4-B6, R4-B1, R4-B2/R4-C1, R4-B5, R4-B10, R4-B11, R4-C2..C6.
