@@ -1243,3 +1243,20 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** api typecheck 0 / lint 0 / **552/552** (+9). Rebuilt api before restart.
 - **Commits:** code `95bbf82`; docs (GAP.md 3 F2 lines + status log) + this entry.
 - **State:** F2 = transport implemented; **live delivery still pending Firebase service-account credentials** (set env vars to activate). Only remaining external dependency.
+
+## 2026-10-20 — Production hardening (client handover readiness)
+
+- **Trigger:** user asked for live production-readiness status to hand to a client, then "do all" remediation of the 4 hardening items.
+- **Item 4 global admin — VERIFIED WORKING (no defect):** `POST /api/admin/login {username:'root',password:'admin123'}` → 201 global-scope JWT. Earlier "root login failed" was a test error (wrong field/route), NOT a system bug. DB row confirmed: `public."GlobalAdmin"` id=1 username=root active=t. Guard (`auth.guard.ts:66-76`) correctly isolates global vs tenant tokens. NOTE: psql needs `public."GlobalAdmin"` (quoted, case-sensitive).
+- **Item 3 credentials — HARDENED:**
+  - `prisma/seed.ts` now uses `seedPassword(envName, devDefault, label)`: in `NODE_ENV=production` it THROWS if `GLOBAL_ADMIN_PASSWORD`/`ADMIN_PASSWORD`/`REP_PASSWORD` unset (no weak defaults); requires ≥8 chars; dev/test keep `admin123`/`rep12345`. Removed password from the stdout log line.
+  - New `scripts/rotate-credentials.ts` + `pnpm --filter @bayan/api db:rotate`: rotates global admin (`GLOBAL_ADMIN_PASSWORD`, optional `GLOBAL_ADMIN_USERNAME`) and/or a user (`USER_EMAIL`|`USER_PHONE` + `USER_PASSWORD`); enforces ≥8 chars. Live-tested: rotate root → new pw 201 / old 401; rotate admin user OK; short pw rejected (exit 1); restored dev creds after.
+- **Item 3 secrets audit — CLEAN:** only `.env.example` tracked; real `.env`/`.env.*` gitignored. `git grep` for secrets → only type defs/test fixtures/dev defaults. Production already fails-closed on weak `JWT_SECRET` (<16, `auth.module.ts:10`), `BACKUP_ENCRYPTION_KEY` (missing, `crypto.util.ts:24`), and default S3/MinIO creds (`object-storage.s3.ts:40`). Rewrote `.env.example` = complete prod checklist (added BACKUP_ENCRYPTION_KEY, seed passwords, CORS_ORIGINS, FCM_*, STORAGE_DRIVER, NEXT_PUBLIC_API_URL, backup vars).
+- **Item 2 deployment posture — ADDED:**
+  - `docker-compose.prod.yml` (override): api/web bind `127.0.0.1` only, adds `caddy:2-alpine` (80/443) with TLS. Requires `DOMAIN`/`ACME_EMAIL`/`CORS_ORIGINS`/`BACKUP_ENCRYPTION_KEY`.
+  - `deploy/Caddyfile`: auto-HTTPS (Let's Encrypt), `/api/*`→api:3000, rest→web:3001, HSTS + security headers, access log. `caddy validate` = "Valid configuration".
+  - `docs/DEPLOYMENT.md`: full runbook (env table, compose command, seed, rotate, backups, monitoring, security handover checklist). README links it.
+- **Item 1 backups — VERIFIED LIVE:** created `BK-20261020150859-f06c6e` (275 KB); `POST /backups/:id/verify` → `{ok:true,sha256,...}`; `POST /backups/:id/restore-drill` → `{ok:true,tables:78,companies:1}`; drill DB auto-dropped (no `bayan_drill%` leftovers). Scheduled backups already present (7 records, 02:00 daily). No delete route (test backup id=8 left as harmless data).
+- **Gates (final):** api typecheck 0 / lint 0 / **552/552**; shared **114/114**; web typecheck/lint/build 0. Migrations 45/45.
+- **Commits:** `d5f31b8` (web tools §5.16), `11a071f` (credential hygiene + db:rotate), `e818de0` (deployment layer + env template + DEPLOYMENT.md).
+- **State:** Production-ready for client. Remaining optional: FCM creds for device push delivery (no-op without). Multi-branch/iOS/scale/tax-invoice intentionally deferred per design spec §5.16.
