@@ -1191,3 +1191,14 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Gates:** api typecheck 0 / lint 0 / **533/533** (+6); web typecheck 0 / lint 0 / build 0. Again rebuilt api (`pnpm --filter @bayan/api build`) before restart.
 - **Commits:** code `cc3bf52`; docs (GAP.md row + status log + P5 index 16) + this entry.
 - **Next:** R4-B2/R4-C1 (aging CSV/XLSX + web XLSX buttons) → R4-B1 (10 API-only §5.14 report screens) → R4-B10 (mixed burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM BLOCKED.
+
+## 2026-10-20 — Round-4 P5 R4-B2 (aging CSV/XLSX) + R4-C1 (web XLSX buttons)
+
+- **Gap:** §5.14 — aging report bypassed `respond()` so it had no CSV/XLSX export (returned `items` not `rows`); web reports page only had CSV buttons though the API supports `format=xlsx`.
+- **API (R4-B2):** `QueryAgingDto extends CsvQuery` (adds `format`); controller `aging` now `@Res({passthrough:true})` + `.then(d => this.respond(res, query, d))`; `agingResult` emits a flat `rows[]` (`customerId/customerCode/customerName/balance/current/b31/b61/b91`) beside the existing `items[]` (back-compat).
+- **Web (R4-C1):** replaced CSV-only `downloadCsv` with `downloadReport` (names `.xlsx` when `format=xlsx`) + reusable `ExportButtons` (CSV + XLSX) applied to movements / stock-values / items-without-price / stock-summary / low-stock / weight-notes / aging. `AgingReport.rows?` typed in `lib/api.ts`.
+- **Tests:** 2 new aging tests (flat rows present; empty when no customers) → `reports.service.spec.ts` 60/60.
+- **Live 2026-10-20:** aging `?format=csv` → 200 `text/csv` (header `b31,b61,b91,balance,current,customerCode,customerId,customerName`); aging `?format=xlsx` → 200 XLSX (4086 B); aging JSON still `total=1 items=1 rows=1`; movements `?format=xlsx` → 200 XLSX (9424 B); web `/reports` → 200 after rebuild+restart.
+- **Gates:** api typecheck 0 / lint 0 / **535/535** (+2); web typecheck 0 / lint 0 / build 0.
+- **Commits:** code `8d3542c`; docs (GAP.md rows B2+C1 + status log + P5 index 12) + this entry.
+- **Next:** R4-B1 (10 API-only §5.14 report screens) → R4-B10 (mixed burst remediation + re-benchmark) → final GAP reconcile + full regression. F2 FCM BLOCKED.
