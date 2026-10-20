@@ -136,6 +136,15 @@ class SyncController extends Notifier<SyncState> {
             outbox.markFailure(r.clientUuid, r.error ?? 'مرفوض من الخادم', now);
           } else {
             outbox.markSuccess(r.clientUuid, status: r.status, serverId: r.serverId);
+            // R4-B6: سبب «بانتظار المراجعة» برسالة عربية تُعرض للمندوب.
+            if (r.status == SyncStatus.pendingReview) {
+              final reason = switch (r.error) {
+                'net_mismatch' => 'تغيّر السعر/الصافي أثناء الأوفلاين',
+                'stock_mismatch' => 'تعارض الكمية الأساسية مع مخزون المكتب',
+                _ => r.error,
+              };
+              if (reason != null) outbox.byUuid(r.clientUuid)?.lastError = reason;
+            }
           }
           collectedAlerts.addAll(r.pricingAlerts);
         }

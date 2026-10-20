@@ -165,12 +165,13 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
   } as unknown as AuthUser;
 
   function harnessWithStatement(result: Record<string, unknown>) {
+    const holds: number[] = [];
     const prisma = {
       priceStatement: {
         findFirst: async () => null,
         findMany: async () => [],
       },
-      item: { findFirst: async () => null },
+      item: { findFirst: async (q: { where: { id: number } }) => ({ id: q.where.id, code: 'IR' }) },
       unit: { findUnique: async () => null },
       itemUnit: { findUnique: async () => null },
       customer: { findUnique: async () => ({ id: 2, nameAr: 'عميل', companyId: 1 }) },
@@ -187,12 +188,12 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
       statements as never,
       {} as never,
       {} as never,
-      {} as never,
-      { holdForReview: async () => {} } as never,
+      { notify: async () => {} } as never,
+      { holdForReview: async (id: number) => holds.push(id) } as never,
       {} as never,
       { write: async () => {} } as never,
     );
-    return { service, statements };
+    return { service, statements, holds };
   }
 
   const payload = {
@@ -215,6 +216,59 @@ describe('SyncService.push — تنبيهات التسعير مع رفع بيا�
     });
     const res = await service.push(repUser, pushStatementDto(payload));
     expect((res.results[0] as { pricingAlerts?: unknown[] }).pricingAlerts).toEqual(alerts);
+  });
+
+  it('الكمية الأساس لا تطابق بنود الخادم: يُحتجز للمراجعة بخطأ stock_mismatch (R4-B6)', async () => {
+    const { service, holds } = harnessWithStatement({
+      id: 32,
+      net: 100,
+      status: 'DRAFT',
+      number: 'BP-000032',
+      lines: [{ itemId: 5, qtyBase: 2 }],
+    });
+    const res = await service.push(
+      repUser,
+      pushStatementDto({
+        ...payload,
+        lines: [{ itemCode: 'IR', itemId: 5, qty: 3, unitPrice: 50, qtyBase: 3 }],
+      }),
+    );
+    const r = res.results[0] as { status: string; error?: string };
+    expect(r.status).toBe('PENDING_REVIEW');
+    expect(r.error).toBe('stock_mismatch');
+    expect(holds).toHaveLength(1);
+  });
+
+  it('تطابق الكمية الأساس والمال: يُرفع بلا تعارض (R4-B6)', async () => {
+    const { service, holds } = harnessWithStatement({
+      id: 33,
+      net: 100,
+      status: 'DRAFT',
+      number: 'BP-000033',
+      lines: [{ itemId: 5, qtyBase: 2 }],
+    });
+    const res = await service.push(
+      repUser,
+      pushStatementDto({
+        ...payload,
+        lines: [{ itemCode: 'IR', itemId: 5, qty: 2, unitPrice: 50, qtyBase: 2 }],
+      }),
+    );
+    expect((res.results[0] as { status: string }).status).toBe('UPLOADED');
+    expect(holds).toHaveLength(0);
+  });
+
+  it('بلا qtyBase من الجهاز: لا يُطبّق فحص المخزون (توافق خلفي) (R4-B6)', async () => {
+    const { service, holds } = harnessWithStatement({
+      id: 34,
+      net: 100,
+      status: 'DRAFT',
+      number: 'BP-000034',
+      lines: [{ itemId: 5, qtyBase: 2 }],
+    });
+    const res = await service.push(repUser, pushStatementDto(payload));
+    expect((res.results[0] as { status: string }).status).toBe('UPLOADED');
+    expect(holds).toHaveLength(0);
   });
 
   it('لا يُعيد pricingAlerts عند عدم وجودها', async () => {

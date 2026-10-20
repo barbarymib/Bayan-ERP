@@ -535,6 +535,7 @@ export class SyncService {
       net: string | number;
       status: string;
       number: string;
+      lines?: { itemId: number; qtyBase: string | number }[];
       pricingAlerts?: { type: 'below_cost' | 'below_min_price'; itemCode: string; unitPrice: number; threshold: number }[];
     };
     const net = num(payload['net']);
@@ -550,6 +551,19 @@ export class SyncService {
         ...(s.pricingAlerts ? { pricingAlerts: s.pricingAlerts } : {}),
       };
     }
+    // R4-B6: تعارض مخزون فقط — لو أرسل الجهاز الكميات الأساسية وتختلف عن بنود الخادم
+    // (وحدة/معامل تحويل مختلف) نرفع علم «تعارض كمية/مخزون» بدل اعتباره نظيفاً (§5.12).
+    if (this.baseQtyMismatch(payload, s.lines)) {
+      await this.ops.holdForReview(s.id, user);
+      return {
+        clientUuid: uuid,
+        status: 'PENDING_REVIEW' as const,
+        serverId: s.id,
+        number: s.number,
+        error: 'stock_mismatch',
+        ...(s.pricingAlerts ? { pricingAlerts: s.pricingAlerts } : {}),
+      };
+    }
     return {
       clientUuid: uuid,
       status: mapStatementStatus(String(s.status)) as 'UPLOADED',
@@ -557,6 +571,30 @@ export class SyncService {
       number: s.number,
       ...(s.pricingAlerts ? { pricingAlerts: s.pricingAlerts } : {}),
     };
+  }
+
+  /**
+   * R4-B6: يقارن الكميات الأساسية المُرسلة من الجهاز (per-line `qtyBase`) ببنود الخادم.
+   * `true` فقط عند وجود كمية أساسية من الجهاز تخالف الخادم (تعارض مخزون). غياب `qtyBase`
+   * من الجهاز (توافق خلفي) أو غياب بنود الخادم ⇒ لا تعارض.
+   */
+  private baseQtyMismatch(
+    payload: Record<string, unknown>,
+    serverLines: { itemId: number; qtyBase: string | number }[] | undefined,
+  ): boolean {
+    if (!Array.isArray(serverLines) || serverLines.length === 0) return false;
+    const rawLines = Array.isArray(payload['lines']) ? (payload['lines'] as Record<string, unknown>[]) : [];
+    const serverByItem = new Map<number, number>();
+    for (const l of serverLines) serverByItem.set(l.itemId, Number(l.qtyBase));
+    for (const l of rawLines) {
+      const itemId = num(l['itemId']);
+      const deviceBase = num(l['qtyBase']);
+      if (itemId === undefined || deviceBase === undefined) continue;
+      const serverBase = serverByItem.get(itemId);
+      if (serverBase === undefined) continue;
+      if (Math.abs(serverBase - deviceBase) > 0.001) return true;
+    }
+    return false;
   }
 
   private async pushReturnStatement(user: AuthUser, item: PushItemDto) {

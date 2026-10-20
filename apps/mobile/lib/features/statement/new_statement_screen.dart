@@ -254,11 +254,17 @@ class _NewStatementScreenState extends ConsumerState<NewStatementScreen> {
         'lines': _lines.asMap().entries.map((e) {
           final t = totals.lines[e.key];
           final note = e.value.isSteel ? e.value.weightNote.text.trim() : '';
+          // R4-B6: الكمية الأساسية بمعامل الوحدة المختارة — الخادم يقارنها بمخزونه
+          // لرفع علم «تعارض كمية» عند اختلاف معامل التحويل أثناء الأوفلاين (§5.12).
+          final matched = e.value.units
+              .where((u) => u.unitCode == e.value.unitCode);
+          final factor = matched.isEmpty ? 1.0 : matched.first.factorToBase;
           return {
             'itemId': e.value.itemId,
             'name': e.value.name,
             if (e.value.unitCode != null) 'unitCode': e.value.unitCode,
             'qty': _num(e.value.qty),
+            'qtyBase': roundQty(_num(e.value.qty) * factor),
           'unitPrice': _num(e.value.price),
           'discountType': e.value.discountType.name,
           'discountValue': _num(e.value.discountValue),
