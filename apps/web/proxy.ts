@@ -17,6 +17,7 @@ const PROTECTED = [
   '/categories',
   '/collections',
   '/customers',
+  '/devices',
   '/geo',
   '/items',
   '/notifications',
@@ -27,12 +28,14 @@ const PROTECTED = [
   '/reports',
   '/reps',
   '/returns',
+  '/settings',
   '/special-prices',
   '/statements',
   '/stocktakes',
   '/supplier-returns',
   '/suppliers',
   '/targets',
+  '/tools',
   '/transfers',
   '/treasury',
   '/users',
@@ -46,6 +49,11 @@ function matches(pathname: string, prefix: string): boolean {
 
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
+
+  // إذا كان المستخدم مسجل دخوله وهو في الصفحة الرئيسية، يتم توجيهه مباشرة للوحة التحكم
+  if (pathname === '/' && request.cookies.has(AUTH_COOKIE)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
 
   // لوحة المشرف العام للبيئة لها رمزcookie مختلف.
   if (matches(pathname, '/global/admin')) {
