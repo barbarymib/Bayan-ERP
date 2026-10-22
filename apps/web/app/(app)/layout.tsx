@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
 import { BayanLogo, BayanMark, MiBLogo } from '@/components/brand';
@@ -146,18 +146,20 @@ function Shell({ children }: { children: ReactNode }) {
 
   // Load preferences from localStorage on mount
   useEffect(() => {
-    try {
-      const savedCollapsed = window.localStorage.getItem('bayan_sidebar_collapsed');
-      if (savedCollapsed !== null) {
-        setIsCollapsed(savedCollapsed === 'true');
+    Promise.resolve().then(() => {
+      try {
+        const savedCollapsed = window.localStorage.getItem('bayan_sidebar_collapsed');
+        if (savedCollapsed !== null) {
+          setIsCollapsed(savedCollapsed === 'true');
+        }
+        const savedGroups = window.localStorage.getItem('bayan_sidebar_groups');
+        if (savedGroups) {
+          setOpenGroups((prev) => ({ ...prev, ...JSON.parse(savedGroups) }));
+        }
+      } catch {
+        // ignore
       }
-      const savedGroups = window.localStorage.getItem('bayan_sidebar_groups');
-      if (savedGroups) {
-        setOpenGroups((prev) => ({ ...prev, ...JSON.parse(savedGroups) }));
-      }
-    } catch {
-      // ignore
-    }
+    });
   }, []);
 
   const toggleSidebar = () => {
@@ -199,52 +201,55 @@ function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const links: NavLinkItem[] = [
-    // Phase 2: المبيعات والشراء
-    { href: '/pos', label: 'نقطة بيع سريعة (POS)', groupId: 'sales', icon: IconPos, badge: 'سريع' },
-    { href: '/statements', label: 'بيانات الأسعار', groupId: 'sales', icon: IconStatement },
-    { href: '/quotations', label: 'عروض الأسعار', groupId: 'sales', icon: IconStatement },
-    { href: '/returns', label: 'مرتجعات العملاء', groupId: 'sales', icon: IconReturn },
-    { href: '/purchases', label: 'فواتير التوريد', groupId: 'sales', icon: IconPurchase },
-    { href: '/purchase-orders', label: 'أوامر الشراء', groupId: 'sales', icon: IconPurchaseOrder },
-    { href: '/supplier-returns', label: 'مرتجعات الموردين', groupId: 'sales', icon: IconSupplierReturn },
-    { href: '/collections', label: 'تحصيل وقبض', groupId: 'sales', icon: IconCollection },
-    { href: '/treasury', label: 'الخزينة والإقفال', groupId: 'sales', icon: IconTreasury },
-    { href: '/approvals', label: 'الموافقات والاعتمادات', groupId: 'sales', icon: IconApproval },
+  const links: NavLinkItem[] = useMemo(
+    () => [
+      // Phase 2: المبيعات والشراء
+      { href: '/pos', label: 'نقطة بيع سريعة (POS)', groupId: 'sales', icon: IconPos, badge: 'سريع' },
+      { href: '/statements', label: 'بيانات الأسعار', groupId: 'sales', icon: IconStatement },
+      { href: '/quotations', label: 'عروض الأسعار', groupId: 'sales', icon: IconStatement },
+      { href: '/returns', label: 'مرتجعات العملاء', groupId: 'sales', icon: IconReturn },
+      { href: '/purchases', label: 'فواتير التوريد', groupId: 'sales', icon: IconPurchase },
+      { href: '/purchase-orders', label: 'أوامر الشراء', groupId: 'sales', icon: IconPurchaseOrder },
+      { href: '/supplier-returns', label: 'مرتجعات الموردين', groupId: 'sales', icon: IconSupplierReturn },
+      { href: '/collections', label: 'تحصيل وقبض', groupId: 'sales', icon: IconCollection },
+      { href: '/treasury', label: 'الخزينة والإقفال', groupId: 'sales', icon: IconTreasury },
+      { href: '/approvals', label: 'الموافقات والاعتمادات', groupId: 'sales', icon: IconApproval },
 
-    // Phase 3: المخزون والجرد
-    { href: '/stocktakes', label: 'جلسات الجرد', groupId: 'inventory', icon: IconStocktake },
-    { href: '/transfers', label: 'التحويلات المخزنية', groupId: 'inventory', icon: IconTransfer },
-    { href: '/reports', label: 'التقارير والتقييم', groupId: 'inventory', icon: IconReport },
+      // Phase 3: المخزون والجرد
+      { href: '/stocktakes', label: 'جلسات الجرد', groupId: 'inventory', icon: IconStocktake },
+      { href: '/transfers', label: 'التحويلات المخزنية', groupId: 'inventory', icon: IconTransfer },
+      { href: '/reports', label: 'التقارير والتقييم', groupId: 'inventory', icon: IconReport },
 
-    // Phase 5: المتابعة الميدانية
-    { href: '/reps', label: 'المتابعة الميدانية', groupId: 'field', icon: IconRep },
-    { href: '/geo', label: 'تتبع المناديب', groupId: 'field', icon: IconGeo, feature: 'geotracking.fleet' },
-    { href: '/visit-plans', label: 'خطط الزيارات', groupId: 'field', icon: IconPlan },
-    { href: '/targets', label: 'التارجت والعمولات', groupId: 'field', icon: IconTarget },
+      // Phase 5: المتابعة الميدانية
+      { href: '/reps', label: 'المتابعة الميدانية', groupId: 'field', icon: IconRep },
+      { href: '/geo', label: 'تتبع المناديب', groupId: 'field', icon: IconGeo, feature: 'geotracking.fleet' },
+      { href: '/visit-plans', label: 'خطط الزيارات', groupId: 'field', icon: IconPlan },
+      { href: '/targets', label: 'التارجت والعمولات', groupId: 'field', icon: IconTarget },
 
-    // Phase 1: البيانات الأساسية
-    { href: '/items', label: 'الأصناف والمخزون', groupId: 'master', icon: IconItem },
-    { href: '/prices', label: 'قوائم الأسعار', groupId: 'master', icon: IconPrice },
-    { href: '/special-prices', label: 'الأسعار الخاصة', groupId: 'master', icon: IconSparkles },
-    { href: '/customers', label: 'العملاء', groupId: 'master', icon: IconCustomer },
-    { href: '/suppliers', label: 'الموردون', groupId: 'master', icon: IconSupplier },
-    { href: '/warehouses', label: 'المستودعات والمخازن', groupId: 'master', icon: IconWarehouse },
-    { href: '/categories', label: 'التصنيفات', groupId: 'master', icon: IconCategory },
-    { href: '/brands', label: 'الماركات التجارية', groupId: 'master', icon: IconBrand },
-    { href: '/branches', label: 'الفروع', groupId: 'master', icon: IconBranch },
-    { href: '/tools', label: 'أدوات مساعدة', groupId: 'master', icon: IconTools },
+      // Phase 1: البيانات الأساسية
+      { href: '/items', label: 'الأصناف والمخزون', groupId: 'master', icon: IconItem },
+      { href: '/prices', label: 'قوائم الأسعار', groupId: 'master', icon: IconPrice },
+      { href: '/special-prices', label: 'الأسعار الخاصة', groupId: 'master', icon: IconSparkles },
+      { href: '/customers', label: 'العملاء', groupId: 'master', icon: IconCustomer },
+      { href: '/suppliers', label: 'الموردون', groupId: 'master', icon: IconSupplier },
+      { href: '/warehouses', label: 'المستودعات والمخازن', groupId: 'master', icon: IconWarehouse },
+      { href: '/categories', label: 'التصنيفات', groupId: 'master', icon: IconCategory },
+      { href: '/brands', label: 'الماركات التجارية', groupId: 'master', icon: IconBrand },
+      { href: '/branches', label: 'الفروع', groupId: 'master', icon: IconBranch },
+      { href: '/tools', label: 'أدوات مساعدة', groupId: 'master', icon: IconTools },
 
-    // Phase 6: الأرشفة والصيانة
-    { href: '/users', label: 'المستخدمون والأدوار', groupId: 'system', icon: IconUser, perm: 'user.view' },
-    { href: '/devices', label: 'الأجهزة والأمان', groupId: 'system', icon: IconDevice, perm: 'device.manage' },
-    { href: '/settings', label: 'إعدادات الشركة', groupId: 'system', icon: IconSettings, perm: 'company.manage' },
-    { href: '/settings/diagnostics', label: 'سلامة النظام', groupId: 'system', icon: IconDiagnostics, perm: 'company.manage' },
-    { href: '/notifications', label: 'الإشعارات والتنبيهات', groupId: 'system', icon: IconNotification },
-    { href: '/archives', label: 'الترحيل والأرشفة', groupId: 'system', icon: IconArchive, perm: 'archive.run', feature: 'archiving.core' },
-    { href: '/backups', label: 'النسخ الاحتياطي', groupId: 'system', icon: IconBackup },
-    { href: '/audit-logs', label: 'سجل التدقيق', groupId: 'system', icon: IconAudit, perm: 'audit.view' },
-  ];
+      // Phase 6: الأرشفة والصيانة
+      { href: '/users', label: 'المستخدمون والأدوار', groupId: 'system', icon: IconUser, perm: 'user.view' },
+      { href: '/devices', label: 'الأجهزة والأمان', groupId: 'system', icon: IconDevice, perm: 'device.manage' },
+      { href: '/settings', label: 'إعدادات الشركة', groupId: 'system', icon: IconSettings, perm: 'company.manage' },
+      { href: '/settings/diagnostics', label: 'سلامة النظام', groupId: 'system', icon: IconDiagnostics, perm: 'company.manage' },
+      { href: '/notifications', label: 'الإشعارات والتنبيهات', groupId: 'system', icon: IconNotification },
+      { href: '/archives', label: 'الترحيل والأرشفة', groupId: 'system', icon: IconArchive, perm: 'archive.run', feature: 'archiving.core' },
+      { href: '/backups', label: 'النسخ الاحتياطي', groupId: 'system', icon: IconBackup },
+      { href: '/audit-logs', label: 'سجل التدقيق', groupId: 'system', icon: IconAudit, perm: 'audit.view' },
+    ],
+    [],
+  );
 
   // Auto-expand group that contains active link on route change
   useEffect(() => {
@@ -253,18 +258,20 @@ function Shell({ children }: { children: ReactNode }) {
       (l) => pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)),
     );
     if (activeLink) {
-      setOpenGroups((prev) => {
-        if (prev[activeLink.groupId]) return prev;
-        const next = { ...prev, [activeLink.groupId]: true };
-        try {
-          window.localStorage.setItem('bayan_sidebar_groups', JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
+      Promise.resolve().then(() => {
+        setOpenGroups((prev) => {
+          if (prev[activeLink.groupId]) return prev;
+          const next = { ...prev, [activeLink.groupId]: true };
+          try {
+            window.localStorage.setItem('bayan_sidebar_groups', JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
       });
     }
-  }, [pathname]);
+  }, [pathname, links]);
 
   // Render navigation links list
   const renderNavContent = (closeMobile?: () => void, collapsed = false) => {

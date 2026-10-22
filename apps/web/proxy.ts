@@ -48,29 +48,37 @@ function matches(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+  res.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  return res;
+}
+
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   // إذا كان المستخدم مسجل دخوله وهو في الصفحة الرئيسية، يتم توجيهه مباشرة للوحة التحكم
   if (pathname === '/' && request.cookies.has(AUTH_COOKIE)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return applySecurityHeaders(NextResponse.redirect(new URL('/dashboard', request.url)));
   }
 
   // لوحة المشرف العام للبيئة لها رمزcookie مختلف.
   if (matches(pathname, '/global/admin')) {
     if (!request.cookies.has(GLOBAL_COOKIE)) {
-      return NextResponse.redirect(new URL('/global/login', request.url));
+      return applySecurityHeaders(NextResponse.redirect(new URL('/global/login', request.url)));
     }
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   if (PROTECTED.some((prefix) => matches(pathname, prefix)) && !request.cookies.has(AUTH_COOKIE)) {
     const url = new URL('/login', request.url);
     url.searchParams.set('next', pathname);
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  return NextResponse.next();
+  return applySecurityHeaders(NextResponse.next());
 }
 
 export const config = {

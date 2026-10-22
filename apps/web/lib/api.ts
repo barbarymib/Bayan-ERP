@@ -1224,6 +1224,9 @@ export interface BackupDoc {
   createdAt: string;
   completedAt: string | null;
   createdBy: { id: number; name: string } | null;
+  lastDrillAt?: string | null;
+  lastDrillOk?: boolean | null;
+  lastDrillDetail?: string | null;
 }
 
 export interface BackupsPage {
@@ -1236,6 +1239,14 @@ export interface BackupVerifyResult {
   decryptedBytes?: number;
   sha256?: string;
   error?: string;
+}
+
+export interface BackupDrillResult {
+  ok: boolean;
+  code: string;
+  tables?: number;
+  companies?: number;
+  detail?: string;
 }
 
 export interface NotificationDoc {

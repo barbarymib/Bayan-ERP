@@ -6,6 +6,7 @@ import {
   get,
   post,
   type BackupDoc,
+  type BackupDrillResult,
   type BackupsPage,
   type BackupVerifyResult,
 } from '@/lib/api';
@@ -50,6 +51,7 @@ export default function BackupsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [drillingId, setDrillingId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +106,27 @@ export default function BackupsPage() {
     }
   }
 
+  async function runDrill(id: number) {
+    setDrillingId(id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await post<BackupDrillResult>(`/backups/${id}/restore-drill`, {});
+      if (res.ok) {
+        setNotice(
+          `تم اختبار الاسترجاع بنجاح للنسخة ${res.code}: تم استعادة وتأكيد ${res.tables ?? 0} جدول و ${res.companies ?? 0} شركات في بيئة اختبار معزولة`,
+        );
+      } else {
+        setError(res.detail ?? 'فشل اختبار الاسترجاع');
+      }
+      setRefresh((s) => s + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل تنفيذ اختبار الاسترجاع');
+    } finally {
+      setDrillingId(null);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -141,6 +164,7 @@ export default function BackupsPage() {
               <Th>الحالة</Th>
               <Th>التشفير</Th>
               <Th>SHA-256</Th>
+              <Th>فحص الاسترجاع</Th>
               <Th>التاريخ</Th>
               <Th>بواسطة</Th>
               <Th>إجراءات</Th>
@@ -149,13 +173,13 @@ export default function BackupsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <Td className="py-6 text-center text-gray-400" colSpan={9}>
+                <Td className="py-6 text-center text-gray-400" colSpan={10}>
                   جارِ التحميل…
                 </Td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <Td className="py-6 text-center text-gray-400" colSpan={9}>
+                <Td className="py-6 text-center text-gray-400" colSpan={10}>
                   لا توجد نسخ احتياطية بعد
                 </Td>
               </tr>
@@ -179,17 +203,40 @@ export default function BackupsPage() {
                   <Td className="max-w-[10rem] truncate font-mono text-xs" dir="ltr" title={b.sha256}>
                     {b.sha256}
                   </Td>
+                  <Td>
+                    {b.lastDrillAt ? (
+                      <div>
+                        <Badge color={b.lastDrillOk ? 'green' : 'red'}>
+                          {b.lastDrillOk ? 'سليم ومجرّب' : 'فشل التجربة'}
+                        </Badge>
+                        <div className="mt-1 font-mono text-[10px] text-gray-500" dir="ltr" title={b.lastDrillDetail ?? undefined}>
+                          {new Date(b.lastDrillAt).toLocaleDateString('ar-EG')}
+                        </div>
+                      </div>
+                    ) : (
+                      <Badge color="gray">لم يُختبر</Badge>
+                    )}
+                  </Td>
                   <Td>{new Date(b.createdAt).toLocaleString('ar-EG')}</Td>
                   <Td>{b.createdBy?.name ?? '—'}</Td>
                   <Td>
                     {canRun ? (
-                      <Button
-                        variant="secondary"
-                        disabled={verifyingId === b.id || b.status !== 'DONE'}
-                        onClick={() => void verify(b.id)}
-                      >
-                        {verifyingId === b.id ? 'جارٍ…' : 'مراجعة'}
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="secondary"
+                          disabled={verifyingId === b.id || drillingId === b.id || b.status !== 'DONE'}
+                          onClick={() => void verify(b.id)}
+                        >
+                          {verifyingId === b.id ? 'جارٍ…' : 'مراجعة'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={drillingId === b.id || verifyingId === b.id || b.status !== 'DONE'}
+                          onClick={() => void runDrill(b.id)}
+                        >
+                          {drillingId === b.id ? 'جارٍ…' : 'تمرين استرجاع'}
+                        </Button>
+                      </div>
                     ) : (
                       '—'
                     )}
