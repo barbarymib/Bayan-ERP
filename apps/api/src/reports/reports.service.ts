@@ -1520,7 +1520,7 @@ export class ReportsService {
 
     const customers = await this.prisma.customer.findMany({
       where: { ...tenantWhere(companyId) },
-      select: { id: true, code: true, nameAr: true, openingBalance: true },
+      select: { id: true, code: true, nameAr: true, openingBalance: true, phone: true },
     });
     const ids = customers.map((c) => c.id);
     if (ids.length === 0) {
@@ -1562,7 +1562,7 @@ export class ReportsService {
     }
 
     const rows: {
-      customer: { id: number; code: string; nameAr: string };
+      customer: { id: number; code: string; nameAr: string; phone?: string | null };
       balance: number;
       current: number;
       b31: number;
@@ -1588,7 +1588,7 @@ export class ReportsService {
       }
       if (balance > 0.005) {
         rows.push({
-          customer: { id: c.id, code: c.code, nameAr: c.nameAr },
+          customer: { id: c.id, code: c.code, nameAr: c.nameAr, phone: c.phone },
           balance: roundMoney(balance),
           current: roundMoney(current),
           b31: roundMoney(b31),

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   API_URL,
@@ -8,6 +9,8 @@ import {
   getToken,
   qs,
   type AgingReport,
+  type AgingRow,
+  type PriceStatement,
   type DiscountApprovalsReport,
   type DiscountsReport,
   type DiscountDimension,
@@ -36,6 +39,7 @@ import {
   Button,
   ErrorBox,
   Field,
+  Modal,
   PageHeader,
   Select,
   Td,
@@ -872,11 +876,32 @@ function WeightNotesPane() {
   );
 }
 
+function formatWhatsAppUrl(
+  phone: string | null | undefined,
+  nameAr: string,
+  balance: number,
+  b91: number,
+) {
+  const digits = (phone || '').replace(/[^0-9]/g, '');
+  const targetPhone = digits.startsWith('0') ? '966' + digits.slice(1) : digits;
+  const greeting = `السلام عليكم ورحمة الله، الأفاضل في ${nameAr}،\nنود تذكيركم بالرصيد المستحق في بيان ERP:`;
+  const amountMsg = `\n• إجمالي الرصيد القائم: ${formatMoney(balance)}`;
+  const overdueMsg = b91 > 0 ? `\n• منها مبالغ متأخرة (+90 يوماً): ${formatMoney(b91)}` : '';
+  const closing = `\n\nنرجو التكرم بالمراجعة وتأكيد جدول السداد. شاكرين ومقدرين حسن تعاونكم الدائم.`;
+  const fullText = encodeURIComponent(`${greeting}${amountMsg}${overdueMsg}${closing}`);
+  return targetPhone ? `https://wa.me/${targetPhone}?text=${fullText}` : `https://wa.me/?text=${fullText}`;
+}
+
 function AgingPane() {
   const [data, setData] = useState<AgingReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
+
+  // FIFO Drilldown Drawer State
+  const [selectedCustomer, setSelectedCustomer] = useState<AgingRow | null>(null);
+  const [customerStatements, setCustomerStatements] = useState<PriceStatement[]>([]);
+  const [loadingStatements, setLoadingStatements] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -897,6 +922,39 @@ function AgingPane() {
       cancelled = true;
     };
   }, [refresh]);
+
+  const openCustomer = (r: AgingRow) => {
+    setSelectedCustomer(r);
+    setLoadingStatements(true);
+    setCustomerStatements([]);
+  };
+
+  const closeDrawer = () => {
+    setSelectedCustomer(null);
+    setCustomerStatements([]);
+    setLoadingStatements(false);
+  };
+
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    let cancelled = false;
+    get<{ items: PriceStatement[] }>(`/price-statements?customerId=${selectedCustomer.customer.id}&limit=25`)
+      .then((res) => {
+        if (!cancelled) {
+          setCustomerStatements(res.items ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerStatements([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingStatements(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomer]);
 
   const t = data?.totals;
   const total = t?.balance ?? 0;
@@ -928,29 +986,76 @@ function AgingPane() {
               <Th>31-60</Th>
               <Th>61-90</Th>
               <Th>+90</Th>
+              <Th className="text-center">إجراءات وتواصل</Th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <Td className="py-6 text-center text-gray-400">جارِ التحميل…</Td>
+                <Td colSpan={7} className="py-6 text-center text-gray-400">جارِ التحميل…</Td>
               </tr>
             ) : !data || data.items.length === 0 ? (
               <tr>
-                <Td className="py-6 text-center text-gray-400">لا توجد أرصدة مدينة</Td>
+                <Td colSpan={7} className="py-6 text-center text-gray-400">لا توجد أرصدة مدينة</Td>
               </tr>
             ) : (
               data.items.map((r) => (
-                <tr key={r.customer.id} className="border-b border-gray-100 last:border-0">
+                <tr key={r.customer.id} className="border-b border-gray-100 last:border-0 hover:bg-slate-50/60 transition-colors">
                   <Td>
-                    <div className="font-semibold">{r.customer.nameAr}</div>
-                    <div className="text-xs font-mono text-gray-400">{r.customer.code}</div>
+                    <button
+                      type="button"
+                      onClick={() => openCustomer(r)}
+                      className="text-right group"
+                    >
+                      <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                        {r.customer.nameAr}
+                      </div>
+                      <div className="text-xs font-mono text-gray-400">
+                        {r.customer.code}
+                        {r.customer.phone ? ` • ${r.customer.phone}` : ''}
+                      </div>
+                    </button>
                   </Td>
-                  <Td className="font-semibold">{formatMoney(r.balance)}</Td>
-                  <Td>{formatMoney(r.current)}</Td>
-                  <Td>{formatMoney(r.b31)}</Td>
-                  <Td>{formatMoney(r.b61)}</Td>
-                  <Td className="font-bold text-red-600">{formatMoney(r.b91)}</Td>
+                  <Td>
+                    <button
+                      type="button"
+                      onClick={() => openCustomer(r)}
+                      className="font-bold text-slate-900 hover:text-blue-600 underline-offset-2 hover:underline"
+                    >
+                      {formatMoney(r.balance)}
+                    </button>
+                  </Td>
+                  <Td className="text-slate-600">{formatMoney(r.current)}</Td>
+                  <Td className="text-slate-600">{formatMoney(r.b31)}</Td>
+                  <Td className="text-amber-700 font-medium">{formatMoney(r.b61)}</Td>
+                  <Td className="font-bold text-red-600">
+                    <span className={r.b91 > 0 ? 'inline-block rounded bg-red-50 px-1.5 py-0.5 border border-red-200' : ''}>
+                      {formatMoney(r.b91)}
+                    </span>
+                  </Td>
+                  <Td className="text-center">
+                    <div className="inline-flex items-center gap-1.5">
+                      <a
+                        href={formatWhatsAppUrl(r.customer.phone, r.customer.nameAr, r.balance, r.b91)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition-colors"
+                        title={r.customer.phone ? `إرسال تذكير عبر واتساب إلى ${r.customer.phone}` : 'إرسال تذكير عبر واتساب'}
+                      >
+                        <span>💬</span>
+                        <span>واتساب</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => openCustomer(r)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 transition-colors"
+                        title="تفاصيل الفواتير والذمم (FIFO)"
+                      >
+                        <span>🔍</span>
+                        <span>كشف الفواتير</span>
+                      </button>
+                    </div>
+                  </Td>
                 </tr>
               ))
             )}
@@ -961,12 +1066,167 @@ function AgingPane() {
                 <Td>{formatMoney(totalCurrent)}</Td>
                 <Td>{formatMoney(totalB31)}</Td>
                 <Td>{formatMoney(totalB61)}</Td>
-                <Td>{formatMoney(totalB91)}</Td>
+                <Td className="text-red-700">{formatMoney(totalB91)}</Td>
+                <Td />
               </tr>
             ) : null}
           </tbody>
         </table>
       </div>
+
+      {/* FIFO Drilldown Drawer / Modal */}
+      {selectedCustomer && (
+        <Modal
+          size="2xl"
+          title={`كشف استحقاق الديون: ${selectedCustomer.customer.nameAr}`}
+          description={`الكود: ${selectedCustomer.customer.code} • ${selectedCustomer.customer.phone ?? 'لا يوجد هاتف مسجل'}`}
+          onClose={closeDrawer}
+          footer={
+            <div className="flex w-full items-center justify-between">
+              <a
+                href={formatWhatsAppUrl(
+                  selectedCustomer.customer.phone,
+                  selectedCustomer.customer.nameAr,
+                  selectedCustomer.balance,
+                  selectedCustomer.b91,
+                )}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition-colors"
+              >
+                <span>💬</span>
+                <span>إرسال تذكير واتساب بالرصيد المستحق</span>
+              </a>
+              <Button variant="secondary" onClick={closeDrawer}>
+                إغلاق
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {/* 4 Bucket Breakdown Cards */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
+                <div className="text-2xs font-bold uppercase text-slate-500">0 - 30 يوم (حالي)</div>
+                <div className="mt-1 text-sm font-black text-slate-900">
+                  {formatMoney(selectedCustomer.current)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 text-center">
+                <div className="text-2xs font-bold uppercase text-blue-700">31 - 60 يوم</div>
+                <div className="mt-1 text-sm font-black text-blue-900">
+                  {formatMoney(selectedCustomer.b31)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-center">
+                <div className="text-2xs font-bold uppercase text-amber-700">61 - 90 يوم</div>
+                <div className="mt-1 text-sm font-black text-amber-900">
+                  {formatMoney(selectedCustomer.b61)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3 text-center">
+                <div className="text-2xs font-bold uppercase text-rose-700">+90 يوم (حرج)</div>
+                <div className="mt-1 text-sm font-black text-rose-700">
+                  {formatMoney(selectedCustomer.b91)}
+                </div>
+              </div>
+            </div>
+
+            {/* FIFO Methodology Banner */}
+            <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs leading-relaxed text-blue-900">
+              <div className="font-bold flex items-center gap-1.5 mb-1">
+                <span>ℹ️</span>
+                <span>توزيع الديون التراكمي بطريقة الوارد أولاً يصرف أولاً (FIFO)</span>
+              </div>
+              <p className="text-blue-800/90 text-2xs">
+                يقوم النظام بتسوية سندات القبض والدفعات الواردة مع أقدم الفواتير الصادرة أولاً بأول.
+                المبالغ المصنفة في الفئات أعلاه تمثل أقدم الفواتير والمستحقات المفتوحة التي لم تُغطَّ بعد بسدادات.
+              </p>
+            </div>
+
+            {/* Contributing Statements Table */}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-900">
+                  أحدث الفواتير المسجلة لحساب العميل
+                </h4>
+                <Link
+                  href={`/statements?customerId=${selectedCustomer.customer.id}`}
+                  className="text-2xs font-semibold text-blue-600 hover:underline"
+                >
+                  عرض كافة البيانات في صفحة الفواتير ↗
+                </Link>
+              </div>
+
+              {loadingStatements ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  جارِ جلب فواتير العميل…
+                </div>
+              ) : customerStatements.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">
+                  لا توجد فواتير حديثة مسجلة لهذا العميل، قد يكون الرصيد ناتجاً عن رصيد افتتاحي سابق أو قيد يومية مباشر.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="p-2.5 font-bold">رقم الفاتورة</th>
+                        <th className="p-2.5 font-bold">التاريخ</th>
+                        <th className="p-2.5 font-bold">شروط الدفع</th>
+                        <th className="p-2.5 font-bold">صافي الفاتورة</th>
+                        <th className="p-2.5 font-bold">الحالة</th>
+                        <th className="p-2.5 font-bold text-center">عرض</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customerStatements.map((stmt) => (
+                        <tr key={stmt.id} className="hover:bg-slate-50/70">
+                          <td className="p-2.5 font-mono font-bold text-slate-900">
+                            {stmt.number}
+                          </td>
+                          <td className="p-2.5 text-slate-600">
+                            {formatDate(stmt.date)}
+                          </td>
+                          <td className="p-2.5 text-slate-600">
+                            {stmt.paymentTerm === 'CASH' ? 'نقدي' : 'آجل'}
+                          </td>
+                          <td className="p-2.5 font-bold text-slate-900">
+                            {formatMoney(stmt.net)}
+                          </td>
+                          <td className="p-2.5">
+                            <Badge
+                              color={
+                                stmt.status === 'APPROVED'
+                                  ? 'green'
+                                  : stmt.status === 'PENDING_REVIEW'
+                                  ? 'orange'
+                                  : stmt.status === 'CANCELLED'
+                                  ? 'red'
+                                  : 'gray'
+                              }
+                            >
+                              {stmt.status}
+                            </Badge>
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <Link
+                              href={`/statements/${stmt.id}`}
+                              className="font-bold text-blue-600 hover:underline"
+                            >
+                              عرض ↗
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

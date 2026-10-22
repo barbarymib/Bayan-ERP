@@ -1286,7 +1286,7 @@ export interface AuditLogsPage {
 }
 
 export interface AgingRow {
-  customer: { id: number; code: string; nameAr: string };
+  customer: { id: number; code: string; nameAr: string; phone?: string | null };
   balance: number;
   current: number;
   b31: number;
