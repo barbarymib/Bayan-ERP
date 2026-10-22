@@ -101,9 +101,9 @@ export class ApprovalsService {
 
     return {
       items: rows.map((r) => {
-        let j = r.refJson as Record<string, any> | null;
-        if (j && typeof j === 'object') {
-          j = JSON.parse(JSON.stringify(j));
+        let refData: Record<string, any> | undefined = undefined;
+        if (r.refJson && typeof r.refJson === 'object') {
+          const j = JSON.parse(JSON.stringify(r.refJson)) as Record<string, any>;
           if (Array.isArray(j.lines)) {
             j.lines = j.lines.map((l: any) => ({
               ...l,
@@ -113,10 +113,11 @@ export class ApprovalsService {
           if (j.itemCode && !j.itemName) {
             j.itemName = itemMap.get(String(j.itemCode)) ?? j.itemCode;
           }
+          refData = j;
         }
         return {
           ...r,
-          refJson: j ?? undefined,
+          refJson: refData,
           document: enriched[r.refId] ?? null,
         };
       }),
