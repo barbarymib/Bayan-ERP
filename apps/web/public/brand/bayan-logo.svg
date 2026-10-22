@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" fill="none">
+  <defs>
+    <linearGradient id="logoBgGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="60%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="logoBeam" x1="20" y1="20" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#93c5fd" />
+    </linearGradient>
+    <linearGradient id="logoCoral" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f87171" />
+      <stop offset="100%" stop-color="#dc6c5b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Mark Container (80x80) -->
+  <g transform="translate(10, 10)">
+    <rect width="80" height="80" rx="22" fill="url(#logoBgGrad)" />
+    <rect x="0.5" y="0.5" width="79" height="79" rx="21.5" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+    <path d="M22 25 V45 C22 53 28 59 36 59 H52 C58 59 62 55 62 49 V36" 
+          stroke="url(#logoBeam)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M30 41 H56" stroke="#60a5fa" stroke-width="2.6" stroke-linecap="round" />
+    <path d="M47 27 L62 27 L62 42" stroke="#93c5fd" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="42" cy="69" r="4" fill="url(#logoCoral)" stroke="#ffffff" stroke-width="1.2" />
+  </g>
+
+  <!-- Typography: Arabic Primary -->
+  <text x="106" y="44" font-family="'Cairo', system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#0f172a">
+    نظام بيان
+  </text>
+
+  <!-- Badge: ERP -->
+  <g transform="translate(230, 24)">
+    <rect width="48" height="22" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1" />
+    <text x="24" y="15" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="11" fill="#1d4ed8" letter-spacing="1">
+      ERP
+    </text>
+  </g>
+
+  <!-- Subtitle Arabic: Sales & Paint/Steel Management -->
+  <text x="106" y="66" font-family="'Cairo', system-ui, -apple-system, sans-serif" font-weight="600" font-size="13" fill="#64748b">
+    إدارة مبيعات الحديد والبويات
+  </text>
+
+  <!-- MiB Technology Endorsement Signature -->
+  <g transform="translate(106, 75)">
+    <circle cx="4" cy="9" r="3" fill="#dc6c5b" />
+    <text x="12" y="13" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="11" fill="#0f172a">
+      MiB Technology
+    </text>
+  </g>
+</svg>

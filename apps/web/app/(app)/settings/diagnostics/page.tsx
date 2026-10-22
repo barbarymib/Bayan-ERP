@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { get, post, type SystemDiagnostics } from '@/lib/api';
+import { BayanMark, MiBLogo } from '@/components/brand';
 import { Badge, Button, ErrorBox, Notice, PageHeader } from '@/components/ui';
 
 function formatBytes(bytes: number): string {
@@ -374,6 +375,33 @@ export default function DiagnosticsPage() {
                   <span className="text-base font-bold text-gray-900 mt-1 block">
                     {data.runtime.rssMb} MB
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. System Identity & Corporate Endorsement */}
+            <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-5 shadow-md text-white md:col-span-2 lg:col-span-2">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <BayanMark size={48} withGlow={true} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-lg text-white">نظام بيان ERP</span>
+                      <span className="rounded-md bg-blue-500/20 px-2 py-0.5 text-xs font-mono font-bold text-blue-300 border border-blue-400/30">
+                        v1.0 Production
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      النظام الشامل لإدارة مبيعات وتوريدات الحديد والصلب والبويات والمتابعة الميدانية
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl bg-white/10 px-4 py-2.5 backdrop-blur-sm border border-white/10 self-stretch sm:self-auto justify-between sm:justify-start">
+                  <div className="text-left sm:text-right">
+                    <div className="text-[10px] text-slate-400 font-medium">تطوير وتشغيل</div>
+                    <div className="text-xs font-bold text-white">MiB Technology</div>
+                  </div>
+                  <MiBLogo height={28} theme="dark" />
                 </div>
               </div>
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { BayanMark, MiBLogo } from '@/components/brand';
 import { Badge, Button, ErrorBox, Notice } from '@/components/ui';
 import { globalApi, getGlobalToken } from '@/lib/global';
 import type { SystemSettingRow } from '@/lib/api';
@@ -358,20 +359,34 @@ export default function GlobalAdminPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-5xl p-6">
-      <header className="mb-6 flex items-center justify-between border-b border-gray-200 pb-4">
-        <div>
-          <h1 className="text-xl font-black text-gray-900">الإدارة العامة للبيئة</h1>
-          <p className="text-sm text-gray-500">سجل الشركات والميزات (SaaS)</p>
+      <header className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
+        <div className="flex items-center gap-3">
+          <BayanMark size={42} withGlow={true} />
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-gray-900">الإدارة العامة للمنصة</h1>
+              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-mono font-bold text-blue-700 border border-blue-200">
+                SaaS Superadmin
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">إدارة المستأجرين والتراخيص والميزات والتقارير العامة</p>
+          </div>
         </div>
-        <button
-          onClick={() => {
-            window.localStorage.removeItem('bayan-global-token');
-            router.replace('/global/login');
-          }}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-600"
-        >
-          خروج
-        </button>
+        <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5 border border-slate-200">
+            <span className="text-[11px] text-slate-400 font-medium">بواسطة</span>
+            <MiBLogo height={18} theme="light" />
+          </div>
+          <button
+            onClick={() => {
+              window.localStorage.removeItem('bayan-global-token');
+              router.replace('/global/login');
+            }}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+          >
+            خروج
+          </button>
+        </div>
       </header>
 
       <div className="mb-4 flex gap-2">

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { BayanMark, MiBLogo } from '@/components/brand';
 import { Button, Field, Notice, TextInput } from '@/components/ui';
 import { GLOBAL_API, setGlobalToken } from '@/lib/global';
 
@@ -34,11 +35,11 @@ export default function GlobalLoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4">
       <div className="relative w-full max-w-sm rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl border border-white/10 animate-entrance">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-2xl font-black text-white shadow-md">
-            ع
+          <div className="mx-auto mb-3 flex items-center justify-center">
+            <BayanMark size={56} withGlow={true} />
           </div>
           <h1 className="text-xl font-black text-slate-900">الإدارة العامة للمنصة</h1>
           <p className="mt-1 text-xs text-slate-500 font-medium">إدارة المستأجرين والتراخيص — SaaS Superadmin</p>
@@ -67,6 +68,15 @@ export default function GlobalLoginPage() {
             دخول المشرف العام
           </Button>
         </form>
+
+        <div className="mt-6 flex items-center justify-center gap-2 border-t border-slate-100 pt-4 text-center">
+          <span className="text-[11px] text-slate-400 font-medium">منظومة رقمية بواسطة</span>
+          <MiBLogo height={18} theme="light" />
+        </div>
+      </div>
+
+      <div className="mt-6 text-center text-[11px] text-slate-500 font-medium">
+        جميع الحقوق محفوظة © {new Date().getFullYear()} MiB Technology
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { can, del, get, patch, put, type CompanyFeatureItem, type CompanyFeature
 import { useAuth } from '@/lib/auth';
 import { CURRENCIES, setActiveCurrency } from '@/lib/currency';
 import { fileToDataUrl } from '@/lib/image';
+import { BayanMark, MiBLogo } from '@/components/brand';
 import { Badge, Button, ErrorBox, Field, Notice, PageHeader, Select, TextInput } from '@/components/ui';
 
 export default function CompanySettingsPage() {
@@ -244,6 +245,23 @@ export default function CompanySettingsPage() {
       )}
 
       <FeaturesSection />
+
+      {/* System Platform & Provider Card */}
+      <div className="mt-6 max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <BayanMark size={36} />
+            <div>
+              <div className="text-sm font-bold text-slate-900">نظام بيان ERP</div>
+              <div className="text-xs text-slate-500">منظومة رقمية متكاملة لمبيعات وإدارة الحديد والصلب والبويات</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 border border-slate-100 self-start sm:self-auto">
+            <span className="text-[10px] text-slate-400 font-semibold">بواسطة</span>
+            <MiBLogo height={16} theme="light" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

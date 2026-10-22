@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { BayanMark, MiBLogo } from '@/components/brand';
 import { Button, Notice, TextInput, Field } from '@/components/ui';
 
 export default function LoginPage() {
@@ -34,18 +35,29 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 p-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-4">
       {/* Background Decorative Ambient Glows */}
       <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
 
+      {/* Top Corporate Endorsement */}
+      <div className="relative mb-6 flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 backdrop-blur-md">
+        <span className="text-xs font-medium text-slate-300">منظومة رقمية بواسطة</span>
+        <MiBLogo height={18} theme="dark" />
+      </div>
+
       <div className="relative w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl border border-white/20 animate-entrance">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-700 to-blue-500 text-3xl font-black text-white shadow-lg ring-4 ring-blue-500/20">
-            ب
+        <div className="mb-7 text-center">
+          <div className="mx-auto mb-3 flex items-center justify-center">
+            <BayanMark size={68} withGlow={true} />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">نظام بيان</h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
+          <div className="flex items-center justify-center gap-2">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">نظام بيان</h1>
+            <span className="rounded-md bg-blue-600 px-2 py-0.5 text-xs font-black text-white shadow-xs">
+              ERP
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs sm:text-sm text-slate-500 font-medium">
             مبيعات وإدارة الحديد والبويات — تسجيل الدخول
           </p>
         </div>
@@ -77,14 +89,22 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-6 border-t border-slate-100 pt-4 text-center">
+        <div className="mt-6 flex flex-col items-center justify-center gap-2 border-t border-slate-100 pt-4 text-center">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <span>تطوير وتشغيل</span>
+            <MiBLogo height={20} theme="light" />
+          </div>
           <a
             href="/global/login"
-            className="text-xs font-semibold text-slate-400 hover:text-blue-600 transition-colors"
+            className="text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors"
           >
             دخول المشرف العام للمنصة (SaaS Admin) ←
           </a>
         </div>
+      </div>
+
+      <div className="mt-6 text-center text-[11px] text-slate-500 font-medium">
+        جميع الحقوق محفوظة © {new Date().getFullYear()} MiB Technology
       </div>
     </div>
   );

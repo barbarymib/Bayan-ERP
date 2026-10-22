@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
+import { BayanLogo, BayanMark, MiBLogo } from '@/components/brand';
 import { CommandPalette } from '@/components/command-palette';
 import {
   IconApproval,
@@ -136,21 +137,8 @@ function Shell({ children }: { children: ReactNode }) {
   const renderNavContent = (closeMobile?: () => void) => (
     <div className="flex flex-col h-full">
       {/* Brand & Version */}
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-xl font-black text-white shadow-sm ring-1 ring-blue-500/30">
-            ب
-          </div>
-          <div>
-            <div className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-              <span>نظام بيان</span>
-              <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 border border-blue-200/60">
-                ERP
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-400 font-medium">مبيعات الحديد والبويات</div>
-          </div>
-        </div>
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
+        <BayanLogo size="md" />
       </div>
 
       {/* Quick Search & Dashboard Bar */}
@@ -259,6 +247,14 @@ function Shell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </div>
+
+      {/* MiB Technology Corporate Signature */}
+      <div className="px-3 pt-2 pb-2 border-t border-slate-200/60 bg-white">
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 border border-slate-100">
+          <span className="text-[10px] font-bold text-slate-400">تقنية وتطوير</span>
+          <MiBLogo height={16} theme="light" />
+        </div>
+      </div>
     </div>
   );
 
@@ -304,7 +300,12 @@ function Shell({ children }: { children: ReactNode }) {
             >
               <IconMenu size={20} />
             </button>
-            <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500">
+            <div className="flex lg:hidden items-center gap-2">
+              <BayanMark size={28} />
+              <span className="text-xs font-black text-slate-900">بيان ERP</span>
+            </div>
+            <div className="hidden lg:flex items-center gap-2 text-xs font-medium text-slate-500">
+              <BayanMark size={22} />
               <span className="font-bold text-slate-800">بيان ERP</span>
               <span>/</span>
               <span className="capitalize">{pathname?.split('/')[1] || 'لوحة المعلومات'}</span>
@@ -340,11 +341,15 @@ function Shell({ children }: { children: ReactNode }) {
               <IconNotification size={18} />
             </Link>
 
-            <div className="hidden md:flex items-center gap-2 border-r border-slate-200 pr-2 mr-1">
+            <div className="hidden md:flex items-center gap-2.5 border-r border-slate-200 pr-2.5 mr-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 متصل
               </span>
+              <div className="h-4 w-px bg-slate-200" />
+              <div title="تقنية وتطوير MiB Technology" className="flex items-center">
+                <MiBLogo height={17} theme="light" />
+              </div>
             </div>
           </div>
         </header>

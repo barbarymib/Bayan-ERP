@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="bayanGrad" x1="10" y1="10" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="60%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="beamGrad" x1="20" y1="35" x2="95" y2="75" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#93c5fd" />
+    </linearGradient>
+    <linearGradient id="coralDot" x1="55" y1="92" x2="65" y2="102" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f87171" />
+      <stop offset="100%" stop-color="#dc6c5b" />
+    </linearGradient>
+    <filter id="bayanShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#1e3a8a" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Container Squircle -->
+  <rect x="8" y="8" width="104" height="104" rx="26" fill="url(#bayanGrad)" filter="url(#bayanShadow)" />
+  <rect x="8.5" y="8.5" width="103" height="103" rx="25.5" stroke="rgba(255,255,255,0.18)" stroke-width="1" fill="none" />
+
+  <!-- Arabic 'Baa' (ب) + Enterprise Growth Architecture -->
+  <path d="M34 38 V64 C34 74 42 82 52 82 H74 C82 82 88 76 88 68 V50" 
+        stroke="url(#beamGrad)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Architectural Cross Beam (Steel / Ledger) -->
+  <path d="M44 58 H80" stroke="#60a5fa" stroke-width="3.5" stroke-linecap="round" />
+
+  <!-- Dynamic Upward Growth Arrow (Sales & Velocity) -->
+  <path d="M68 40 L88 40 L88 60" stroke="#93c5fd" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- MiB Signature Coral Dot beneath the Baa (نقطة البيان المتناغمة مع هوية MiB) -->
+  <circle cx="60" cy="95" r="5" fill="url(#coralDot)" stroke="#ffffff" stroke-width="1.5" />
+</svg>

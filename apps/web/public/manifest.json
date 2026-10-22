@@ -1,0 +1,21 @@
+{
+  "name": "بيان — نظام إدارة مبيعات الحديد والبويات",
+  "short_name": "نظام بيان ERP",
+  "description": "نظام ERP متكامل لإدارة مبيعات وتوريدات الحديد والصلب والبويات بواسطة MiB Technology",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "/brand/bayan-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/bayan-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

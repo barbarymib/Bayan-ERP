@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { get, qs, type Customer, type Item, type PriceStatement } from '@/lib/api';
+import { MiBLogo } from '@/components/brand';
 import {
   IconApproval,
   IconArchive,
@@ -362,7 +363,11 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
             <span>↵ للاختيار</span>
             <span>ESC للإغلاق</span>
           </div>
-          <div className="text-[11px] font-bold text-slate-600">نظام بيان ERP</div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-700">نظام بيان ERP</span>
+            <span className="text-slate-300">·</span>
+            <MiBLogo height={15} theme="light" />
+          </div>
         </div>
       </div>
     </div>

@@ -148,6 +148,13 @@ function statementDoc(st: PriceStatement, outstanding: number | null, company: P
         { type: 'rect', x: 0, y: 0, w: 595, h: 8, color: '#1d4ed8' },
       ],
     }),
+    footer: (currentPage: number, pageCount: number) => ({
+      margin: [36, 0, 36, 12] as [number, number, number, number],
+      columns: [
+        { text: `صفحة ${currentPage} من ${pageCount}`, fontSize: 8, color: '#94a3b8' },
+        { text: 'نظام بيان ERP — تطوير وتشغيل MiB Technology', fontSize: 8, color: '#94a3b8', alignment: 'left' },
+      ],
+    }),
     content: [
       {
         columns: [

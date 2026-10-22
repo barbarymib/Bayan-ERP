@@ -10,6 +10,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ErrorBox, formatDate, formatDateHijri, formatMoney } from '@/components/ui';
+import { BayanMark } from '@/components/brand';
 import { downloadStatementPdf, statementPdfBlob, type PrintCompany } from '@/lib/statement-pdf';
 import { downloadBlob, shareFileOrWhatsApp, type WhatsAppLink } from '@/lib/share';
 import { formatArabicAmount } from '@/lib/tafqit';
@@ -230,6 +231,12 @@ export default function StatementPrintPage() {
           </div>
           <div>التوقيع ....................</div>
         </div>
+
+        {/* Printed Document Corporate Endorsement */}
+        <div className="mt-4 pt-2 border-t border-gray-200 flex items-center justify-between text-[9px] text-gray-400">
+          <span>نظام بيان ERP — مبيعات وتوريدات الحديد والصلب والبويات</span>
+          <span>تطوير وتشغيل تقنية MiB Technology</span>
+        </div>
       </div>
       <style jsx>{`
         .w-a4 {
@@ -292,7 +299,11 @@ function PrintHeader({ statement, company }: { statement: PriceStatement; compan
               e.currentTarget.style.display = 'none';
             }}
           />
-        ) : null}
+        ) : (
+          <div className="mb-1.5">
+            <BayanMark size={38} />
+          </div>
+        )}
         <div className="text-xl font-black">نظام بيان</div>
         <div className="text-xs text-gray-600">{company?.nameAr ?? 'بيان'}</div>
         <div className="text-[10px] text-gray-400">

@@ -16,6 +16,8 @@ import {
   type WarehousesPage,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { BayanMark, MiBLogo } from '@/components/brand';
+import { IconBarcode, IconThermalPrint } from '@/components/icons';
 import { Button, ErrorBox, Modal, formatMoney } from '@/components/ui';
 
 interface CartLine {
@@ -439,15 +441,16 @@ export default function PosTerminalPage() {
     <div className="flex flex-col h-[calc(100vh-4.5rem)] -m-4 sm:-m-6 bg-gray-100 overflow-hidden select-none">
       {/* 1. POS Top Bar */}
       <header className="bg-slate-900 text-white px-5 py-2.5 flex items-center justify-between shadow-md shrink-0 border-b border-slate-800">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-3 w-3 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-            </span>
+            <BayanMark size={28} />
             <span className="text-base font-black tracking-wide text-white">نقطة البيع السريعة (POS)</span>
           </div>
-          <span className="text-slate-500">|</span>
+          <span className="text-slate-700">|</span>
+          <div className="hidden sm:flex items-center" title="تقنية وتطوير MiB Technology">
+            <MiBLogo height={16} theme="dark" />
+          </div>
+          <span className="hidden sm:inline text-slate-700">|</span>
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <span className="text-slate-400">الكاشير:</span>
             <span className="font-bold text-white bg-slate-800 px-2.5 py-1 rounded-lg">
@@ -521,9 +524,7 @@ export default function PosTerminalPage() {
           <form onSubmit={handleBarcodeSubmit} className="mb-3 flex gap-2">
             <div className="relative flex-1">
               <span className="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none text-gray-400">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
+                <IconBarcode size={20} />
               </span>
               <input
                 ref={barcodeInputRef}
@@ -926,8 +927,9 @@ export default function PosTerminalPage() {
                 <span>جارِ إتمام الفاتورة…</span>
               ) : (
                 <>
+                  <IconThermalPrint size={20} className="shrink-0" />
                   <span>إتمام البيع وطباعة الإيصال (F4)</span>
-                  <span className="text-emerald-200 text-sm">↵</span>
+                  <span className="text-emerald-200 text-sm font-mono">↵</span>
                 </>
               )}
             </button>
