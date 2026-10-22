@@ -23,6 +23,7 @@ import { calcStatementTotals, convertDiscount } from '@bayan/shared';
 import { isLineQtyAllowed } from '@/lib/units';
 import { useAuth } from '@/lib/auth';
 import {
+  AsyncSearchPicker,
   Badge,
   Button,
   ErrorBox,
@@ -416,14 +417,27 @@ function CreateStatementModal({
     <Modal title="بيان أسعار جديد" onClose={onClose}>
       <div className="mb-4 grid grid-cols-2 gap-3">
         <Field label="العميل">
-          <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-            <option value="">اختر عميلاً</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.nameAr}
-              </option>
-            ))}
-          </Select>
+          <AsyncSearchPicker
+            value={customerId}
+            onChange={setCustomerId}
+            placeholder="اختر عميلاً..."
+            searchPlaceholder="ابحث بالاسم أو الكود أو الهاتف..."
+            options={customers.map((c) => ({
+              value: String(c.id),
+              label: c.nameAr,
+              sublabel: c.code,
+              badge: c.phone || undefined,
+            }))}
+            onSearch={async (q) => {
+              const res = await get<CustomersPage>(`/customers${qs({ q, limit: 30 })}`);
+              return res.customers.map((c) => ({
+                value: String(c.id),
+                label: c.nameAr,
+                sublabel: c.code,
+                badge: c.phone || undefined,
+              }));
+            }}
+          />
         </Field>
         <Field label="المخزن">
           <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
@@ -497,16 +511,34 @@ function CreateStatementModal({
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-2">
                   <div className="grid grid-cols-12 items-end gap-2">
-                    <div className="col-span-3">
+                    <div className="col-span-4 sm:col-span-3">
                       <Field label="الصنف">
-                        <Select value={l.itemCode} onChange={(e) => updateLine(i, { itemCode: e.target.value })}>
-                          <option value="">—</option>
-                          {items.map((it) => (
-                            <option key={it.id} value={it.code}>
-                              {it.code} — {it.nameAr}
-                            </option>
-                          ))}
-                        </Select>
+                        <AsyncSearchPicker
+                          value={l.itemCode}
+                          onChange={(val) => updateLine(i, { itemCode: val })}
+                          placeholder="اختر أو ابحث عن صنف..."
+                          searchPlaceholder="ابحث بالاسم أو الكود..."
+                          options={items.map((it) => ({
+                            value: it.code,
+                            label: it.nameAr,
+                            sublabel: it.code,
+                            badge: it.baseUnit.code,
+                          }))}
+                          onSearch={async (q) => {
+                            const res = await get<ItemsPage>(`/items${qs({ q, limit: 30 })}`);
+                            setItems((prev) => {
+                              const existing = new Set(prev.map((x) => x.code));
+                              const newItems = res.items.filter((x) => !existing.has(x.code));
+                              return newItems.length ? [...prev, ...newItems] : prev;
+                            });
+                            return res.items.map((it) => ({
+                              value: it.code,
+                              label: it.nameAr,
+                              sublabel: it.code,
+                              badge: it.baseUnit.code,
+                            }));
+                          }}
+                        />
                       </Field>
                     </div>
                     <div className="col-span-2">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -153,6 +153,214 @@ export function Textarea({
       {...props}
       className={`${inputCls} min-h-[80px] resize-y ${error ? '!border-red-500 !focus:ring-red-500/20' : ''} ${className}`}
     />
+  );
+}
+
+// ==========================================
+// ASYNC SEARCH PICKER (COMBOBOX)
+// ==========================================
+
+export interface PickerOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+  badge?: string;
+}
+
+export function AsyncSearchPicker({
+  value,
+  onChange,
+  placeholder = 'اختر...',
+  searchPlaceholder = 'اكتب للبحث...',
+  options = [],
+  onSearch,
+  disabled = false,
+  className = '',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  options?: PickerOption[];
+  onSearch?: (query: string) => Promise<PickerOption[]>;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [asyncResults, setAsyncResults] = useState<PickerOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const closeDropdown = () => {
+    setIsOpen(false);
+    setQuery('');
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        closeDropdown();
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !onSearch || !query.trim()) return;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      onSearch(query.trim())
+        .then((data) => {
+          if (!cancelled) setAsyncResults(data);
+        })
+        .catch(() => {
+          if (!cancelled) setAsyncResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, isOpen, onSearch]);
+
+  const results = useMemo(() => {
+    if (onSearch) {
+      return query.trim() ? asyncResults : options;
+    }
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(q) ||
+        opt.value.toLowerCase().includes(q) ||
+        (opt.sublabel && opt.sublabel.toLowerCase().includes(q)),
+    );
+  }, [onSearch, query, asyncResults, options]);
+
+  const selectedOption =
+    results.find((o) => o.value === value) || options.find((o) => o.value === value);
+
+  return (
+    <div ref={containerRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && (isOpen ? closeDropdown() : setIsOpen(true))}
+        className={`${inputCls} flex items-center justify-between text-start cursor-pointer ${
+          disabled ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+      >
+        <div className="truncate">
+          {selectedOption ? (
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="font-semibold text-slate-900 truncate">{selectedOption.label}</span>
+              {selectedOption.sublabel ? (
+                <span className="text-2xs text-slate-400 font-mono">({selectedOption.sublabel})</span>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-slate-400">{placeholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0 text-slate-400">
+          {value && !disabled ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="p-0.5 hover:text-slate-600 rounded"
+              title="مسح الاختيار"
+            >
+              <IconClose size={14} />
+            </span>
+          ) : null}
+          <span className="text-2xs">▼</span>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full min-w-[240px] rounded-xl border border-slate-200 bg-white p-2 shadow-xl animate-entrance">
+          <div className="mb-2">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
+            {loading ? (
+              <div className="flex items-center justify-center p-4 text-xs text-slate-400">
+                <Spinner className="w-4 h-4 mr-2" />
+                <span>جارِ البحث…</span>
+              </div>
+            ) : results.length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-400">
+                لا توجد نتائج مطابقة
+              </div>
+            ) : (
+              results.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    closeDropdown();
+                  }}
+                  className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-right text-xs transition-colors ${
+                    opt.value === value
+                      ? 'bg-blue-50 font-bold text-blue-700'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="truncate">
+                    <div className="truncate">{opt.label}</div>
+                    {opt.sublabel ? (
+                      <div className="text-2xs font-mono text-slate-400 truncate">{opt.sublabel}</div>
+                    ) : null}
+                  </div>
+                  {opt.badge ? (
+                    <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-2xs font-medium text-slate-600">
+                      {opt.badge}
+                    </span>
+                  ) : opt.value === value ? (
+                    <IconCheck size={14} className="text-blue-600 shrink-0" />
+                  ) : null}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
