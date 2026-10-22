@@ -12,7 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Permissions, type AuthUser } from '../auth/auth.decorators.js';
-import { CreateUserDto, QueryUsersDto, UpdateRoleLimitsDto, UpdateRolePermissionsDto, UpdateUserDto } from './users.dto.js';
+import {
+  ChangePasswordDto,
+  CreateUserDto,
+  QueryUsersDto,
+  UpdateRoleLimitsDto,
+  UpdateRolePermissionsDto,
+  UpdateSelfProfileDto,
+  UpdateUserDto,
+} from './users.dto.js';
 import { UsersService } from './users.service.js';
 
 @ApiTags('users')
@@ -20,6 +28,24 @@ import { UsersService } from './users.service.js';
 @Controller('users')
 export class UsersController {
   constructor(private readonly users: UsersService) {}
+
+  @Get('me/profile')
+  @ApiOkResponse({ description: 'الملف الشخصي للمستخدم الحالي' })
+  getMyProfile(@CurrentUser() user: AuthUser) {
+    return this.users.getProfile(user.id, user.companyId ?? null);
+  }
+
+  @Patch('me/profile')
+  @ApiOkResponse({ description: 'تعديل الملف الشخصي للمستخدم الحالي' })
+  updateMyProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateSelfProfileDto) {
+    return this.users.updateProfile(user.id, dto, user.companyId ?? null);
+  }
+
+  @Post('me/change-password')
+  @ApiOkResponse({ description: 'تغيير كلمة مرور المستخدم الحالي' })
+  changeMyPassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.users.changePassword(user.id, dto, user.companyId ?? null);
+  }
 
   @Get()
   @Permissions('user.view')

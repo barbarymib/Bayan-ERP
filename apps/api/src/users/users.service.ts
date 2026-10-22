@@ -1,10 +1,17 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { hash } from 'bcryptjs';
+import { hash, compare } from 'bcryptjs';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.module.js';
 import { tenantWhere } from '../common/tenant.js';
 import { AuditLogsService } from '../audit-logs/audit-logs.service.js';
-import type { CreateUserDto, QueryUsersDto, UpdateRoleLimitsDto, UpdateUserDto } from './users.dto.js';
+import type {
+  ChangePasswordDto,
+  CreateUserDto,
+  QueryUsersDto,
+  UpdateRoleLimitsDto,
+  UpdateSelfProfileDto,
+  UpdateUserDto,
+} from './users.dto.js';
 
 const SAFE_SELECT = {
   id: true,
@@ -331,6 +338,74 @@ export class UsersService {
       afterJson: { active: false },
     });
     return { ok: true };
+  }
+
+  async getProfile(userId: number, companyId: number | null = null) {
+    return this.findOne(userId, companyId);
+  }
+
+  async updateProfile(userId: number, dto: UpdateSelfProfileDto, companyId: number | null = null) {
+    const before = await this.findOne(userId, companyId);
+    const data: { name?: string; email?: string | null; phone?: string | null } = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.email !== undefined) data.email = dto.email.trim() || null;
+    if (dto.phone !== undefined) data.phone = dto.phone.trim() || null;
+
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data,
+        select: {
+          ...SAFE_SELECT,
+          role: { select: { code: true, nameAr: true } },
+          branch: { select: { id: true, nameAr: true, code: true } },
+        },
+      });
+
+      await this.audits.write({
+        userId,
+        action: 'user.profile.update',
+        entity: 'User',
+        entityId: userId,
+        beforeJson: { name: before.name, email: before.email, phone: before.phone },
+        afterJson: { name: updated.name, email: updated.email, phone: updated.phone },
+      });
+
+      return updated;
+    } catch (e) {
+      if (isUniqueError(e)) {
+        throw new ConflictException('البريد الإلكتروني أو رقم الهاتف مستخدم بالفعل');
+      }
+      throw e;
+    }
+  }
+
+  async changePassword(userId: number, dto: ChangePasswordDto, companyId: number | null = null) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, ...tenantWhere(companyId) },
+    });
+    if (!user) throw new NotFoundException('المستخدم غير موجود');
+
+    const matches = await compare(dto.currentPassword, user.passwordHash);
+    if (!matches) {
+      throw new BadRequestException('كلمة المرور الحالية غير صحيحة');
+    }
+
+    const newHash = await hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
+    });
+
+    await this.audits.write({
+      userId,
+      action: 'user.password.change',
+      entity: 'User',
+      entityId: userId,
+      afterJson: { passwordChanged: true },
+    });
+
+    return { ok: true, message: 'تم تحديث كلمة المرور بنجاح' };
   }
 
   private async resolveRole(code: string) {

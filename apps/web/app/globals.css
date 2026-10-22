@@ -8,9 +8,49 @@
   --border: #e2e8f0;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
+  --primary-ring: #93c5fd;
+  --primary-light: #eff6ff;
   --accent: #ea580c;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
+  --card-radius: 16px;
+}
+
+.dark,
+[data-theme-style="dark"] {
+  --background: #090d16;
+  --foreground: #f1f5f9;
+  --card: #111827;
+  --card-foreground: #f8fafc;
+  --border: #1f2937;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+}
+
+[data-theme-style="contrast"] {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --border: #000000;
+  --muted: #f4f4f5;
+  --muted-foreground: #27272a;
+}
+
+.theme-glass .craft-card,
+[data-theme-style="glass"] .craft-card {
+  background-color: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark.theme-glass .craft-card,
+.dark[data-theme-style="glass"] .craft-card {
+  background-color: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 @theme inline {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { BayanMark, MiBLogo } from '@/components/brand';
 import { Button, Notice, TextInput, Field } from '@/components/ui';
+import { AnimatedLoginBackground } from '@/components/animated-login-background';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
@@ -35,13 +36,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-4">
-      {/* Background Decorative Ambient Glows */}
-      <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 overflow-hidden">
+      {/* Dynamic Animated Background */}
+      <AnimatedLoginBackground variant="enterprise" />
 
       {/* Top Corporate Endorsement */}
-      <div className="relative mb-6 flex items-center gap-2.5 rounded-full border border-white/15 bg-white/10 px-5 py-2 backdrop-blur-md shadow-lg">
+      <div className="relative z-10 mb-6 flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-5 py-2 backdrop-blur-md shadow-xl transition-transform hover:scale-102">
         <span className="text-xs font-semibold text-slate-200">منظومة رقمية بواسطة</span>
         <MiBLogo height={28} variant="horizontal" theme="dark" />
       </div>

@@ -178,3 +178,35 @@ export class UpdateRoleLimitsDto {
   @Max(100)
   maxInvoiceDiscountPct?: number | null;
 }
+
+export class UpdateSelfProfileDto {
+  @ApiPropertyOptional({ example: 'أحمد علي' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'ahmed@bayan.local' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: '01012345678' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phone?: string;
+}
+
+export class ChangePasswordDto {
+  @ApiProperty({ description: 'كلمة المرور الحالية' })
+  @IsNotEmpty()
+  @IsString()
+  currentPassword!: string;
+
+  @ApiProperty({ minLength: 6, description: 'كلمة المرور الجديدة' })
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(6)
+  newPassword!: string;
+}

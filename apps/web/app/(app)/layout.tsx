@@ -7,6 +7,10 @@ import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
 import { BayanLogo, BayanMark, MiBLogo } from '@/components/brand';
 import { CommandPalette } from '@/components/command-palette';
+import { ThemeProvider } from '@/lib/theme';
+import { ThemeCustomizerModal } from '@/components/theme-customizer-modal';
+import { UserAvatar } from '@/components/user-avatar';
+import { UserProfileMenu } from '@/components/user-profile-menu';
 import {
   IconApproval,
   IconArchive,
@@ -53,6 +57,7 @@ import {
   IconBolt,
   IconClock,
   IconCalendar,
+  IconPalette,
   type IconProps,
 } from '@/components/icons';
 
@@ -230,6 +235,7 @@ function Shell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
 
   // Group expansion state with initial defaults
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -334,7 +340,7 @@ function Shell({ children }: { children: ReactNode }) {
       { href: '/branches', label: 'الفروع', groupId: 'master', icon: IconBranch },
       { href: '/tools', label: 'أدوات مساعدة', groupId: 'master', icon: IconTools },
 
-      // Phase 6: الأرشفة والصيانة
+      { href: '/profile', label: 'الملف الشخصي والحساب', groupId: 'system', icon: IconUser },
       { href: '/users', label: 'المستخدمون والأدوار', groupId: 'system', icon: IconUser, perm: 'user.view' },
       { href: '/devices', label: 'الأجهزة والأمان', groupId: 'system', icon: IconDevice, perm: 'device.manage' },
       { href: '/settings', label: 'إعدادات الشركة', groupId: 'system', icon: IconSettings, perm: 'company.manage' },
@@ -485,12 +491,13 @@ function Shell({ children }: { children: ReactNode }) {
 
           {/* User & MiB Emblem (Mini) */}
           <div className="flex flex-col items-center gap-2 pt-2 border-t border-slate-100 w-full px-2">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-xs font-black text-blue-700"
-              title={`${user?.name} (${user?.roleCode})`}
+            <Link
+              href="/profile"
+              className="transition-transform hover:scale-105"
+              title={`${user?.name} (${user?.roleCode}) — الملف الشخصي`}
             >
-              {user?.name ? user.name.slice(0, 1) : 'م'}
-            </div>
+              <UserAvatar userId={user?.id} name={user?.name} size={32} showStatus={true} />
+            </Link>
             <button
               onClick={logout}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors"
@@ -670,20 +677,23 @@ function Shell({ children }: { children: ReactNode }) {
         {/* User Session Footer */}
         <div className="border-t border-slate-200 bg-slate-50/70 p-3">
           <div className="flex items-center justify-between gap-2 px-1">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-xs font-bold text-white shadow-2xs">
-                {user?.name ? user.name.slice(0, 1) : 'م'}
-                <span className="absolute -bottom-0.5 -left-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-              </div>
+            <Link
+              href="/profile"
+              className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-85 transition-opacity group"
+              title="إدارة الملف الشخصي وإعدادات الحساب"
+            >
+              <UserAvatar userId={user?.id} name={user?.name} size={34} showStatus={true} />
               <div className="min-w-0">
-                <div className="truncate text-xs font-bold text-slate-900">{user?.name}</div>
+                <div className="truncate text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                  {user?.name}
+                </div>
                 <div className="flex items-center gap-1">
                   <span className="truncate text-[10px] text-blue-700 font-bold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">
                     {user?.roleCode || 'مستخدم'}
                   </span>
                 </div>
               </div>
-            </div>
+            </Link>
             <button
               onClick={logout}
               title="تسجيل الخروج"
@@ -812,6 +822,19 @@ function Shell({ children }: { children: ReactNode }) {
               <IconNotification size={18} />
             </Link>
 
+            {/* Quick Preset Styles & Colors Switcher */}
+            <button
+              type="button"
+              onClick={() => setThemeModalOpen(true)}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-2xs"
+              title="تخصيص المظهر والألوان (Preset Styles & Colors)"
+            >
+              <IconPalette size={18} />
+            </button>
+
+            {/* User Profile Menu with Avatar, Edit Profile, Picture, Password, and Logout */}
+            <UserProfileMenu />
+
             <div className="hidden md:flex items-center gap-2.5 border-r border-slate-200 pr-2.5 mr-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -825,6 +848,12 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
+        {/* Global Preset Styles & Colors Modal */}
+        <ThemeCustomizerModal
+          isOpen={themeModalOpen}
+          onClose={() => setThemeModalOpen(false)}
+        />
+
         {/* Dynamic Route Content */}
         <main className="flex-1 overflow-x-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
@@ -835,7 +864,9 @@ function Shell({ children }: { children: ReactNode }) {
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <RequireAuth>
-      <Shell>{children}</Shell>
+      <ThemeProvider>
+        <Shell>{children}</Shell>
+      </ThemeProvider>
     </RequireAuth>
   );
 }

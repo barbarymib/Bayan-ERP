@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BayanMark, MiBLogo } from '@/components/brand';
 import { Button, Field, Notice, TextInput } from '@/components/ui';
 import { GLOBAL_API, setGlobalToken } from '@/lib/global';
+import { AnimatedLoginBackground } from '@/components/animated-login-background';
 
 export default function GlobalLoginPage() {
   const router = useRouter();
@@ -35,8 +36,9 @@ export default function GlobalLoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4">
-      <div className="relative w-full max-w-sm rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl border border-white/10 animate-entrance">
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 overflow-hidden">
+      <AnimatedLoginBackground variant="global-admin" />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl border border-white/20 animate-entrance">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex items-center justify-center">
             <BayanMark size={56} withGlow={true} />
