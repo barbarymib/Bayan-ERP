@@ -34,15 +34,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-100 to-slate-200 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-black text-white">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 p-4">
+      {/* Background Decorative Ambient Glows */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
+
+      <div className="relative w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl border border-white/20 animate-entrance">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-700 to-blue-500 text-3xl font-black text-white shadow-lg ring-4 ring-blue-500/20">
             ب
           </div>
-          <h1 className="text-xl font-black text-gray-900">نظام بيان</h1>
-          <p className="mt-1 text-sm text-gray-500">مبيعات الحديد والبويات — تسجيل الدخول</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">نظام بيان</h1>
+          <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
+            مبيعات وإدارة الحديد والبويات — تسجيل الدخول
+          </p>
         </div>
+
         <form onSubmit={onSubmit} className="space-y-4">
           <Field label="البريد الإلكتروني أو رقم الهاتف">
             <TextInput
@@ -62,16 +69,22 @@ export default function LoginPage() {
               required
             />
           </Field>
+
           {error ? <Notice type="error">{error}</Notice> : null}
-          <Button type="submit" disabled={busy} className="w-full">
-            {busy ? 'جارِ الدخول…' : 'دخول'}
+
+          <Button type="submit" loading={busy} className="w-full mt-2 py-2.5 text-sm font-bold shadow-md">
+            دخول إلى النظام
           </Button>
         </form>
-        <p className="mt-4 text-center text-xs text-gray-400">
-          <a href="/global/login" className="hover:text-blue-600">
-            دخول المشرف العام للبيئة
+
+        <div className="mt-6 border-t border-slate-100 pt-4 text-center">
+          <a
+            href="/global/login"
+            className="text-xs font-semibold text-slate-400 hover:text-blue-600 transition-colors"
+          >
+            دخول المشرف العام للمنصة (SaaS Admin) ←
           </a>
-        </p>
+        </div>
       </div>
     </div>
   );
