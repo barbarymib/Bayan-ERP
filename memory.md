@@ -29,19 +29,32 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
-### Completed — Live Server Audit & Security Hardening Fixes (2026-10-22)
-- **Live Audit (`bayan.mibtek.net`):** Methodical audit conducted across OWASP Top 10, multi-axis quality, database architecture, and observability. Probed live server `173.249.26.73` running Node v24.21.0 on Ubuntu 24.04:
-  - DB latency 8ms, 46/46 migrations applied, 0 pending.
-  - Rate limiting verified live (`POST /auth/login` throttles with HTTP 429 after 10 req/60s).
-  - ValidationPipe whitelist rejects unexpected fields (`HTTP 400`).
-  - CORS allowlist strictly rejects untrusted origins.
-  - Frontend middleware (`proxy.ts`) gates all protected routes with `HTTP 307` redirect.
-- **Audit Findings Remediation:**
-  - **Mask `X-Powered-By`:** Configured `poweredByHeader: false` in `apps/web/next.config.ts` and added `-X-Powered-By` in `deploy/Caddyfile`.
-  - **Web Security Headers:** Added `Strict-Transport-Security`, `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` to `apps/web/next.config.ts` `headers()` and middleware responses in `apps/web/proxy.ts`.
-  - **Restore Drill Integration:** Extended `BackupDoc` and added `BackupDrillResult` in `apps/web/lib/api.ts`. Integrated restore drill execution (`POST /backups/:id/restore-drill`), loading state, and drill status badges directly into `apps/web/app/(app)/backups/page.tsx` table rows.
-  - **Lint & Quality Gates:** Fixed `react-hooks/set-state-in-effect` and memoized navigation links in `apps/web/app/(app)/layout.tsx`. Clean pass across `pnpm --filter @bayan/web lint` (0 errors, 0 warnings), `tsc` (0 errors), and Next.js 16 production build (45 routes).
-- **Commit:** `d28d686` feat.
+### Completed — System Enhancements Across All System Functions & Forms (Slices 1–6) (2026-10-22)
+- **Slice 1 — POS Hardening & Accelerators (`c4e2ebd`):**
+  - Bidirectional `localStorage` sync for active cart (`bayan_pos_active_cart`) and held tickets (`bayan_pos_held_tickets`).
+  - Keyboard accelerators: `F2` focus barcode scanner, `F4` fast checkout, `F8` hold active ticket, `F9` thermal receipt print dialog, `Esc` dismiss open modals.
+  - Live customer credit limit and outstanding balance badge with over-limit visual warning (`⚠️ تجاوز الائتمان`).
+- **Slice 2 — Dedicated Statement Detail Route (`af0563c`):**
+  - Created `apps/web/app/(app)/statements/[id]/page.tsx`, resolving critical 404 route gap from converted quotations (`/quotations`). Displays statement header, customer info card, warehouse & payment terms, financial totals summary, and line items table.
+- **Slice 3 — Universal Debounce & Unsaved Changes Hooks (`de9be4c`):**
+  - Created `apps/web/lib/hooks.ts` providing `useDebounce` (300ms default) and `useUnsavedChanges` (`beforeunload` protection).
+  - Integrated into `/customers` and `/items` search inputs, preventing per-keystroke API hammering.
+- **Slice 4 — Audit Logs Visual Diff Inspector (`da07f37`):**
+  - Upgraded expanded audit log rows in `apps/web/app/(app)/audit-logs/page.tsx` with `AuditDiffInspector`.
+  - Automatic key-by-key delta calculation for objects: highlights modified fields (amber), added fields (green), and removed fields (red strike-through).
+  - Bilingual ERP field labels dictionary (`creditLimit`, `status`, `net`, `unitPrice`, `taxAmount`, etc.).
+  - Side-by-side JSON tab with single-click copy to clipboard.
+- **Slice 5 — Debt Aging FIFO Drilldown Drawer with WhatsApp Deep-Link (`5d83bbd`):**
+  - Updated `@bayan/api` `reports.service.ts` to include `customer.phone` in aging calculations and updated `AgingRow` in `apps/web/lib/api.ts`.
+  - Added slide-over `Modal` drawer in `apps/web/app/(app)/reports/page.tsx` (Aging tab) displaying customer details, 4-bucket metric strip, FIFO allocation banner, and recent contributing statements with direct `/statements/[id]` navigation.
+  - Added direct WhatsApp reminder link (`https://wa.me/{phone}?text=...`) formatted with customer name, total outstanding balance, and +90 overdue reminder text.
+- **Slice 6 — Async Searchable Combobox for Document Creation Forms (`b2b8eeb`):**
+  - Created reusable, accessible `<AsyncSearchPicker>` in `apps/web/components/ui.tsx` with debounced search, clear button, and outside-click dismissal using pure `useMemo` (zero cascading renders).
+  - Integrated into `CreateStatementModal` in `apps/web/app/(app)/statements/page.tsx` for both Customer and Line Item selection, removing the hardcoded 200-item dropdown limit and dynamically fetching matching items on demand.
+- **Verification & Gates:**
+  - `@bayan/api`: `tsc` clean (0 errors), `prisma generate` clean.
+  - `@bayan/web`: `tsc` clean (0 errors), `eslint` clean (0 errors, 0 warnings), Next.js 16 build passing (45/45 routes).
+
 
 ### Completed — P1 & P2: High-Impact Operations & Production UX Enhancements (2026-10-22)
 - **P1.1 — Universal Command Palette (`Ctrl + K` / `⌘K`):** Added `apps/web/components/command-palette.tsx` and wired into `apps/web/app/(app)/layout.tsx`. Supports global `Ctrl+K`, quick action buttons, static navigation to all 25+ modules, and live debounced async multi-resource search across Customers (`/customers`), Items (`/items`), and Statements (`/price-statements`). Full keyboard navigation (arrows, Enter, Esc).
