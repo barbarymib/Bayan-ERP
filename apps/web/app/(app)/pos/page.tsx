@@ -171,6 +171,51 @@ export default function PosTerminalPage() {
     }
   }, []);
 
+  // Restore persisted cart and held tickets from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedCart = window.localStorage.getItem('bayan_pos_active_cart');
+      if (savedCart) {
+        const parsed = JSON.parse(savedCart);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCart(parsed);
+          setFlashMessage('تمت استعادة السلة النشطة من الجلسة السابقة 🛒');
+        }
+      }
+      const savedHeld = window.localStorage.getItem('bayan_pos_held_tickets');
+      if (savedHeld) {
+        const parsedHeld = JSON.parse(savedHeld);
+        if (Array.isArray(parsedHeld)) {
+          setHeldTickets(parsedHeld);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Sync active cart to localStorage
+  useEffect(() => {
+    try {
+      if (cart.length > 0) {
+        window.localStorage.setItem('bayan_pos_active_cart', JSON.stringify(cart));
+      } else {
+        window.localStorage.removeItem('bayan_pos_active_cart');
+      }
+    } catch {
+      // ignore
+    }
+  }, [cart]);
+
+  // Sync held tickets to localStorage
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('bayan_pos_held_tickets', JSON.stringify(heldTickets));
+    } catch {
+      // ignore
+    }
+  }, [heldTickets]);
+
   useEffect(() => {
     if (!loading && !receiptModal && !showHeldModal) {
       focusBarcode();
@@ -388,7 +433,7 @@ export default function PosTerminalPage() {
     }
   }
 
-  // Keyboard Shortcuts (F2: barcode, F4: pay, F8: clear/hold, Esc: clear)
+  // Keyboard Shortcuts (F2: barcode, F4: pay, F8: hold ticket, F9: print receipt, Esc: close modals)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'F2') {
@@ -401,11 +446,17 @@ export default function PosTerminalPage() {
         }
       } else if (e.key === 'F8') {
         e.preventDefault();
-        if (cart.length > 0 && confirm('هل تريد تفريغ السلة الحالية والبدء من جديد؟')) {
-          setCart([]);
-          setTenderAmount(0);
-          focusBarcode();
+        if (cart.length > 0) {
+          holdCurrentTicket();
         }
+      } else if (e.key === 'F9') {
+        if (receiptModal) {
+          e.preventDefault();
+          window.print();
+        }
+      } else if (e.key === 'Escape') {
+        if (receiptModal) setReceiptModal(null);
+        if (showHeldModal) setShowHeldModal(false);
       }
     }
 
@@ -483,7 +534,10 @@ export default function PosTerminalPage() {
               F4: دفع
             </span>
             <span className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700 font-mono text-amber-400">
-              F8: تفريغ
+              F8: تعليق
+            </span>
+            <span className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700 font-mono text-purple-400">
+              F9: طباعة
             </span>
           </div>
 
@@ -678,9 +732,17 @@ export default function PosTerminalPage() {
               </select>
             </div>
             {selectedCustomer && (
-              <div className="mt-1.5 flex items-center justify-between text-[11px] text-gray-500">
-                <span>الهاتف: {selectedCustomer.phone ?? '—'}</span>
-                <span>الحد الائتماني: {formatMoney(Number(selectedCustomer.creditLimit))}</span>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-600 bg-white p-2 rounded-lg border border-gray-200 shadow-2xs">
+                <span>الهاتف: <span className="font-semibold">{selectedCustomer.phone ?? '—'}</span></span>
+                <span>الرصيد: <strong className="text-gray-900 font-mono">{selectedCustomer.balance != null ? formatMoney(selectedCustomer.balance) : '—'}</strong></span>
+                <span>الحد: <strong className="text-gray-900 font-mono">{formatMoney(Number(selectedCustomer.creditLimit ?? 0))}</strong></span>
+                {Number(selectedCustomer.creditLimit) > 0 &&
+                  selectedCustomer.balance != null &&
+                  Number(selectedCustomer.balance) >= Number(selectedCustomer.creditLimit) && (
+                    <span className="text-[10px] font-bold text-red-700 bg-red-100 border border-red-300 px-1.5 py-0.5 rounded">
+                      ⚠️ تجاوز الائتمان
+                    </span>
+                  )}
               </div>
             )}
           </div>

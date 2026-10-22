@@ -141,6 +141,7 @@ export interface Customer {
   lng: number | null;
   active: boolean;
   assignments?: CustomerRepAssignment[];
+  balance?: number | string | null;
 }
 
 export interface Supplier {
