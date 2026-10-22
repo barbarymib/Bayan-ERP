@@ -58,7 +58,7 @@ export default function LoginPage() {
             </span>
           </div>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-500 font-medium">
-            مبيعات وإدارة الحديد والبويات — تسجيل الدخول
+            مبيعات وإدارة الحدايد والبويات — تسجيل الدخول
           </p>
         </div>
 

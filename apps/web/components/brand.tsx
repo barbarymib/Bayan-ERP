@@ -126,7 +126,7 @@ export function BayanLogo({
               isDark ? 'text-slate-400' : 'text-slate-500'
             }`}
           >
-            مبيعات وإدارة الحديد والبويات
+            مبيعات وإدارة الحدايد والبويات
           </span>
         )}
       </div>

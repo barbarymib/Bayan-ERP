@@ -253,7 +253,7 @@ export default function CompanySettingsPage() {
             <BayanMark size={36} />
             <div>
               <div className="text-sm font-bold text-slate-900">نظام بيان ERP</div>
-              <div className="text-xs text-slate-500">منظومة رقمية متكاملة لمبيعات وإدارة الحديد والصلب والبويات</div>
+              <div className="text-xs text-slate-500">منظومة رقمية متكاملة لمبيعات وإدارة الحدايد والبويات</div>
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 border border-slate-100 self-start sm:self-auto">

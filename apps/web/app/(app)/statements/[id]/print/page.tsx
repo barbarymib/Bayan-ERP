@@ -234,7 +234,7 @@ export default function StatementPrintPage() {
 
         {/* Printed Document Corporate Endorsement */}
         <div className="mt-4 pt-2 border-t border-gray-200 flex items-center justify-between text-[9px] text-gray-400">
-          <span>نظام بيان ERP — مبيعات وتوريدات الحديد والصلب والبويات</span>
+          <span>نظام بيان ERP — مبيعات وتوريدات الحدايد والبويات</span>
           <span>تطوير وتشغيل تقنية MiB Technology</span>
         </div>
       </div>

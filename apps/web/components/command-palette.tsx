@@ -76,14 +76,14 @@ const STATIC_ITEMS: NavItem[] = [
   { id: 'nav-stocktakes', title: 'جلسات الجرد المخزني', subtitle: 'مقارنة الفعلي بالرصيد وتسوية الفروق', href: '/stocktakes', category: 'صفحات النظام', icon: IconStocktake },
   { id: 'nav-transfers', title: 'التحويلات المخزنية', subtitle: 'نقل البضاعة بين المخازن والسيارات', href: '/transfers', category: 'صفحات النظام', icon: IconTransfer },
   { id: 'nav-reports', title: 'التقارير والتقييم', subtitle: '17 تقريراً تفصيلياً وتصدير Excel', href: '/reports', category: 'صفحات النظام', icon: IconReport },
-  { id: 'nav-items', title: 'دليل الأصناف', subtitle: 'الحديد والبويات والوحدات المتعددة والأوزان', href: '/items', category: 'صفحات النظام', icon: IconItem },
-  { id: 'nav-prices', title: 'الأسعار والتسعير اليومي', subtitle: 'قوائم الأسعار والتسعير الجماعي للحديد', href: '/prices', category: 'صفحات النظام', icon: IconPrice },
+  { id: 'nav-items', title: 'دليل الأصناف', subtitle: 'الحدايد والعدد والبويات والوحدات المتعددة', href: '/items', category: 'صفحات النظام', icon: IconItem },
+  { id: 'nav-prices', title: 'الأسعار وقوائم البيع', subtitle: 'قوائم الأسعار والتسعير وتحديثات الماركات', href: '/prices', category: 'صفحات النظام', icon: IconPrice },
   { id: 'nav-special-prices', title: 'الأسعار الخاصة', subtitle: 'عروض مخصصة لعملاء أو فئات معينة', href: '/special-prices', category: 'صفحات النظام', icon: IconSparkles },
   { id: 'nav-customers', title: 'سجل العملاء', subtitle: 'الحدود الائتمانية والمديونيات والمواقع', href: '/customers', category: 'صفحات النظام', icon: IconCustomer },
   { id: 'nav-suppliers', title: 'سجل الموردين', subtitle: 'حسابات الموردين وفواتير الشراء', href: '/suppliers', category: 'صفحات النظام', icon: IconSupplier },
-  { id: 'nav-warehouses', title: 'المخازن والمستودعات', subtitle: 'المخازن الرئيسية والحديد والبويات والتالف', href: '/warehouses', category: 'صفحات النظام', icon: IconWarehouse },
+  { id: 'nav-warehouses', title: 'المخازن والمستودعات', subtitle: 'المخازن الرئيسية والحدايد والعدد والبويات والتالف', href: '/warehouses', category: 'صفحات النظام', icon: IconWarehouse },
   { id: 'nav-categories', title: 'التصنيفات والأنواع', subtitle: 'شجرة تصنيفات المنتجات', href: '/categories', category: 'صفحات النظام', icon: IconCategory },
-  { id: 'nav-brands', title: 'العلامات التجارية والماركات', subtitle: 'ماركات البويات ومصانع الحديد', href: '/brands', category: 'صفحات النظام', icon: IconBrand },
+  { id: 'nav-brands', title: 'العلامات التجارية والماركات', subtitle: 'ماركات البويات وتوكيلات ومصانع الحدايد', href: '/brands', category: 'صفحات النظام', icon: IconBrand },
   { id: 'nav-branches', title: 'الفروع والمعارض', subtitle: 'فروع ومنافذ بيع الشركة', href: '/branches', category: 'صفحات النظام', icon: IconBranch },
   { id: 'nav-users', title: 'المستخدمون والأدوار', subtitle: 'إدارة الحسابات وحدود الخصم والصلاحيات', href: '/users', category: 'صفحات النظام', icon: IconUser },
   { id: 'nav-devices', title: 'أجهزة المناديب والأمان', subtitle: 'ربط الهواتف والاعتماد والإلغاء عن بعد', href: '/devices', category: 'صفحات النظام', icon: IconDevice },
@@ -96,7 +96,7 @@ const STATIC_ITEMS: NavItem[] = [
   { id: 'nav-audit-logs', title: 'سجل التدقيق والعمليات', subtitle: 'تتبع من فعل ماذا ومتى بالتفصيل', href: '/audit-logs', category: 'صفحات النظام', icon: IconAudit },
   { id: 'nav-settings', title: 'إعدادات الشركة والضريبة', subtitle: 'بيانات الشركة والضريبة والشعار والميزات', href: '/settings', category: 'صفحات النظام', icon: IconSettings },
   { id: 'nav-diagnostics', title: 'تشخيص وسلامة النظام', subtitle: 'مؤشرات صحة قاعدة البيانات والخوادم والنسخ', href: '/settings/diagnostics', category: 'صفحات النظام', icon: IconDiagnostics },
-  { id: 'nav-tools', title: 'أدوات مساعدة', subtitle: 'حاسبة أوزان الحديد وكميات الدهانات', href: '/tools', category: 'صفحات النظام', icon: IconTools },
+  { id: 'nav-tools', title: 'أدوات مساعدة', subtitle: 'حاسبات التغطية وكميات الدهانات ومقاسات الحدايد', href: '/tools', category: 'صفحات النظام', icon: IconTools },
 ];
 
 export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {

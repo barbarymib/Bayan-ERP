@@ -1,7 +1,7 @@
 {
-  "name": "بيان — نظام إدارة مبيعات الحديد والبويات",
+  "name": "بيان — نظام إدارة مبيعات الحدايد والبويات",
   "short_name": "نظام بيان ERP",
-  "description": "نظام ERP متكامل لإدارة مبيعات وتوريدات الحديد والصلب والبويات بواسطة MiB Technology",
+  "description": "نظام ERP متكامل لإدارة مبيعات وتوريدات الحدايد والبويات بواسطة MiB Technology",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0f172a",

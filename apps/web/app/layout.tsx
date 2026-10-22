@@ -10,8 +10,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: 'بيان — نظام مبيعات وتوريدات الحديد والبويات',
-  description: 'نظام ERP متكامل لإدارة مبيعات وتوريدات الحديد والصلب والبويات — تطوير MiB Technology',
+  title: 'بيان — نظام مبيعات وتوريدات الحدايد والبويات',
+  description: 'نظام ERP متكامل لإدارة مبيعات وتوريدات الحدايد والبويات — تطوير MiB Technology',
   icons: {
     icon: [
       { url: '/brand/favicon.ico' },

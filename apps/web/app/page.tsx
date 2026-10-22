@@ -39,7 +39,7 @@ export default function Home() {
       <section className="mx-auto max-w-5xl px-6 pt-16 pb-12 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-xs font-bold text-blue-700 mb-6">
           <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
-          نظام متكامل لتجارة الحديد ومواد البناء والبويات (جملة وقطاعي)
+          نظام متكامل لتجارة الحدايد والأدوات ومواد البناء والبويات (جملة وقطاعي)
         </div>
         <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-gray-900 leading-tight">
           إدارة مبيعات دقيقة، مخازن ذكية،
@@ -49,7 +49,7 @@ export default function Home() {
           </span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-base sm:text-lg text-gray-600 leading-relaxed">
-          نظام عربي متكامل (RTL) مبني خصيصاً لمتطلبات سوق الحديد والبويات: تسعير يومي، وحدات قياس متعددة ومركبة، محرك خصومات واحتساب أوزان، وتطبيق مناديب محمي بتقنيات التشفير الحديثة.
+          نظام عربي متكامل (RTL) مبني خصيصاً لمتطلبات سوق الحدايد والبويات: تسعير مرن، وحدات قياس متعددة ومركبة، محرك خصومات واحتساب كميات، وتطبيق مناديب محمي بتقنيات التشفير الحديثة.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">

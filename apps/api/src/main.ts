@@ -72,7 +72,7 @@ async function bootstrap(): Promise<void> {
   if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Bayan API')
-      .setDescription('بيان — نظام مبيعات الحديد والبويات')
+      .setDescription('بيان — نظام مبيعات الحدايد والبويات')
       .setVersion('0.1.0')
       .addBearerAuth()
       .build();
