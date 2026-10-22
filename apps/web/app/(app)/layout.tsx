@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
 import { BayanLogo, BayanMark, MiBLogo } from '@/components/brand';
@@ -51,6 +51,8 @@ import {
   IconSidebarCollapse,
   IconSidebarExpand,
   IconBolt,
+  IconClock,
+  IconCalendar,
   type IconProps,
 } from '@/components/icons';
 
@@ -127,6 +129,100 @@ const navGroups: NavGroup[] = [
     },
   },
 ];
+
+let currentSecond = Math.floor(Date.now() / 1000);
+const clockListeners = new Set<() => void>();
+
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    currentSecond = Math.floor(Date.now() / 1000);
+    clockListeners.forEach((l) => l());
+  }, 1000);
+}
+
+function subscribeClock(callback: () => void) {
+  clockListeners.add(callback);
+  return () => {
+    clockListeners.delete(callback);
+  };
+}
+
+function getClockSnapshot() {
+  return currentSecond;
+}
+
+function getClockServerSnapshot() {
+  return 0;
+}
+
+/**
+ * Live Arabic Date & Time Widget for the Application Top Bar
+ */
+function TopBarClock() {
+  const tick = useSyncExternalStore(subscribeClock, getClockSnapshot, getClockServerSnapshot);
+
+  if (!tick) {
+    return (
+      <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200/60 bg-slate-50/60 px-2.5 py-1 text-slate-400">
+        <span className="h-3.5 w-24 bg-slate-200/50 rounded animate-pulse" />
+      </div>
+    );
+  }
+
+  const time = new Date(tick * 1000);
+
+  // Full Arabic Date (e.g. "الخميس، 22 أكتوبر 2026")
+  const formattedDate = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(time);
+
+  // Live 12-hour Time with Seconds in Arabic (e.g. "06:58:20 م")
+  const formattedTime = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }).format(time);
+
+  // Compact Mobile Time (e.g. "06:58 م")
+  const compactTime = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(time);
+
+  return (
+    <div className="flex items-center">
+      {/* Mobile view (< 640px) */}
+      <div
+        className="flex sm:hidden items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-50/80 px-2 py-1 text-[11px] font-bold text-slate-700 shadow-2xs"
+        title={`${formattedDate} • ${formattedTime}`}
+      >
+        <IconClock size={12} className="text-blue-600 animate-pulse" />
+        <span className="font-mono text-blue-800" dir="ltr">{compactTime}</span>
+      </div>
+
+      {/* Desktop & Tablet view (>= 640px) */}
+      <div
+        className="hidden sm:flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/90 via-white to-blue-50/40 px-3 py-1.5 shadow-2xs hover:border-slate-300 transition-all select-none"
+        title="توقيت وتاريخ النظام الحي (بالتوقيت المحلي)"
+      >
+        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+          <IconCalendar size={14} className="text-slate-400 shrink-0" />
+          <span>{formattedDate}</span>
+        </div>
+        <span className="text-slate-300 font-light">|</span>
+        <div className="flex items-center gap-1.5 text-xs font-black text-blue-700">
+          <IconClock size={14} className="text-blue-600 shrink-0 animate-pulse" />
+          <span className="font-mono tracking-tight" dir="ltr">{formattedTime}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -686,6 +782,9 @@ function Shell({ children }: { children: ReactNode }) {
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-2">
+            {/* Live Arabic Date & Time */}
+            <TopBarClock />
+
             <button
               onClick={() => setSearchOpen(true)}
               className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-2xs"
