@@ -78,6 +78,7 @@ interface ResolvedLine {
 
 interface DiscountFlag {
   itemCode: string;
+  itemName?: string;
   discount: Discount;
   limitPct: number;
   effectivePercent: number;
@@ -92,6 +93,7 @@ export function weightDeltaOf(actualWeight: number | null | undefined, qtyBase: 
 /** خرق سعر: صنف سُعّر أقل من التكلفة أو أقل من الحد الأدنى (§5.3). */
 interface PriceViolation {
   itemCode: string;
+  itemName?: string;
   unitPrice: number;
   threshold: number;
 }
@@ -100,6 +102,7 @@ interface PriceViolation {
 interface PricingAlert {
   type: 'below_cost' | 'below_min_price';
   itemCode: string;
+  itemName?: string;
   unitPrice: number;
   threshold: number;
 }
@@ -775,11 +778,11 @@ export class PriceStatementsService {
       // حد أدنى لسعر البيع (§5.3) — يُقاس على وحدة البيع بمعامل التحويل
       const cost = item.lastPurchaseCost != null ? Number(item.lastPurchaseCost) * factor : null;
       if (cost !== null && unitPrice < cost) {
-        belowCostLines.push({ itemCode: item.code, unitPrice, threshold: cost });
+        belowCostLines.push({ itemCode: item.code, itemName: item.nameAr, unitPrice, threshold: cost });
       }
       const minPrice = item.minSalePrice != null ? Number(item.minSalePrice) * factor : null;
       if (minPrice !== null && unitPrice < minPrice) {
-        belowMinPriceLines.push({ itemCode: item.code, unitPrice, threshold: minPrice });
+        belowMinPriceLines.push({ itemCode: item.code, itemName: item.nameAr, unitPrice, threshold: minPrice });
       }
 
       // تقييد الخصم: يُحوَّل النوعان لبعضهما (§5.3) فيُفحص الخصم بالنسبة المكافئة أيّاً كان نوعه
@@ -787,7 +790,7 @@ export class PriceStatementsService {
         const gross = roundMoney(line.qty * unitPrice);
         const effectivePercent = discountToPercent(line.discount, gross);
         if (effectivePercent > maxItemDiscountPct) {
-          discountFlags.push({ itemCode: item.code, discount: line.discount, limitPct: maxItemDiscountPct, effectivePercent });
+          discountFlags.push({ itemCode: item.code, itemName: item.nameAr, discount: line.discount, limitPct: maxItemDiscountPct, effectivePercent });
         }
       }
 
@@ -879,6 +882,7 @@ export class PriceStatementsService {
       type: 'ITEM_DISCOUNT',
       refJson: {
         itemCode: flag.itemCode,
+        itemName: flag.itemName,
         discount: flag.discount,
         userLimitPct: flag.limitPct,
         effectivePercent: flag.effectivePercent,

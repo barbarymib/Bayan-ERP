@@ -208,12 +208,13 @@ export interface PriceStatementLine {
 
 export interface Approval {
   id: number;
-  type: 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST' | 'RETURN';
+  type: 'ITEM_DISCOUNT' | 'HEADER_DISCOUNT' | 'BELOW_COST' | 'BELOW_MIN_PRICE' | 'RETURN' | 'CREDIT_LIMIT';
   refType: 'price_statement' | 'return_statement';
   refId: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   requestedBy?: { id: number; name: string; repCode: string | null };
   decidedBy?: { id: number; name: string } | null;
+  decidedAt?: string | null;
   note?: string | null;
   document?: { number: string; label: string } | null;
   createdAt: string;
@@ -224,6 +225,7 @@ export interface Approval {
 export interface PricingAlert {
   type: 'below_cost' | 'below_min_price';
   itemCode: string;
+  itemName?: string;
   unitPrice: number;
   threshold: number;
 }

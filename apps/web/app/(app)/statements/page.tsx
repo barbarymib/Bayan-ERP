@@ -139,8 +139,8 @@ export default function StatementsPage() {
           <ul className="list-disc space-y-1 ps-5">
             {pricingAlerts.map((a, i) => (
               <li key={`${a.itemCode}-${a.type}-${i}`}>
-                الصنف {a.itemCode}: سعر الوحدة {formatMoney(a.unitPrice)} {pricingAlertLabel[a.type]}{' '}
-                (الحد {formatMoney(a.threshold)})
+                الصنف <strong>{a.itemName ? `${a.itemName} (${a.itemCode})` : a.itemCode}</strong>: سعر الوحدة{' '}
+                {formatMoney(a.unitPrice)} ج {pricingAlertLabel[a.type]} (الحد {formatMoney(a.threshold)} ج)
               </li>
             ))}
           </ul>

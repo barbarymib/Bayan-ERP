@@ -72,12 +72,54 @@ export class ApprovalsService {
       for (const r of rts) enriched[r.id] = { number: r.number, label: 'بيان مرتجع' };
     }
 
+    // إثراء بأسماء الأصناف داخل refJson إن وُجدت
+    const itemCodes = new Set<string>();
+    for (const r of rows) {
+      const j = r.refJson as Record<string, unknown> | null;
+      if (!j) continue;
+      if (Array.isArray(j.lines)) {
+        for (const l of j.lines) {
+          if (l && typeof l === 'object' && 'itemCode' in l && l.itemCode) {
+            itemCodes.add(String(l.itemCode));
+          }
+        }
+      }
+      if (typeof j.itemCode === 'string') {
+        itemCodes.add(j.itemCode);
+      }
+    }
+    const itemMap = new Map<string, string>();
+    if (itemCodes.size > 0 && this.prisma.item?.findMany) {
+      const foundItems = await this.prisma.item.findMany({
+        where: { code: { in: Array.from(itemCodes) }, ...tenantWhere(companyId) },
+        select: { code: true, nameAr: true },
+      });
+      for (const it of foundItems) {
+        itemMap.set(it.code, it.nameAr);
+      }
+    }
+
     return {
-      items: rows.map((r) => ({
-        ...r,
-        refJson: r.refJson ?? undefined,
-        document: enriched[r.refId] ?? null,
-      })),
+      items: rows.map((r) => {
+        let j = r.refJson as Record<string, any> | null;
+        if (j && typeof j === 'object') {
+          j = JSON.parse(JSON.stringify(j));
+          if (Array.isArray(j.lines)) {
+            j.lines = j.lines.map((l: any) => ({
+              ...l,
+              itemName: l?.itemName ?? itemMap.get(String(l?.itemCode)) ?? l?.itemCode,
+            }));
+          }
+          if (j.itemCode && !j.itemName) {
+            j.itemName = itemMap.get(String(j.itemCode)) ?? j.itemCode;
+          }
+        }
+        return {
+          ...r,
+          refJson: j ?? undefined,
+          document: enriched[r.refId] ?? null,
+        };
+      }),
     };
   }
 
