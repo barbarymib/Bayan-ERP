@@ -1357,3 +1357,30 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Build & Verification:**
   - `build-manual.cjs` inlined all 52 screenshots (zero residual references) -> `docs/bayan-user-manual.html` (4.87 MB).
   - `print-manual.cjs` rendered 49 clean, dense A4 pages with zero blank/clipped pages -> `docs/bayan-user-manual.pdf` (6.32 MB).
+
+## 2026-10-22 - Executive Dashboard Evolution & Craftsmanship Review
+
+- **Trigger:** User requested using skills (`ui-ux-pro-max`, `interface-craft`, `frontend-ui-engineering`) to review and deeply enhance the executive dashboard (`apps/web/app/(app)/dashboard/page.tsx`).
+- **Core Enhancements:**
+  1. **Interactive Granularity Toggles for Sales Trend:**
+     - Added `groupBy` toggle (`يومي / شهري` - daily / monthly) in `SalesTrendChart`.
+     - Dynamically queries `/reports/sales-summary?groupBy=day|month` with non-blocking independent `useEffect` to prevent redundant full-page reloads.
+  2. **Multi-Dimensional Sales Breakdown Donut:**
+     - Added dimension switcher (`النشاط / الماركة / المخزن / المندوب` - category, brand, warehouse, sales rep) in `CategoryDonutChart`.
+     - Queries `/reports/sales-by?by=category|brand|warehouse|rep` on demand with interactive center summary and percentage breakdown legend.
+  3. **Actionable Executive Attention Strip:**
+     - High-visibility contextual alert callouts when `pendingApprovals > 0` (amber banner with 1-click navigation to `/approvals`) or `lowStockCount > 0` (rose banner for low stock replenishment with 1-click navigation to `/items`).
+  4. **Interactive Tactile Navigation Across All 8 KPIs & Operational Metrics:**
+     - Updated `StatCard` in `apps/web/components/ui.tsx` with `href` and `onClick` support, subtle elevation transform (`hover:-translate-y-0.5`), glowing border accents, and link affordances.
+     - Linked KPIs to `/statements`, `/returns`, `/collections`, `/treasury`, `/approvals`, `/stocktakes`, and `/items`.
+  5. **Real-time Activity Stream Widget (`RecentTransactionsFeed`):**
+     - Embedded live operations feed displaying latest statements with status badges (`معتمد`, `قيد المراجعة`, `مسودة`), customer attribution, formatted net totals, and direct navigation to `/statements/[id]`.
+     - Balanced 3-column layout alongside top-selling items and top-performing customers.
+  6. **Executive Quick Action Launcher Bar:**
+     - Header quick buttons for POS Terminal (`/pos`), New Price Statement (`/statements`), Cash Receipt Voucher (`/collections`), and 1-click instant metric refresh.
+- **Verification & Quality Gates:**
+  - `pnpm --filter @bayan/web lint` — 0 errors, 0 warnings (clean exhaustive-deps).
+  - `pnpm --filter @bayan/web typecheck` — 0 errors.
+  - `pnpm typecheck` (Monorepo Turbo: `@bayan/shared`, `@bayan/api`, `@bayan/web`) — 4/4 tasks successful (0 errors).
+  - Committed as `6515230` (`feat(dashboard): interactive timeframes, dimensional sales breakdown, executive attention alerts, and live activity feed`).
+
