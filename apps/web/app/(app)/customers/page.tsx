@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useDebounce } from '@/lib/hooks';
 import { can, get, post, patch, qs, type Customer, type CustomersPage, type PriceList } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ItemLabelModal } from '@/components/item-label-modal';
@@ -29,6 +30,7 @@ export default function CustomersPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
+  const debouncedQ = useDebounce(q, 300);
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     let cancelled = false;
-    get<CustomersPage>(`/customers${qs({ q, page, limit: 20 })}`)
+    get<CustomersPage>(`/customers${qs({ q: debouncedQ, page, limit: 20 })}`)
       .then((data) => {
         if (!cancelled) {
           setRows(data.customers);
@@ -63,7 +65,7 @@ export default function CustomersPage() {
     return () => {
       cancelled = true;
     };
-  }, [q, page, refresh]);
+  }, [debouncedQ, page, refresh]);
 
   return (
     <div>

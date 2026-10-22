@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useDebounce } from '@/lib/hooks';
 import {
   API_URL,
   can,
@@ -68,6 +69,7 @@ export default function ItemsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
+  const debouncedQ = useDebounce(q, 300);
   const [categoryCode, setCategoryCode] = useState('');
   const [units, setUnits] = useState<Unit[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -101,7 +103,7 @@ export default function ItemsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    get<ItemsPage>(`/items${qs({ q, categoryCode, page, limit: 20 })}`)
+    get<ItemsPage>(`/items${qs({ q: debouncedQ, categoryCode, page, limit: 20 })}`)
       .then((data) => {
         if (!cancelled) {
           setItems(data.items);
@@ -117,7 +119,7 @@ export default function ItemsPage() {
     return () => {
       cancelled = true;
     };
-  }, [q, categoryCode, page, refresh]);
+  }, [debouncedQ, categoryCode, page, refresh]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
