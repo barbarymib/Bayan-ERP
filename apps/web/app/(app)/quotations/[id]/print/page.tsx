@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -206,7 +206,7 @@ function PrintHeader({ q }: { q: Quotation }) {
     <div className="mb-3 flex items-start justify-between border-b-2 border-black pb-3">
       <div>
         <div className="text-xl font-black">نظام بيان</div>
-        <div className="text-xs text-gray-600">شركة تجارة الحديد والتشييد</div>
+        <div className="text-xs text-gray-600">شركة تجارة الحدايد والبويات</div>
         <div className="text-[10px] text-gray-400">هاتف: 0100 000 0000 - info@company.com</div>
       </div>
       <div className="text-center">

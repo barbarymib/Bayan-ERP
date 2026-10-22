@@ -1,4 +1,4 @@
-﻿import type { Quotation } from '@/lib/api';
+import type { Quotation } from '@/lib/api';
 import { formatDate } from '@/components/ui';
 import { formatArabicAmount, numberToArabic } from '@/lib/tafqit';
 
@@ -94,7 +94,7 @@ export async function downloadQuotationPdf(q: Quotation): Promise<void> {
         columns: [
           [
             { text: 'نظام بيان', fontSize: 20, bold: true, color: '#1d4ed8' },
-            { text: 'شركة تجارة الحديد والتشييد', fontSize: 12, color: '#64748b' },
+            { text: 'شركة تجارة الحدايد والبويات', fontSize: 12, color: '#64748b' },
             { text: 'بريد: info@company.com  —  هاتف: 0100 000 0000', fontSize: 9, color: '#94a3b8' },
           ],
           {
