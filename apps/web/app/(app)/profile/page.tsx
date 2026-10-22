@@ -599,8 +599,12 @@ export default function ProfilePage() {
                   2. ألوان السمة والتمييز (Preset Colors)
                 </label>
                 <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: colorDef.bgLight, color: colorDef.hover }}
+                  className="text-xs font-bold px-2.5 py-0.5 rounded-full border"
+                  style={{
+                    backgroundColor: colorDef.bgLight,
+                    color: colorDef.badgeText,
+                    borderColor: colorDef.ring,
+                  }}
                 >
                   اللون: {colorDef.name}
                 </span>

@@ -114,8 +114,12 @@ export function ThemeCustomizerModal({
               2. باليتات الألوان والسمات (Preset Colors)
             </label>
             <span
-              className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: colorDef.bgLight, color: colorDef.hover }}
+              className="text-[11px] font-bold px-2.5 py-0.5 rounded-full border"
+              style={{
+                backgroundColor: colorDef.bgLight,
+                color: colorDef.badgeText,
+                borderColor: colorDef.ring,
+              }}
             >
               اللون: {colorDef.name}
             </span>
@@ -211,10 +215,11 @@ export function ThemeCustomizerModal({
 
             {/* Sample Badge */}
             <span
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold"
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold border"
               style={{
                 backgroundColor: colorDef.bgLight,
-                color: colorDef.hover,
+                color: colorDef.badgeText,
+                borderColor: colorDef.ring,
                 borderRadius: RADIUS_PRESETS[radius].value,
               }}
             >

@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { UserAvatar } from './user-avatar';
 import { ProfileModal, type ProfileTab } from './profile-modal';
-import { ThemeCustomizerModal } from './theme-customizer-modal';
 import {
   IconCamera,
   IconChevronDown,
@@ -24,12 +23,11 @@ export function UserProfileMenu({
 }) {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { colorDef } = useTheme();
+  const { colorDef, openCustomizer } = useTheme();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<ProfileTab>('info');
-  const [themeModalOpen, setThemeModalOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -76,12 +74,6 @@ export function UserProfileMenu({
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
         initialTab={modalTab}
-      />
-
-      {/* Preset Styles & Colors Modal */}
-      <ThemeCustomizerModal
-        isOpen={themeModalOpen}
-        onClose={() => setThemeModalOpen(false)}
       />
 
       {/* Trigger Button with Dropdown Container */}
@@ -185,7 +177,7 @@ export function UserProfileMenu({
                 type="button"
                 onClick={() => {
                   setMenuOpen(false);
-                  setThemeModalOpen(true);
+                  openCustomizer();
                 }}
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors text-start cursor-pointer"
               >

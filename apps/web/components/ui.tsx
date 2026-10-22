@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -384,7 +385,10 @@ export function Modal({
   description?: string;
   footer?: ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
@@ -401,9 +405,11 @@ export function Modal({
     full: 'max-w-[95vw]',
   };
 
-  return (
+  if (!mounted || typeof document === 'undefined') return null;
+
+  const modalNode = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
@@ -417,7 +423,7 @@ export function Modal({
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition-colors cursor-pointer"
             aria-label="إغلاق"
           >
             <IconClose size={18} />
@@ -432,6 +438,8 @@ export function Modal({
       </div>
     </div>
   );
+
+  return createPortal(modalNode, document.body);
 }
 
 // ==========================================

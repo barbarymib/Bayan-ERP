@@ -22,13 +22,14 @@
    DYNAMIC PRESET COLOR PALETTES - GLOBAL UTILITY HOOKS
    Ensures that selecting any preset color (Emerald, Amber,
    Ruby, Indigo, Cyan, Slate, etc.) immediately reflects
-   across all buttons, icons, links, borders, rings, and badges.
+   with high-contrast, crystal-clear typography.
    ======================================================== */
 .bg-blue-600,
 .bg-blue-700,
 button.bg-blue-600,
 a.bg-blue-600 {
   background-color: var(--primary) !important;
+  color: #ffffff !important;
 }
 
 .hover\:bg-blue-700:hover,
@@ -36,40 +37,26 @@ a.bg-blue-600 {
 button.bg-blue-600:hover,
 a.bg-blue-600:hover {
   background-color: var(--primary-hover) !important;
+  color: #ffffff !important;
 }
 
 .active\:bg-blue-800:active {
   background-color: var(--primary-hover) !important;
   filter: brightness(0.92);
+  color: #ffffff !important;
 }
 
-.text-blue-600,
-.text-blue-700,
-.text-blue-800,
-.text-blue-900 {
-  color: var(--primary) !important;
+/* Guaranteed pure white text & icons inside any filled primary element */
+.bg-blue-600 span,
+.bg-blue-600 svg,
+button.bg-blue-600 span,
+button.bg-blue-600 svg,
+a.bg-blue-600 span,
+a.bg-blue-600 svg {
+  color: #ffffff !important;
 }
 
-.hover\:text-blue-600:hover,
-.hover\:text-blue-700:hover {
-  color: var(--primary-hover) !important;
-}
-
-.border-blue-600,
-.border-blue-500 {
-  border-color: var(--primary) !important;
-}
-
-.border-blue-100,
-.border-blue-200 {
-  border-color: var(--primary-ring) !important;
-}
-
-.border-r-3.border-blue-600,
-[dir="rtl"] .border-r-3.border-blue-600 {
-  border-right-color: var(--primary) !important;
-}
-
+/* Light Tints & Badges (Light Mode) */
 .bg-blue-50,
 .bg-blue-50\/30,
 .bg-blue-50\/40,
@@ -87,9 +74,44 @@ a.bg-blue-600:hover {
   background-color: var(--primary-badge-bg) !important;
 }
 
-.text-blue-700.bg-blue-100,
-.text-blue-700.bg-blue-50 {
+/* High-Contrast Typography Hierarchy in Light Mode */
+/* Deep, high-contrast headings, notices, and bold labels */
+.text-blue-900,
+.text-blue-800 {
+  color: var(--primary-dark-text) !important;
+}
+
+/* Badges and status pills */
+.text-blue-700 {
   color: var(--primary-badge-text) !important;
+}
+
+/* Interactive icons and standalone text links */
+.text-blue-600,
+.text-blue-500 {
+  color: var(--primary) !important;
+}
+
+.hover\:text-blue-600:hover,
+.hover\:text-blue-700:hover {
+  color: var(--primary-hover) !important;
+}
+
+/* Borders and Rings */
+.border-blue-600,
+.border-blue-500 {
+  border-color: var(--primary) !important;
+}
+
+.border-blue-100,
+.border-blue-200,
+.border-blue-300 {
+  border-color: var(--primary-ring) !important;
+}
+
+.border-r-3.border-blue-600,
+[dir="rtl"] .border-r-3.border-blue-600 {
+  border-right-color: var(--primary) !important;
 }
 
 .focus\:border-blue-500:focus,
@@ -144,7 +166,7 @@ a.bg-blue-600:hover {
 /* ========================================================
    DARK MODE COMPREHENSIVE OVERRIDES
    Transforms layout, cards, headers, sidebars, inputs, tables,
-   and typography into an authentic dark mode.
+   and typography into an authentic, readable dark mode.
    ======================================================== */
 .dark,
 [data-theme-style="dark"] {
@@ -203,28 +225,93 @@ a.bg-blue-600:hover {
   color: #cbd5e1 !important;
 }
 
+/* ALL Dark Mode Typography (Slate and Gray classes) */
 .dark .text-slate-900,
 [data-theme-style="dark"] .text-slate-900,
 .dark .text-slate-800,
-[data-theme-style="dark"] .text-slate-800 {
+[data-theme-style="dark"] .text-slate-800,
+.dark .text-gray-900,
+[data-theme-style="dark"] .text-gray-900,
+.dark .text-gray-800,
+[data-theme-style="dark"] .text-gray-800 {
   color: #f8fafc !important;
 }
 
 .dark .text-slate-700,
-[data-theme-style="dark"] .text-slate-700 {
+[data-theme-style="dark"] .text-slate-700,
+.dark .text-gray-700,
+[data-theme-style="dark"] .text-gray-700 {
   color: #e2e8f0 !important;
 }
 
 .dark .text-slate-600,
 [data-theme-style="dark"] .text-slate-600,
 .dark .text-slate-500,
-[data-theme-style="dark"] .text-slate-500 {
-  color: #94a3b8 !important;
+[data-theme-style="dark"] .text-slate-500,
+.dark .text-gray-600,
+[data-theme-style="dark"] .text-gray-600,
+.dark .text-gray-500,
+[data-theme-style="dark"] .text-gray-500 {
+  color: #cbd5e1 !important;
 }
 
 .dark .text-slate-400,
-[data-theme-style="dark"] .text-slate-400 {
-  color: #64748b !important;
+[data-theme-style="dark"] .text-slate-400,
+.dark .text-gray-400,
+[data-theme-style="dark"] .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+/* In Dark Mode, ALL primary text/badge classes MUST be radiant and high-contrast */
+.dark .text-blue-900,
+[data-theme-style="dark"] .text-blue-900,
+.dark .text-blue-800,
+[data-theme-style="dark"] .text-blue-800,
+.dark .text-blue-700,
+[data-theme-style="dark"] .text-blue-700,
+.dark .text-blue-600,
+[data-theme-style="dark"] .text-blue-600 {
+  color: var(--primary-light-text) !important;
+}
+
+/* In Dark Mode, primary action buttons use tuned dark mode primary */
+.dark .bg-blue-600,
+[data-theme-style="dark"] .bg-blue-600,
+.dark button.bg-blue-600,
+[data-theme-style="dark"] button.bg-blue-600,
+.dark a.bg-blue-600,
+[data-theme-style="dark"] a.bg-blue-600 {
+  background-color: var(--primary-dark-mode, var(--primary)) !important;
+  color: #ffffff !important;
+}
+
+.dark .bg-blue-600 span,
+.dark .bg-blue-600 svg,
+[data-theme-style="dark"] .bg-blue-600 span,
+[data-theme-style="dark"] .bg-blue-600 svg {
+  color: #ffffff !important;
+}
+
+/* In Dark Mode, tinted pills and badges use subtle dark badge background */
+.dark .bg-blue-50,
+[data-theme-style="dark"] .bg-blue-50,
+.dark .bg-blue-50\/30,
+[data-theme-style="dark"] .bg-blue-50\/30,
+.dark .bg-blue-50\/40,
+[data-theme-style="dark"] .bg-blue-50\/40,
+.dark .bg-blue-50\/50,
+[data-theme-style="dark"] .bg-blue-50\/50,
+.dark .bg-blue-50\/60,
+[data-theme-style="dark"] .bg-blue-50\/60,
+.dark .bg-blue-50\/70,
+[data-theme-style="dark"] .bg-blue-50\/70,
+.dark .bg-blue-50\/80,
+[data-theme-style="dark"] .bg-blue-50\/80,
+.dark .bg-blue-50\/90,
+[data-theme-style="dark"] .bg-blue-50\/90,
+.dark .bg-blue-100,
+[data-theme-style="dark"] .bg-blue-100 {
+  background-color: var(--primary-dark-badge-bg) !important;
 }
 
 .dark .border-slate-200,
@@ -246,6 +333,14 @@ a.bg-blue-600:hover {
 .dark .border-gray-300,
 [data-theme-style="dark"] .border-gray-300 {
   border-color: #1f2937 !important;
+}
+
+.dark .bg-gray-50,
+[data-theme-style="dark"] .bg-gray-50,
+.dark .bg-gray-100,
+[data-theme-style="dark"] .bg-gray-100 {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
 }
 
 .dark input:not([type="checkbox"]):not([type="radio"]),
@@ -299,19 +394,15 @@ a.bg-blue-600:hover {
 .dark .hover\:bg-slate-100:hover,
 [data-theme-style="dark"] .hover\:bg-slate-100:hover,
 .dark .hover\:bg-slate-50:hover,
-[data-theme-style="dark"] .hover\:bg-slate-50:hover {
+[data-theme-style="dark"] .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-100:hover,
+[data-theme-style="dark"] .hover\:bg-gray-100:hover {
   background-color: #1e293b !important;
 }
 
 .dark .hover\:bg-white:hover,
 [data-theme-style="dark"] .hover\:bg-white:hover {
   background-color: #161f30 !important;
-}
-
-/* Dark Mode Badges */
-.dark .bg-blue-50,
-[data-theme-style="dark"] .bg-blue-50 {
-  background-color: rgba(37, 99, 235, 0.18) !important;
 }
 
 /* ========================================================

@@ -7,7 +7,7 @@ import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
 import { BayanLogo, BayanMark, MiBLogo } from '@/components/brand';
 import { CommandPalette } from '@/components/command-palette';
-import { ThemeProvider } from '@/lib/theme';
+import { ThemeProvider, useTheme } from '@/lib/theme';
 import { ThemeCustomizerModal } from '@/components/theme-customizer-modal';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserProfileMenu } from '@/components/user-profile-menu';
@@ -235,7 +235,7 @@ function Shell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [themeModalOpen, setThemeModalOpen] = useState(false);
+  const { isCustomizerOpen, openCustomizer, closeCustomizer } = useTheme();
 
   // Group expansion state with initial defaults
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -825,8 +825,8 @@ function Shell({ children }: { children: ReactNode }) {
             {/* Quick Preset Styles & Colors Switcher */}
             <button
               type="button"
-              onClick={() => setThemeModalOpen(true)}
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-2xs"
+              onClick={openCustomizer}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer"
               title="تخصيص المظهر والألوان (Preset Styles & Colors)"
             >
               <IconPalette size={18} />
@@ -850,8 +850,8 @@ function Shell({ children }: { children: ReactNode }) {
 
         {/* Global Preset Styles & Colors Modal */}
         <ThemeCustomizerModal
-          isOpen={themeModalOpen}
-          onClose={() => setThemeModalOpen(false)}
+          isOpen={isCustomizerOpen}
+          onClose={closeCustomizer}
         />
 
         {/* Dynamic Route Content */}
