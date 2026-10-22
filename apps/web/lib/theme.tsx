@@ -196,6 +196,7 @@ function applyThemeToDocument(state: ThemeState) {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement;
+  const body = document.body;
   const colorDef = COLOR_PRESETS[state.color] || COLOR_PRESETS.royal;
   const radiusDef = RADIUS_PRESETS[state.radius] || RADIUS_PRESETS.rounded;
 
@@ -208,30 +209,42 @@ function applyThemeToDocument(state: ThemeState) {
   root.style.setProperty('--primary-badge-text', colorDef.badgeText);
   root.style.setProperty('--card-radius', radiusDef.value);
 
-  // Set HTML attributes for styling hooks
+  // Set HTML attributes for styling hooks on root and body
   root.setAttribute('data-theme-style', state.style);
   root.setAttribute('data-theme-color', state.color);
   root.setAttribute('data-theme-radius', state.radius);
 
+  if (body) {
+    body.setAttribute('data-theme-style', state.style);
+    body.setAttribute('data-theme-color', state.color);
+    body.setAttribute('data-theme-radius', state.radius);
+  }
+
   // Dark class toggle
   if (state.style === 'dark') {
     root.classList.add('dark');
+    body?.classList.add('dark');
   } else {
     root.classList.remove('dark');
+    body?.classList.remove('dark');
   }
 
   // Glass class toggle
   if (state.style === 'glass') {
     root.classList.add('theme-glass');
+    body?.classList.add('theme-glass');
   } else {
     root.classList.remove('theme-glass');
+    body?.classList.remove('theme-glass');
   }
 
   // Contrast class toggle
   if (state.style === 'contrast') {
     root.classList.add('theme-contrast');
+    body?.classList.add('theme-contrast');
   } else {
     root.classList.remove('theme-contrast');
+    body?.classList.remove('theme-contrast');
   }
 }
 
@@ -257,6 +270,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
 
   // Apply theme to DOM on mount and when theme changes
+  useEffect(() => {
+    const saved = getSavedTheme();
+    setThemeState(saved);
+    applyThemeToDocument(saved);
+  }, []);
+
   useEffect(() => {
     applyThemeToDocument(theme);
   }, [theme]);

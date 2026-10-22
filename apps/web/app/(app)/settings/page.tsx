@@ -6,12 +6,41 @@ import { can, del, get, patch, put, type CompanyFeatureItem, type CompanyFeature
 import { useAuth } from '@/lib/auth';
 import { CURRENCIES, setActiveCurrency } from '@/lib/currency';
 import { fileToDataUrl } from '@/lib/image';
+import {
+  COLOR_PRESETS,
+  RADIUS_PRESETS,
+  STYLE_PRESETS,
+  useTheme,
+  type ColorPreset,
+  type RadiusPreset,
+  type ThemeStyle,
+} from '@/lib/theme';
 import { BayanMark, MiBLogo } from '@/components/brand';
+import {
+  IconCheck,
+  IconPalette,
+  IconRefresh,
+  IconSparkles,
+} from '@/components/icons';
 import { Badge, Button, ErrorBox, Field, Notice, PageHeader, Select, TextInput } from '@/components/ui';
 
 export default function CompanySettingsPage() {
   const { user } = useAuth();
   const manage = can(user, 'company.manage');
+  const [activeTab, setActiveTab] = useState<'company' | 'theme'>('company');
+
+  // Theme Hook
+  const {
+    style: themeStyle,
+    color: themeColor,
+    radius: themeRadius,
+    colorDef,
+    styleDef,
+    setStyle,
+    setColor,
+    setRadius,
+    resetTheme,
+  } = useTheme();
 
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [nameAr, setNameAr] = useState('');
@@ -98,16 +127,46 @@ export default function CompanySettingsPage() {
 
   return (
     <div>
-      <PageHeader title="إعدادات الشركة" />
+      <PageHeader
+        title={activeTab === 'company' ? 'إعدادات الشركة' : 'تخصيص المظهر والسمات والألوان'}
+        description={
+          activeTab === 'company'
+            ? 'البيانات التجارية، الضريبة، العملة والشعار الرسمي'
+            : 'اختر نمط الواجهة وباليتة الألوان المفضلة لديك لتطبيقها فورياً على كامل النظام'
+        }
+      />
 
       {/* Tabs navigation */}
-      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4">
-        <Link
-          href="/settings"
-          className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors"
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4 select-none overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('company')}
+          className={`rounded-lg px-4 py-2 text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'company'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          }`}
         >
           إعدادات الشركة
-        </Link>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('theme')}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'theme'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          }`}
+        >
+          <IconPalette size={16} />
+          <span>المظهر والسمات والألوان</span>
+          <span
+            className="h-2.5 w-2.5 rounded-full ring-2 ring-white shadow-2xs"
+            style={{ backgroundColor: colorDef.primary }}
+          />
+        </button>
+
         <Link
           href="/settings/diagnostics"
           className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
@@ -115,6 +174,192 @@ export default function CompanySettingsPage() {
           تشخيص وسلامة النظام
         </Link>
       </div>
+
+      {activeTab === 'theme' ? (
+        /* Appearance & Theme Customizer Tab */
+        <div className="max-w-3xl space-y-6">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-semibold text-blue-900 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <IconSparkles size={18} className="text-blue-600 shrink-0" />
+              <span>
+                يتم حفظ جميع التعديلات تلقائياً في جهازك وتطبيقها فوراً عبر كافة صفحات وشاشات النظام.
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={resetTheme}
+              icon={<IconRefresh size={13} />}
+              className="text-blue-700 hover:bg-blue-100 shrink-0"
+            >
+              استعادة الافتراضي
+            </Button>
+          </div>
+
+          {/* Section 1: Preset Styles */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div className="mb-3 flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-slate-700">
+                1. أنماط الواجهة الجاهزة (Preset Styles)
+              </label>
+              <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                النمط النشط: {styleDef.name.split('(')[0].trim()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(Object.keys(STYLE_PRESETS) as ThemeStyle[]).map((key) => {
+                const item = STYLE_PRESETS[key];
+                const isActive = themeStyle === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStyle(key)}
+                    className={`flex flex-col items-start p-4 rounded-xl border-2 text-start transition-all cursor-pointer ${
+                      isActive
+                        ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/15 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex w-full items-center justify-between mb-1.5">
+                      <span className="text-sm font-bold text-slate-900">{item.name}</span>
+                      {isActive ? (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white shadow-2xs">
+                          <IconCheck size={12} />
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{item.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: Preset Colors */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div className="mb-3 flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-slate-700">
+                2. باليتات الألوان والسمات (Preset Colors)
+              </label>
+              <span
+                className="text-xs font-bold px-2.5 py-0.5 rounded-full border"
+                style={{
+                  backgroundColor: colorDef.bgLight,
+                  color: colorDef.hover,
+                  borderColor: colorDef.ring,
+                }}
+              >
+                اللون الحالي: {colorDef.name}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              {(Object.keys(COLOR_PRESETS) as ColorPreset[]).map((key) => {
+                const item = COLOR_PRESETS[key];
+                const isActive = themeColor === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setColor(key)}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-start cursor-pointer transition-all ${
+                      isActive
+                        ? 'border-slate-900 bg-slate-50 ring-2 ring-slate-900/15 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span
+                      className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full shadow-inner ring-2 ring-white"
+                      style={{ backgroundColor: item.primary }}
+                    >
+                      {isActive ? <IconCheck size={14} className="text-white drop-shadow-xs" /> : null}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-900 truncate">{item.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono" dir="ltr">{item.nameEn}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 3: Corner Radius */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <label className="block mb-3 text-xs font-black uppercase tracking-wider text-slate-700">
+              3. انحناء الحواف والإطارات (Corner Radius)
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {(Object.keys(RADIUS_PRESETS) as RadiusPreset[]).map((key) => {
+                const item = RADIUS_PRESETS[key];
+                const isActive = themeRadius === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setRadius(key)}
+                    className={`flex items-center justify-between rounded-xl px-4 py-2.5 border text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-2xs ring-2 ring-blue-500/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <span>{item.name}</span>
+                    {isActive ? <IconCheck size={14} className="text-blue-600" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 4: Live Interactive Preview */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+                <IconSparkles size={15} className="text-blue-600" />
+                <span>معاينة حية فورية لعناصر النظام (Live Preview)</span>
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                مفعّل ونشط
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-2xs border border-slate-200">
+              <Button variant="primary" size="sm" icon={<IconPalette size={14} />}>
+                زر أساسي باللون المحدد
+              </Button>
+
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full"
+                style={{
+                  backgroundColor: colorDef.bgLight,
+                  color: colorDef.badgeText,
+                  borderColor: colorDef.ring,
+                }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colorDef.primary }} />
+                <span>شارة حالة ملونة</span>
+              </span>
+
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-full shadow-xs animate-pulse"
+                  style={{ backgroundColor: colorDef.primary }}
+                />
+                <span>مؤشر حالة حي</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Company Settings Tab */
+        <>
 
       {notice ? (
         <div className="mb-3">
@@ -245,6 +490,8 @@ export default function CompanySettingsPage() {
       )}
 
       <FeaturesSection />
+      </>
+      )}
 
       {/* System Platform & Provider Card */}
       <div className="mt-6 max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">

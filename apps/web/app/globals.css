@@ -8,51 +8,364 @@
   --border: #e2e8f0;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
-  --primary-ring: #93c5fd;
+  --primary-ring: rgba(37, 99, 235, 0.25);
   --primary-light: #eff6ff;
+  --primary-badge-bg: #dbeafe;
+  --primary-badge-text: #1e40af;
   --accent: #ea580c;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
   --card-radius: 16px;
 }
 
+/* ========================================================
+   DYNAMIC PRESET COLOR PALETTES - GLOBAL UTILITY HOOKS
+   Ensures that selecting any preset color (Emerald, Amber,
+   Ruby, Indigo, Cyan, Slate, etc.) immediately reflects
+   across all buttons, icons, links, borders, rings, and badges.
+   ======================================================== */
+.bg-blue-600,
+.bg-blue-700,
+button.bg-blue-600,
+a.bg-blue-600 {
+  background-color: var(--primary) !important;
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-blue-800:hover,
+button.bg-blue-600:hover,
+a.bg-blue-600:hover {
+  background-color: var(--primary-hover) !important;
+}
+
+.active\:bg-blue-800:active {
+  background-color: var(--primary-hover) !important;
+  filter: brightness(0.92);
+}
+
+.text-blue-600,
+.text-blue-700,
+.text-blue-800,
+.text-blue-900 {
+  color: var(--primary) !important;
+}
+
+.hover\:text-blue-600:hover,
+.hover\:text-blue-700:hover {
+  color: var(--primary-hover) !important;
+}
+
+.border-blue-600,
+.border-blue-500 {
+  border-color: var(--primary) !important;
+}
+
+.border-blue-100,
+.border-blue-200 {
+  border-color: var(--primary-ring) !important;
+}
+
+.border-r-3.border-blue-600,
+[dir="rtl"] .border-r-3.border-blue-600 {
+  border-right-color: var(--primary) !important;
+}
+
+.bg-blue-50,
+.bg-blue-50\/30,
+.bg-blue-50\/40,
+.bg-blue-50\/50,
+.bg-blue-50\/60,
+.bg-blue-50\/70,
+.bg-blue-50\/80,
+.bg-blue-50\/90,
+.hover\:bg-blue-50:hover {
+  background-color: var(--primary-light) !important;
+}
+
+.bg-blue-100,
+.bg-blue-100\/80 {
+  background-color: var(--primary-badge-bg) !important;
+}
+
+.text-blue-700.bg-blue-100,
+.text-blue-700.bg-blue-50 {
+  color: var(--primary-badge-text) !important;
+}
+
+.focus\:border-blue-500:focus,
+.focus-visible\:border-blue-500:focus-visible {
+  border-color: var(--primary) !important;
+}
+
+.focus\:ring-blue-500\/15:focus,
+.focus-visible\:ring-blue-500\/30:focus-visible,
+.ring-blue-500\/10,
+.ring-blue-500\/15,
+.ring-blue-500\/20 {
+  --tw-ring-color: var(--primary-ring) !important;
+}
+
+/* Dynamic Gradient Stops */
+.from-blue-600 {
+  --tw-gradient-from: var(--primary) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-indigo-700,
+.to-blue-700 {
+  --tw-gradient-to: var(--primary-hover) var(--tw-gradient-to-position) !important;
+}
+
+/* ========================================================
+   CORNER RADIUS DYNAMIC OVERRIDES
+   ======================================================== */
+[data-theme-radius="compact"] .rounded-3xl,
+[data-theme-radius="compact"] .rounded-2xl,
+[data-theme-radius="compact"] .craft-card {
+  border-radius: 6px !important;
+}
+[data-theme-radius="compact"] .rounded-xl {
+  border-radius: 4px !important;
+}
+
+[data-theme-radius="balanced"] .rounded-3xl,
+[data-theme-radius="balanced"] .rounded-2xl,
+[data-theme-radius="balanced"] .craft-card {
+  border-radius: 12px !important;
+}
+
+[data-theme-radius="rounded"] .rounded-3xl,
+[data-theme-radius="rounded"] .rounded-2xl,
+[data-theme-radius="rounded"] .craft-card {
+  border-radius: 18px !important;
+}
+
+/* ========================================================
+   DARK MODE COMPREHENSIVE OVERRIDES
+   Transforms layout, cards, headers, sidebars, inputs, tables,
+   and typography into an authentic dark mode.
+   ======================================================== */
 .dark,
 [data-theme-style="dark"] {
-  --background: #090d16;
-  --foreground: #f1f5f9;
-  --card: #111827;
-  --card-foreground: #f8fafc;
-  --border: #1f2937;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  color-scheme: dark;
 }
 
-[data-theme-style="contrast"] {
-  --background: #ffffff;
-  --foreground: #000000;
-  --card: #ffffff;
-  --card-foreground: #000000;
-  --border: #000000;
-  --muted: #f4f4f5;
-  --muted-foreground: #27272a;
+.dark body,
+[data-theme-style="dark"] body {
+  background-color: #0b0f19 !important;
+  color: #f1f5f9 !important;
 }
 
-.theme-glass .craft-card,
-[data-theme-style="glass"] .craft-card {
-  background-color: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+.dark .min-h-screen,
+[data-theme-style="dark"] .min-h-screen {
+  background-color: #0b0f19 !important;
 }
 
-.dark.theme-glass .craft-card,
-.dark[data-theme-style="glass"] .craft-card {
-  background-color: rgba(17, 24, 39, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.dark aside,
+[data-theme-style="dark"] aside,
+.dark header,
+[data-theme-style="dark"] header {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+  color: #f1f5f9 !important;
 }
 
+.dark .bg-white,
+[data-theme-style="dark"] .bg-white,
+.dark .craft-card,
+[data-theme-style="dark"] .craft-card {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .bg-slate-50,
+[data-theme-style="dark"] .bg-slate-50,
+.dark .bg-slate-50\/40,
+[data-theme-style="dark"] .bg-slate-50\/40,
+.dark .bg-slate-50\/50,
+[data-theme-style="dark"] .bg-slate-50\/50,
+.dark .bg-slate-50\/60,
+[data-theme-style="dark"] .bg-slate-50\/60,
+.dark .bg-slate-50\/70,
+[data-theme-style="dark"] .bg-slate-50\/70,
+.dark .bg-slate-50\/80,
+[data-theme-style="dark"] .bg-slate-50\/80,
+.dark .bg-slate-50\/90,
+[data-theme-style="dark"] .bg-slate-50\/90 {
+  background-color: #161f30 !important;
+}
+
+.dark .bg-slate-100,
+[data-theme-style="dark"] .bg-slate-100 {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-900,
+[data-theme-style="dark"] .text-slate-900,
+.dark .text-slate-800,
+[data-theme-style="dark"] .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+.dark .text-slate-700,
+[data-theme-style="dark"] .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-slate-600,
+[data-theme-style="dark"] .text-slate-600,
+.dark .text-slate-500,
+[data-theme-style="dark"] .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-slate-400,
+[data-theme-style="dark"] .text-slate-400 {
+  color: #64748b !important;
+}
+
+.dark .border-slate-200,
+[data-theme-style="dark"] .border-slate-200,
+.dark .border-slate-100,
+[data-theme-style="dark"] .border-slate-100,
+.dark .border-slate-200\/80,
+[data-theme-style="dark"] .border-slate-200\/80,
+.dark .border-slate-200\/90,
+[data-theme-style="dark"] .border-slate-200\/90,
+.dark .border-slate-200\/60,
+[data-theme-style="dark"] .border-slate-200\/60,
+.dark .border-slate-200\/40,
+[data-theme-style="dark"] .border-slate-200\/40,
+.dark .border-slate-300,
+[data-theme-style="dark"] .border-slate-300,
+.dark .border-gray-200,
+[data-theme-style="dark"] .border-gray-200,
+.dark .border-gray-300,
+[data-theme-style="dark"] .border-gray-300 {
+  border-color: #1f2937 !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+[data-theme-style="dark"] input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+[data-theme-style="dark"] select,
+.dark textarea,
+[data-theme-style="dark"] textarea {
+  background-color: #161f30 !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark input::placeholder,
+[data-theme-style="dark"] input::placeholder,
+.dark textarea::placeholder,
+[data-theme-style="dark"] textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark table,
+[data-theme-style="dark"] table {
+  color: #f1f5f9 !important;
+}
+
+.dark table thead,
+[data-theme-style="dark"] table thead {
+  background-color: #161f30 !important;
+  color: #cbd5e1 !important;
+  border-color: #1f2937 !important;
+}
+
+.dark table tbody tr,
+[data-theme-style="dark"] table tbody tr {
+  border-color: #1f2937 !important;
+}
+
+.dark table tbody tr:hover,
+[data-theme-style="dark"] table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.dark table td,
+[data-theme-style="dark"] table td,
+.dark table th,
+[data-theme-style="dark"] table th {
+  border-color: #1f2937 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .hover\:bg-slate-100:hover,
+[data-theme-style="dark"] .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-50:hover,
+[data-theme-style="dark"] .hover\:bg-slate-50:hover {
+  background-color: #1e293b !important;
+}
+
+.dark .hover\:bg-white:hover,
+[data-theme-style="dark"] .hover\:bg-white:hover {
+  background-color: #161f30 !important;
+}
+
+/* Dark Mode Badges */
+.dark .bg-blue-50,
+[data-theme-style="dark"] .bg-blue-50 {
+  background-color: rgba(37, 99, 235, 0.18) !important;
+}
+
+/* ========================================================
+   GLASSMORPHISM MODE OVERRIDES
+   ======================================================== */
+[data-theme-style="glass"] body {
+  background: radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.06) 0%, transparent 40%),
+              radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 40%),
+              #f8fafc !important;
+}
+
+[data-theme-style="glass"] aside,
+[data-theme-style="glass"] header,
+[data-theme-style="glass"] .craft-card,
+[data-theme-style="glass"] .bg-white {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(14px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.06) !important;
+}
+
+/* ========================================================
+   HIGH CONTRAST MODE OVERRIDES
+   ======================================================== */
+[data-theme-style="contrast"] body {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+[data-theme-style="contrast"] aside,
+[data-theme-style="contrast"] header,
+[data-theme-style="contrast"] .craft-card,
+[data-theme-style="contrast"] .bg-white,
+[data-theme-style="contrast"] table {
+  background-color: #ffffff !important;
+  border: 2px solid #0f172a !important;
+  box-shadow: none !important;
+}
+
+[data-theme-style="contrast"] .text-slate-900,
+[data-theme-style="contrast"] .text-slate-800,
+[data-theme-style="contrast"] .text-slate-700,
+[data-theme-style="contrast"] .text-slate-600 {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme-style="contrast"] input,
+[data-theme-style="contrast"] select,
+[data-theme-style="contrast"] textarea {
+  border: 2px solid #000000 !important;
+  color: #000000 !important;
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
