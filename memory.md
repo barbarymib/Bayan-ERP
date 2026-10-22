@@ -29,6 +29,20 @@ Complete all phases 0–7 of the Bayan ERP monorepo to spec (incl. optional item
 - **Start order:** ~~A6~~ → ~~D3~~ → ~~E1~~ → ~~F1/F3~~ → ~~D4~~ → ~~E2~~ → ~~E3~~ → F2 (blocked) → ~~F4~~ → ~~E4~~ → ~~E5~~ → ~~E7~~ → ~~B5~~ → ~~D5~~ → ~~F7~~. Remaining non-blocked: **none** (F2 blocked).
 
 ## Work State
+### Completed — Live Server Audit & Security Hardening Fixes (2026-10-22)
+- **Live Audit (`bayan.mibtek.net`):** Methodical audit conducted across OWASP Top 10, multi-axis quality, database architecture, and observability. Probed live server `173.249.26.73` running Node v24.21.0 on Ubuntu 24.04:
+  - DB latency 8ms, 46/46 migrations applied, 0 pending.
+  - Rate limiting verified live (`POST /auth/login` throttles with HTTP 429 after 10 req/60s).
+  - ValidationPipe whitelist rejects unexpected fields (`HTTP 400`).
+  - CORS allowlist strictly rejects untrusted origins.
+  - Frontend middleware (`proxy.ts`) gates all protected routes with `HTTP 307` redirect.
+- **Audit Findings Remediation:**
+  - **Mask `X-Powered-By`:** Configured `poweredByHeader: false` in `apps/web/next.config.ts` and added `-X-Powered-By` in `deploy/Caddyfile`.
+  - **Web Security Headers:** Added `Strict-Transport-Security`, `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` to `apps/web/next.config.ts` `headers()` and middleware responses in `apps/web/proxy.ts`.
+  - **Restore Drill Integration:** Extended `BackupDoc` and added `BackupDrillResult` in `apps/web/lib/api.ts`. Integrated restore drill execution (`POST /backups/:id/restore-drill`), loading state, and drill status badges directly into `apps/web/app/(app)/backups/page.tsx` table rows.
+  - **Lint & Quality Gates:** Fixed `react-hooks/set-state-in-effect` and memoized navigation links in `apps/web/app/(app)/layout.tsx`. Clean pass across `pnpm --filter @bayan/web lint` (0 errors, 0 warnings), `tsc` (0 errors), and Next.js 16 production build (45 routes).
+- **Commit:** `d28d686` feat.
+
 ### Completed — P1 & P2: High-Impact Operations & Production UX Enhancements (2026-10-22)
 - **P1.1 — Universal Command Palette (`Ctrl + K` / `⌘K`):** Added `apps/web/components/command-palette.tsx` and wired into `apps/web/app/(app)/layout.tsx`. Supports global `Ctrl+K`, quick action buttons, static navigation to all 25+ modules, and live debounced async multi-resource search across Customers (`/customers`), Items (`/items`), and Statements (`/price-statements`). Full keyboard navigation (arrows, Enter, Esc).
 - **P1.2 — Interactive Visual Analytics & SVG Charts in Executive Dashboard:** Added `apps/web/components/dashboard-charts.tsx` and updated `apps/web/app/(app)/dashboard/page.tsx`. Built zero-dependency responsive SVG Area Chart for sales trends with interactive tooltips, Donut Chart for sector revenue distribution with percentage slices, Cash Flow & Liquidity balance bar (Treasury vs Receivables), and visual progress bars for top customers and top selling items.
