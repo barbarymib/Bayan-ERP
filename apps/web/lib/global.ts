@@ -1,4 +1,6 @@
-export const GLOBAL_API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+export const GLOBAL_API =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? '/api' : 'http://localhost:3000/api');
 
 const TOKEN_KEY = 'bayan-global-token';
 const COOKIE = 'bayan_global';
