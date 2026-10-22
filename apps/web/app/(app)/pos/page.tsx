@@ -173,25 +173,27 @@ export default function PosTerminalPage() {
 
   // Restore persisted cart and held tickets from localStorage on mount
   useEffect(() => {
-    try {
-      const savedCart = window.localStorage.getItem('bayan_pos_active_cart');
-      if (savedCart) {
-        const parsed = JSON.parse(savedCart);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setCart(parsed);
-          setFlashMessage('تمت استعادة السلة النشطة من الجلسة السابقة 🛒');
+    Promise.resolve().then(() => {
+      try {
+        const savedCart = window.localStorage.getItem('bayan_pos_active_cart');
+        if (savedCart) {
+          const parsed = JSON.parse(savedCart);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCart(parsed);
+            setFlashMessage('تمت استعادة السلة النشطة من الجلسة السابقة 🛒');
+          }
         }
-      }
-      const savedHeld = window.localStorage.getItem('bayan_pos_held_tickets');
-      if (savedHeld) {
-        const parsedHeld = JSON.parse(savedHeld);
-        if (Array.isArray(parsedHeld)) {
-          setHeldTickets(parsedHeld);
+        const savedHeld = window.localStorage.getItem('bayan_pos_held_tickets');
+        if (savedHeld) {
+          const parsedHeld = JSON.parse(savedHeld);
+          if (Array.isArray(parsedHeld)) {
+            setHeldTickets(parsedHeld);
+          }
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
+    });
   }, []);
 
   // Sync active cart to localStorage
