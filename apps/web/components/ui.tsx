@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   IconAlertCircle,
@@ -701,6 +702,8 @@ export function StatCard({
   icon,
   tone = 'text-slate-900',
   trend,
+  href,
+  onClick,
   className = '',
 }: {
   title: string;
@@ -709,19 +712,28 @@ export function StatCard({
   icon?: ReactNode;
   tone?: string;
   trend?: { label: string; positive?: boolean };
+  href?: string;
+  onClick?: () => void;
   className?: string;
 }) {
-  return (
-    <div className={`rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs craft-card ${className}`}>
+  const isClickable = Boolean(href || onClick);
+
+  const cardContent = (
+    <div
+      onClick={onClick}
+      className={`rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs craft-card transition-all duration-200 ${
+        isClickable ? 'cursor-pointer hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-xs group' : ''
+      } ${className}`}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</span>
         {icon ? (
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-600 border border-slate-100">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-600 border border-slate-100 group-hover:scale-105 group-hover:bg-blue-50/50 transition-all">
             {icon}
           </div>
         ) : null}
       </div>
-      <div className={`mt-2 text-2xl sm:text-3xl font-black ${tone}`}>{value}</div>
+      <div className={`mt-2 text-2xl sm:text-3xl font-black tracking-tight ${tone}`}>{value}</div>
       <div className="mt-2 flex items-center justify-between text-xs">
         {subtitle ? <span className="text-slate-400 font-normal">{subtitle}</span> : <span />}
         {trend ? (
@@ -732,10 +744,24 @@ export function StatCard({
           >
             {trend.label}
           </span>
+        ) : isClickable ? (
+          <span className="text-2xs font-semibold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+            عرض التفاصيل ↗
+          </span>
         ) : null}
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block text-inherit no-underline">
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 }
 
 // ==========================================
