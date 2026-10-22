@@ -1,4 +1,4 @@
-﻿# Bayan ERP � Gap Analysis vs. Design Spec
+# Bayan ERP � Gap Analysis vs. Design Spec
 
 > Generated from a 6-subagent parallel review of the codebase against `docs/bayan-design.md`,
 > with the security-sensitive RBAC/tenant findings re-verified directly by hand.
@@ -420,6 +420,43 @@ Fix **one at a time**; code commit + separate `docs(GAP,memory)` commit, full ga
 14. **R4-B10** remediate mixed 50-concurrent bottleneck (single-flight cache + concurrency gate) + re-benchmark — **Medium** — ✅ FIXED
 15. ~~**R4-B11** surface Hijri dates in UI (wire `formatDateHijri`) or downgrade G26 claim � **Medium**~~ ✅ FIXED (`9c92440`)
 16. **R4-C2..C6** low cleanups (image gallery, steel weight delta, print logo, dead `assertMovable`, §14 test citation) — **Low** — ✅ **C2** gallery (`2618708`) + **C3** steel weight delta (`cc3bf52`) + **C4** logo (`9c92440`) + **C5** dead code + **C6** citation (`4b74e46`) done.
+
+### Phase P6 — Production UX & Operational Enhancements (P1 & P2, 2026-10-22)
+
+1. **P1.1 — Universal Command Palette (`Ctrl + K` / `⌘K`) in Web Admin** — ✅ FIXED
+   - Created `apps/web/components/command-palette.tsx` and integrated in `apps/web/app/(app)/layout.tsx`.
+   - Global keyboard shortcuts (`Ctrl+K`, `⌘K`, Escape, Arrow Up/Down, Enter).
+   - Instant static navigation across 25+ ERP modules (POS, Dashboard, Statements, Customers, Items, Reports, etc.) and quick action triggers (`+ بيان أسعار جديد`, `+ صنف جديد`, `+ عميل جديد`).
+   - Live debounced asynchronous multi-resource search across Customers (`/customers`), Items (`/items`), and Statements (`/price-statements`).
+
+2. **P1.2 — Interactive Visual Analytics & SVG Charts in Executive Dashboard** — ✅ FIXED
+   - Created `apps/web/components/dashboard-charts.tsx` and integrated in `apps/web/app/(app)/dashboard/page.tsx`.
+   - Pure interactive SVG Area Chart for daily sales trends with hover tooltips and dynamic scaling.
+   - Interactive Donut Chart for sector/category revenue distribution with percentage slices and color-coded legends.
+   - Cash Flow & Liquidity balance bar comparing Treasury cash balance vs. Customer receivables.
+   - Visual progress bars for Top 5 revenue customers and Top 5 selling items.
+
+3. **P2.1 — High-Speed POS / Cashier Terminal Mode (`/pos`)** — ✅ FIXED
+   - Implemented `apps/web/app/(app)/pos/page.tsx` with dedicated route protection in `apps/web/proxy.ts`.
+   - Live digital clock, cashier status, and global POS hotkeys (`F2` barcode, `F4` checkout, `F8` new sale).
+   - High-speed barcode input with auto-focus, exact match, and synthetic Web Audio beep on item scan.
+   - Active ticket pane with unit selector, quantity spinners, discounts, and real-time total recalculation.
+   - Quick Egyptian Pound cash denominations (`بالضبط`, `+20`, `+50`, `+100`, `+200`) and live change due calculation.
+   - Ticket holding mechanism (`⏸️ تعليق الفاتورة`) allowing showroom multi-tasking across multiple walk-in customers.
+   - Direct submission to `POST /api/price-statements` (`paymentTerm: 'CASH'`).
+   - Built-in 80mm thermal receipt dialog with one-click printing (`window.print()`) and QR code representation.
+
+4. **P2.2 — System Diagnostics & Health Dashboard (`/settings/diagnostics`)** — ✅ FIXED
+   - Added `GET /api/company/diagnostics` endpoint in `apps/api/src/company/` with comprehensive health checking:
+     - Database connection & ping latency (ms).
+     - Schema migrations status: compares 46 on-disk migrations against applied `_prisma_migrations` rows.
+     - Object storage driver check (`s3` vs `local`), bucket and attachments availability.
+     - Automated Encrypted Backups: AES-256-GCM verification, 02:00 schedule, last restore drill result, manual drill trigger (`POST /api/backups/:id/restore-drill`).
+     - Automated Alerts Scheduler status & interval.
+     - Active mobile device registrations and sync count.
+     - Server runtime: Node version, OS platform, uptime, Heap & RSS memory consumption.
+   - Built frontend `apps/web/app/(app)/settings/diagnostics/page.tsx` with tabs integration in `/settings`.
+   - Verified 554/554 API tests passing and complete Next.js 16 build clean across all 44 routes.
 
 ### Blocked
 - **F2 / §5.15** FCM push delivery — transport implemented (`FcmPushProvider` + `NoopPushProvider`, `DeviceRegistration.pushToken`); **live delivery pending** Firebase service-account credentials (set `FCM_SERVICE_ACCOUNT`/`FCM_SERVICE_ACCOUNT_FILE` + `FCM_PROJECT_ID`).

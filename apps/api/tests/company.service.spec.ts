@@ -60,6 +60,26 @@ function makePrisma(opts: Options = {}): PrismaService {
       findUnique: async () => ({ id: 1, code: 'bayan', nameAr: 'بيان', taxPercent: 0 }),
       update: async (args: { data: Record<string, unknown> }) => ({ id: 1, code: 'bayan', nameAr: 'بيان', ...args.data }),
     },
+    $queryRawUnsafe: async () => [{ 1: 1 }],
+    automatedBackup: {
+      count: async () => 2,
+      findFirst: async () => ({
+        id: 1,
+        code: 'BCK-001',
+        filename: 'backup.sql.enc',
+        sizeBytes: 1048576n,
+        status: 'SUCCESS',
+        encrypted: true,
+        createdAt: new Date('2026-10-22T02:00:00Z'),
+        completedAt: new Date('2026-10-22T02:01:00Z'),
+        lastDrillAt: new Date('2026-10-22T02:05:00Z'),
+        lastDrillOk: true,
+        lastDrillDetail: 'Verified 42 tables',
+      }),
+    },
+    deviceRegistration: {
+      count: async (args: { where: { active?: boolean } }) => (args.where.active ? 3 : 5),
+    },
   } as unknown as PrismaService;
 }
 
@@ -152,5 +172,24 @@ describe('CompanyService.setUserFeature', () => {  it('upserts a USER override w
     await expect(
       make({ targetUser: { id: 2, companyId: 99 } }).setUserFeature(1, 2, 'reports.valuation', true, 7),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('CompanyService.getDiagnostics', () => {
+  it('returns comprehensive system diagnostics for company', async () => {
+    const out = await make().getDiagnostics(1);
+    expect(out.companyId).toBe(1);
+    expect(out.database.connected).toBe(true);
+    expect(out.storage.configured).toBe(true);
+    expect(out.backups.totalCount).toBe(2);
+    expect(out.backups.latest?.code).toBe('BCK-001');
+    expect(out.backups.latest?.lastDrillOk).toBe(true);
+    expect(out.devices.total).toBe(5);
+    expect(out.devices.active).toBe(3);
+    expect(out.runtime.nodeVersion).toBeDefined();
+  });
+
+  it('throws BadRequestException when companyId is null', async () => {
+    await expect(make().getDiagnostics(null)).rejects.toBeInstanceOf(BadRequestException);
   });
 });

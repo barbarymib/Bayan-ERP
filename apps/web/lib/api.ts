@@ -1887,3 +1887,57 @@ export interface DevicesPage {
   devices: DeviceRegistration[];
   total: number;
 }
+
+export interface SystemDiagnostics {
+  status: 'healthy' | 'degraded';
+  companyId: number;
+  database: {
+    connected: boolean;
+    latencyMs: number;
+    migrations: {
+      total: number;
+      applied: number;
+      pending: string[];
+    };
+  };
+  storage: {
+    driver: string;
+    configured: boolean;
+    bucket: string;
+    status: string;
+  };
+  backups: {
+    schedule: string;
+    encryption: string;
+    totalCount: number;
+    latest: {
+      id: number;
+      code: string;
+      filename: string;
+      sizeBytes: number;
+      status: string;
+      encrypted: boolean;
+      createdAt: string;
+      completedAt: string | null;
+      lastDrillAt: string | null;
+      lastDrillOk: boolean | null;
+      lastDrillDetail: string | null;
+    } | null;
+  };
+  alerts: {
+    status: 'running' | 'disabled';
+    intervalSeconds: number | null;
+  };
+  devices: {
+    total: number;
+    active: number;
+  };
+  runtime: {
+    nodeVersion: string;
+    platform: string;
+    uptimeSeconds: number;
+    heapUsedMb: number;
+    rssMb: number;
+    timestamp: string;
+  };
+}

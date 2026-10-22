@@ -2,17 +2,32 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { RequireAuth, useAuth } from '@/lib/auth';
 import { can } from '@/lib/api';
+import { CommandPalette } from '@/components/command-palette';
 
 type NavLink = { href: string; label: string; phase: number; perm?: string; feature?: string };
 
 function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, logout, featureEnabled } = useAuth();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const links: NavLink[] = [
+    { href: '/pos', label: 'نقطة بيع سريعة (POS)', phase: 2 },
     { href: '/statements', label: 'بيانات الأسعار', phase: 2 },
     { href: '/quotations', label: 'عروض الأسعار', phase: 2 },
     { href: '/returns', label: 'مرتجعات', phase: 2 },
@@ -45,6 +60,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: '/users', label: 'المستخدمون والأدوار', phase: 1, perm: 'user.view' },
     { href: '/devices', label: 'الأجهزة والأمان', phase: 1, perm: 'device.manage' },
     { href: '/settings', label: 'إعدادات الشركة', phase: 1, perm: 'company.manage' },
+    { href: '/settings/diagnostics', label: 'تشخيص وسلامة النظام', phase: 1, perm: 'company.manage' },
     { href: '/tools', label: 'أدوات مساعدة', phase: 1 },
   ];
 
@@ -58,6 +74,7 @@ function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      <CommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <aside className="flex w-56 shrink-0 flex-col border-l border-gray-200 bg-white">
         <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-lg font-black text-white">
@@ -68,7 +85,19 @@ function Shell({ children }: { children: ReactNode }) {
             <div className="text-xs text-gray-400">الإصدار 1.0</div>
           </div>
         </div>
-        <div className="border-b border-gray-200 px-3 py-2">
+        <div className="border-b border-gray-200 p-3 space-y-2">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors shadow-sm"
+          >
+            <span className="flex items-center gap-1.5">
+              <span>🔍</span>
+              <span>بحث سريع…</span>
+            </span>
+            <kbd className="rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-gray-400 border border-gray-200">
+              Ctrl+K
+            </kbd>
+          </button>
           <Link
             href="/dashboard"
             className={`block rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${

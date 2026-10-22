@@ -21,6 +21,7 @@ const PROTECTED = [
   '/geo',
   '/items',
   '/notifications',
+  '/pos',
   '/prices',
   '/purchase-orders',
   '/purchases',

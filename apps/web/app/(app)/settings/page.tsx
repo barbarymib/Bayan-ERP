@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { can, del, get, patch, put, type CompanyFeatureItem, type CompanyFeaturesResponse, type CompanySettings } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CURRENCIES, setActiveCurrency } from '@/lib/currency';
@@ -97,6 +98,22 @@ export default function CompanySettingsPage() {
   return (
     <div>
       <PageHeader title="إعدادات الشركة" />
+
+      {/* Tabs navigation */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4">
+        <Link
+          href="/settings"
+          className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors"
+        >
+          إعدادات الشركة
+        </Link>
+        <Link
+          href="/settings/diagnostics"
+          className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        >
+          تشخيص وسلامة النظام
+        </Link>
+      </div>
 
       {notice ? (
         <div className="mb-3">

@@ -23,6 +23,13 @@ export class CompanyController {
     return this.company.updateSettings(user.companyId ?? null, dto, user.sub, user.username ?? user.name);
   }
 
+  @Get('diagnostics')
+  @Permissions('company.manage')
+  @ApiOkResponse({ description: 'تشخيص وسلامة مكونات النظام والبيئة' })
+  getDiagnostics(@CurrentUser() user: AuthUser) {
+    return this.company.getDiagnostics(user.companyId ?? null);
+  }
+
   // ---- إدارة ميزات الشركة (G17) ----
 
   @Get('features')
