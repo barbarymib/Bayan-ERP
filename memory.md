@@ -1311,3 +1311,22 @@ oundQty from @bayan/shared. Schema: added Item.updatedAt + migration 20261019010
 - **Result: 65 -> 46 pages, scan 0 empty/0 sparse.** Verified visually: section 2 = ONE page (2.1+2.2+2.3+login figure), p8 (5.4+5.5+lenient flow, ~85% full), p9 (5.6 tight), p30 (18 + full 17-report table + figure ~90%), p40 (25.1 fig-led tight + 25.2), p35 (20 rollback), p46 last checklist.
 - **Pipeline files (temp dir, re-runnable):** `build-manual.cjs` (writes docs/bayan-user-manual.html directly), `print-manual.cjs` (load inlined HTML, strip lazy, img.decode, wrap keeps, inject `.keep{break-inside:avoid}` + `.keep.tight figure.shot img{max-height:9cm}`, print A4 1cm margins). Template: `docs/manual-src/manual.html`.
 - **Commits:** docs(manual) round 4 + this entry.
+
+## 2026-10-22 - Comprehensive Arabic User Manual Enhancement (POS, Diagnostics, SVG Analytics, Command Palette)
+
+- **Trigger:** User requested enhancing the Arabic user manual in `docs/` (`docs/USER-MANUAL.md`, `docs/manual-src/manual.html`, `docs/bayan-user-manual.html`, `docs/bayan-user-manual.pdf`).
+- **Screenshots:** Captured fresh live screenshots via Puppeteer and Edge against live server:
+  - `01-login.jpg`: Refreshed login screen with ambient blur styling.
+  - `01b-command-palette.jpg`: Global fuzzy search and navigation palette (`Ctrl + K`).
+  - `02-dashboard.jpg`: Executive dashboard with interactive SVG sales area trend chart, sector revenue distribution donut, cash flow & liquidity balance bar, and top rankings.
+  - `05-pos.jpg`: High-speed Point of Sale terminal (`/pos`) with barcode scanner focus, touch category selector, quick cash denominations (+20, +50, +100, +200), change due display, and held tickets.
+  - `39b-diagnostics.jpg`: System Diagnostics & Health (`/settings/diagnostics`) with DB latency check, 46/46 migration verification, S3 storage status, AES-256 backup drill, and alert scheduler.
+- **Manual Enhancements (`docs/USER-MANUAL.md` & `docs/manual-src/manual.html`):**
+  - **Section 2:** Added Command Palette (`Ctrl + K`), search across customers/items/statements, and responsive mobile slide-over navigation drawer.
+  - **Section 4:** Added detailed breakdown of interactive SVG charts, liquidity balance bar (cash vs receivables), and operational KPIs.
+  - **Section 7:** Added Section 7.6 / 7.8 Point of Sale Terminal (POS) with complete cashier workflow, Web Audio scan chime, quick tender calculator, split payment methods, hold/resume tickets, thermal 80mm receipt generation, and cashier shortcuts (F2, F4, F8).
+  - **Section 24:** Added Section 24.2 System Diagnostics & Health (`/settings/diagnostics`) with latency analysis, Prisma schema verification, encrypted backup restore drills, and server runtime metrics.
+  - **Section 26 & 27:** Added Scenario 11 (POS fast cashier sale) and FAQs addressing ticket holding, barcode audio feedback, and system health latency numbers.
+- **Build & Verification:**
+  - `build-manual.cjs` inlined all 52 screenshots (zero residual references) -> `docs/bayan-user-manual.html` (4.87 MB).
+  - `print-manual.cjs` rendered 49 clean, dense A4 pages with zero blank/clipped pages -> `docs/bayan-user-manual.pdf` (6.32 MB).
