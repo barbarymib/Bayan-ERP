@@ -401,7 +401,7 @@ export default function DiagnosticsPage() {
                     <div className="text-[10px] text-slate-400 font-medium">تطوير وتشغيل</div>
                     <div className="text-xs font-bold text-white">MiB Technology</div>
                   </div>
-                  <MiBLogo height={28} theme="dark" />
+                  <MiBLogo height={32} variant="horizontal" theme="dark" />
                 </div>
               </div>
             </div>

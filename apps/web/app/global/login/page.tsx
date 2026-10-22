@@ -71,7 +71,7 @@ export default function GlobalLoginPage() {
 
         <div className="mt-6 flex items-center justify-center gap-2 border-t border-slate-100 pt-4 text-center">
           <span className="text-[11px] text-slate-400 font-medium">منظومة رقمية بواسطة</span>
-          <MiBLogo height={18} theme="light" />
+          <MiBLogo height={24} variant="horizontal" theme="light" />
         </div>
       </div>
 

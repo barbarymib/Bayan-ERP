@@ -366,7 +366,7 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-700">نظام بيان ERP</span>
             <span className="text-slate-300">·</span>
-            <MiBLogo height={15} theme="light" />
+            <MiBLogo height={22} variant="horizontal" theme="light" />
           </div>
         </div>
       </div>

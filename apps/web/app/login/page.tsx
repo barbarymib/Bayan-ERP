@@ -41,9 +41,9 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
 
       {/* Top Corporate Endorsement */}
-      <div className="relative mb-6 flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 backdrop-blur-md">
-        <span className="text-xs font-medium text-slate-300">منظومة رقمية بواسطة</span>
-        <MiBLogo height={18} theme="dark" />
+      <div className="relative mb-6 flex items-center gap-2.5 rounded-full border border-white/15 bg-white/10 px-5 py-2 backdrop-blur-md shadow-lg">
+        <span className="text-xs font-semibold text-slate-200">منظومة رقمية بواسطة</span>
+        <MiBLogo height={28} variant="horizontal" theme="dark" />
       </div>
 
       <div className="relative w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl border border-white/20 animate-entrance">
@@ -89,10 +89,10 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-6 flex flex-col items-center justify-center gap-2 border-t border-slate-100 pt-4 text-center">
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <div className="mt-6 flex flex-col items-center justify-center gap-2.5 border-t border-slate-100 pt-5 text-center">
+          <div className="flex items-center gap-2.5 text-xs text-slate-600 font-medium">
             <span>تطوير وتشغيل</span>
-            <MiBLogo height={20} theme="light" />
+            <MiBLogo height={26} variant="horizontal" theme="light" />
           </div>
           <a
             href="/global/login"

@@ -258,7 +258,7 @@ export default function CompanySettingsPage() {
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 border border-slate-100 self-start sm:self-auto">
             <span className="text-[10px] text-slate-400 font-semibold">بواسطة</span>
-            <MiBLogo height={16} theme="light" />
+            <MiBLogo height={24} variant="horizontal" theme="light" />
           </div>
         </div>
       </div>

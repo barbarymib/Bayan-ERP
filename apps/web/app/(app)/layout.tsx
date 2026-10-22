@@ -249,10 +249,10 @@ function Shell({ children }: { children: ReactNode }) {
       </div>
 
       {/* MiB Technology Corporate Signature */}
-      <div className="px-3 pt-2 pb-2 border-t border-slate-200/60 bg-white">
-        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 border border-slate-100">
-          <span className="text-[10px] font-bold text-slate-400">تقنية وتطوير</span>
-          <MiBLogo height={16} theme="light" />
+      <div className="px-3 pt-2.5 pb-2.5 border-t border-slate-200/60 bg-white">
+        <div className="flex items-center justify-between rounded-xl bg-slate-50/80 px-3 py-2 border border-slate-100 hover:border-slate-200 transition-colors">
+          <span className="text-[11px] font-bold text-slate-400">تطوير وتشغيل</span>
+          <MiBLogo height={26} variant="horizontal" theme="light" />
         </div>
       </div>
     </div>
@@ -348,7 +348,7 @@ function Shell({ children }: { children: ReactNode }) {
               </span>
               <div className="h-4 w-px bg-slate-200" />
               <div title="تقنية وتطوير MiB Technology" className="flex items-center">
-                <MiBLogo height={17} theme="light" />
+                <MiBLogo height={24} variant="horizontal" theme="light" />
               </div>
             </div>
           </div>

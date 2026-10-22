@@ -448,7 +448,7 @@ export default function PosTerminalPage() {
           </div>
           <span className="text-slate-700">|</span>
           <div className="hidden sm:flex items-center" title="تقنية وتطوير MiB Technology">
-            <MiBLogo height={16} theme="dark" />
+            <MiBLogo height={24} variant="horizontal" theme="dark" />
           </div>
           <span className="hidden sm:inline text-slate-700">|</span>
           <div className="flex items-center gap-2 text-xs text-slate-300">

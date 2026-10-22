@@ -136,30 +136,44 @@ export function BayanLogo({
 
 /**
  * MiBLogo — The Official MiB Technology Company Logo
- * Handles light and dark surfaces cleanly with responsive high-resolution assets
+ * Provides horizontal lockup, stacked badge, and monogram mark with crisp high-DPI assets
  */
 export function MiBLogo({
-  height = 24,
+  height = 28,
+  variant = 'horizontal',
   theme = 'light',
   className = '',
 }: {
   height?: number;
+  variant?: 'horizontal' | 'stacked' | 'emblem';
   theme?: 'light' | 'dark' | 'auto';
   className?: string;
 }) {
-  const src = theme === 'dark' ? '/brand/mib-logo-white.png' : '/brand/mib-logo.png';
-  // Aspect ratio is 1:1 for the full graphic
+  const isDark = theme === 'dark';
+  let src = isDark ? '/brand/mib-horizontal-white.png' : '/brand/mib-horizontal.png';
+  let ratio = 1036 / 240; // 4.32
+
+  if (variant === 'stacked') {
+    src = isDark ? '/brand/mib-logo-white.png' : '/brand/mib-logo.png';
+    ratio = 763 / 552; // 1.38
+  } else if (variant === 'emblem') {
+    src = isDark ? '/brand/mib-emblem-white.png' : '/brand/mib-emblem.png';
+    ratio = 624 / 432; // 1.44
+  }
+
+  const width = Math.round(height * ratio);
+
   return (
     <div
       className={`inline-flex items-center shrink-0 ${className}`}
       style={{ height }}
-      title="MiB Technology"
+      title="MiB Technology — https://mibtek.net"
     >
       <Image
         src={src}
         alt="MiB Technology"
-        width={height * 1.2}
-        height={height * 1.2}
+        width={width}
+        height={height}
         className="h-full w-auto object-contain select-none"
         priority
       />
@@ -181,13 +195,13 @@ export function BrandBadge({
   if (variant === 'pill') {
     return (
       <div
-        className={`inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 shadow-2xs backdrop-blur-sm ${className}`}
+        className={`inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3.5 py-1.5 shadow-2xs backdrop-blur-sm ${className}`}
       >
         <span className="text-[11px] font-bold text-slate-700">نظام بيان ERP</span>
         <span className="h-3 w-px bg-slate-200" />
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-slate-400 font-medium">بواسطة</span>
-          <MiBLogo height={16} theme="light" />
+          <MiBLogo height={22} variant="horizontal" theme="light" />
         </div>
       </div>
     );
@@ -195,21 +209,21 @@ export function BrandBadge({
 
   return (
     <div
-      className={`rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-2.5 transition-all hover:border-slate-300 ${className}`}
+      className={`rounded-xl border border-slate-200/70 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-3 transition-all hover:border-slate-300 shadow-2xs ${className}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <BayanMark size={28} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <BayanMark size={32} />
           <div className="min-w-0">
-            <div className="text-[11px] font-black text-slate-900 tracking-tight flex items-center gap-1">
+            <div className="text-[12px] font-black text-slate-900 tracking-tight flex items-center gap-1">
               <span>نظام بيان</span>
-              <span className="text-[9px] text-blue-600 font-bold">ERP</span>
+              <span className="text-[10px] text-blue-600 font-bold">ERP</span>
             </div>
-            <div className="text-[9px] text-slate-400 truncate">v1.0 الإنتاجية</div>
+            <div className="text-[10px] text-slate-400 truncate">v1.0 الإنتاجية الموحدة</div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 pl-1 shrink-0" title="تقنية MiB Technology">
-          <MiBLogo height={20} theme="light" />
+        <div className="flex items-center pl-1 shrink-0" title="تقنية MiB Technology">
+          <MiBLogo height={26} variant="horizontal" theme="light" />
         </div>
       </div>
     </div>
@@ -221,9 +235,13 @@ export function BrandBadge({
  */
 export function PoweredByMiB({
   theme = 'light',
+  variant = 'horizontal',
+  height = 24,
   className = '',
 }: {
   theme?: 'light' | 'dark';
+  variant?: 'horizontal' | 'stacked' | 'emblem';
+  height?: number;
   className?: string;
 }) {
   const isDark = theme === 'dark';
@@ -232,7 +250,7 @@ export function PoweredByMiB({
       <span className={`text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
         تطوير وتشغيل
       </span>
-      <MiBLogo height={20} theme={theme} />
+      <MiBLogo height={height} variant={variant} theme={theme} />
     </div>
   );
 }

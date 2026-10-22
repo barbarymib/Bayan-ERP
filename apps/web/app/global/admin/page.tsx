@@ -375,7 +375,7 @@ export default function GlobalAdminPage() {
         <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-start">
           <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5 border border-slate-200">
             <span className="text-[11px] text-slate-400 font-medium">بواسطة</span>
-            <MiBLogo height={18} theme="light" />
+            <MiBLogo height={24} variant="horizontal" theme="light" />
           </div>
           <button
             onClick={() => {
