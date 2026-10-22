@@ -41,7 +41,7 @@ export default function ToolsPage() {
             tab === 'steel' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          حاسبة أوزان الحديد
+          حاسبة أوزان الحدايد والمعادن
         </button>
       </div>
 

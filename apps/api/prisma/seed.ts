@@ -58,7 +58,7 @@ const PRICE_LISTS = [
 ];
 
 const CATEGORIES = [
-  { code: 'STEEL', nameAr: 'حديد' },
+  { code: 'STEEL', nameAr: 'حدايد' },
   { code: 'PAINT', nameAr: 'بويات' },
   { code: 'TOOLS', nameAr: 'أدوات' },
   { code: 'ACC', nameAr: 'إكسسوارات' },

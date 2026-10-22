@@ -565,7 +565,7 @@ function CreateStatementModal({
                   {item?.category?.code === 'STEEL' ? (
                     <div className="mt-2 grid grid-cols-2 gap-3">
                       <Field
-                        label="الوزن الفعلي كجم (الحديد §5.2)"
+                        label="الوزن الفعلي كجم (الحدايد §5.2)"
                         hint={(() => {
                           const factor =
                             !l.unitCode || l.unitCode === item.baseUnit.code
@@ -587,7 +587,7 @@ function CreateStatementModal({
                           placeholder="وزن الشاحنة بالكيلوجرام"
                         />
                       </Field>
-                      <Field label="ملاحظة الوزن الفعلي (الحديد §5.2)">
+                      <Field label="ملاحظة الوزن الفعلي (الحدايد §5.2)">
                         <TextInput
                           value={l.weightNote}
                           onChange={(e) => updateLine(i, { weightNote: e.target.value })}

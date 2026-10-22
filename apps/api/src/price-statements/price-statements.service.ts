@@ -723,13 +723,13 @@ export class PriceStatementsService {
       // ملاحظة الوزن الفعلي (§5.2) — متاحة لأصناف الحديد فقط للتفريق بين النظري والفعلي.
       const weightNote = line.weightNote?.trim() || undefined;
       if (weightNote && item.category?.code !== 'STEEL') {
-        throw new BadRequestException(`ملاحظة الوزن الفعلي متاحة لأصناف الحديد فقط (§5.2) — ${item.code}`);
+        throw new BadRequestException(`ملاحظة الوزن الفعلي متاحة لأصناف الحدايد فقط (§5.2) — ${item.code}`);
       }
       // الوزن الفعلي المقاس (وزن الشاحنة) — حديدي فقط؛ يُقارَن بالنظري (qtyBase) لإظهار الفرق (§5.2؛ R4-C3).
       const actualWeight = line.actualWeight != null ? Number(line.actualWeight) : undefined;
       if (actualWeight != null) {
         if (item.category?.code !== 'STEEL') {
-          throw new BadRequestException(`الوزن الفعلي متاح لأصناف الحديد فقط (§5.2) — ${item.code}`);
+          throw new BadRequestException(`الوزن الفعلي متاح لأصناف الحدايد فقط (§5.2) — ${item.code}`);
         }
         if (!Number.isFinite(actualWeight) || actualWeight < 0) {
           throw new BadRequestException(`الوزن الفعلي يجب أن يكون رقماً غير سالب (§5.2) — ${item.code}`);
